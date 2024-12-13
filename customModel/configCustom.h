@@ -81,7 +81,7 @@
  * 
  * If set to 1, precomputes the item memory for faster encoding.
  */
-#define PRECOMPUTED_ITEM_MEMORY 1
+#define PRECOMPUTED_ITEM_MEMORY 0
 /** 
  * @brief Sets the output verbosity level.
  * 
