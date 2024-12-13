@@ -1,0 +1,64 @@
+\hypertarget{preprocessor_8c}{}\doxysection{hdc\+\_\+infrastructure/preprocessor.c File Reference}
+\label{preprocessor_8c}\index{hdc\_infrastructure/preprocessor.c@{hdc\_infrastructure/preprocessor.c}}
+
+
+Contains functions for preprocessing data before hyperdimensional encoding.  
+
+
+{\ttfamily \#include \char`\"{}preprocessor.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+Include dependency graph for preprocessor.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{preprocessor_8c_a050a8630ab76923a8165668350deb476}{down\+\_\+sample}} (double $\ast$$\ast$data, int $\ast$labels, size\+\_\+t original\+\_\+size, double $\ast$$\ast$$\ast$downsampled\+\_\+data, int $\ast$$\ast$downsampled\+\_\+labels, size\+\_\+t $\ast$new\+Size)
+\begin{DoxyCompactList}\small\item\em Downsamples the input data by a specified factor. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Contains functions for preprocessing data before hyperdimensional encoding. 
+
+This file includes utilities to preprocess input datasets, such as\+:
+\begin{DoxyItemize}
+\item Downsampling data to reduce its size while preserving structure.
+\end{DoxyItemize}
+
+The preprocessing steps are crucial for optimizing computational efficiency and ensuring compatibility with the hyperdimensional computing pipeline. Downsampling reduces the data size while maintaining temporal resolution, based on the {\ttfamily DOWNSAMPLE} factor. 
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{preprocessor_8c_a050a8630ab76923a8165668350deb476}\label{preprocessor_8c_a050a8630ab76923a8165668350deb476}} 
+\index{preprocessor.c@{preprocessor.c}!down\_sample@{down\_sample}}
+\index{down\_sample@{down\_sample}!preprocessor.c@{preprocessor.c}}
+\doxysubsubsection{\texorpdfstring{down\_sample()}{down\_sample()}}
+{\footnotesize\ttfamily void down\+\_\+sample (\begin{DoxyParamCaption}\item[{double $\ast$$\ast$}]{data,  }\item[{int $\ast$}]{labels,  }\item[{size\+\_\+t}]{original\+\_\+size,  }\item[{double $\ast$$\ast$$\ast$}]{downsampled\+\_\+data,  }\item[{int $\ast$$\ast$}]{downsampled\+\_\+labels,  }\item[{size\+\_\+t $\ast$}]{new\+Size }\end{DoxyParamCaption})}
+
+
+
+Downsamples the input data by a specified factor. 
+
+This function reduces the size of the input dataset by selecting every {\ttfamily DOWNSAMPLE}-\/th sample. It adjusts both the data and their corresponding labels accordingly.
+
+
+\begin{DoxyParams}{Parameters}
+{\em data} & The original 2D array of input data with dimensions {\ttfamily \mbox{[}original\+\_\+size\mbox{]}\mbox{[}NUM\+\_\+\+FEATURES\mbox{]}}. \\
+\hline
+{\em labels} & The array of labels corresponding to the input data, with {\ttfamily original\+\_\+size} elements. \\
+\hline
+{\em original\+\_\+size} & The total number of samples in the input data. \\
+\hline
+{\em downsampled\+\_\+data} & Pointer to the output 2D array for the downsampled data. \\
+\hline
+{\em downsampled\+\_\+labels} & Pointer to the output array for the downsampled labels. \\
+\hline
+{\em new\+Size} & Pointer to a variable to store the new size of the downsampled data.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The output arrays ({\ttfamily downsampled\+\_\+data} and {\ttfamily downsampled\+\_\+labels}) are dynamically allocated and must be freed by the caller.
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+If memory allocation fails at any point, the program will terminate with an error message. 
+\end{DoxyWarning}

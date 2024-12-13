@@ -1,0 +1,298 @@
+\hypertarget{item__mem_8c}{}\doxysection{hdc\+\_\+infrastructure/item\+\_\+mem.c File Reference}
+\label{item__mem_8c}\index{hdc\_infrastructure/item\_mem.c@{hdc\_infrastructure/item\_mem.c}}
+
+
+Implements functions for generating and managing item memory used in hyperdimensional computing.  
+
+
+{\ttfamily \#include \char`\"{}item\+\_\+mem.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}vector.\+h\char`\"{}}\newline
+Include dependency graph for item\+\_\+mem.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{item__mem_8c_afc1311a62f2808cf4f901ebca9fd3122}{init\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, int num\+\_\+items)
+\begin{DoxyCompactList}\small\item\em Initializes item memory for discrete items, eg. features. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_aee2bbb5d3c20cb33fcc5c7322e3efa6e}{generate\+\_\+orthogonal\+\_\+vectors}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vector1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vector2, int dimension)
+\begin{DoxyCompactList}\small\item\em Generates two orthogonal vectors. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_af2bb235c0482b9409dd8148e323ff580}{interpolate\+\_\+vectors}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vec1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vec2, \mbox{\hyperlink{structVector}{Vector}} $\ast$result, int dimension, double ratio)
+\begin{DoxyCompactList}\small\item\em Interpolates between two vectors. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_ab905ad3a1ce2b338d40bff3ac352590f}{init\+\_\+continuous\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, int num\+\_\+levels)
+\begin{DoxyCompactList}\small\item\em Initializes item memory for continuous signal levels. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{item__mem_8c_aabdd1ebaebecabf47395aa5384ed1fbe}\label{item__mem_8c_aabdd1ebaebecabf47395aa5384ed1fbe}} 
+void {\bfseries generate\+\_\+random\+\_\+hv} (vector\+\_\+element $\ast$data, int dimension)
+\item 
+void \mbox{\hyperlink{item__mem_8c_a0c21d5b15d644298ee2874fd2b454770}{init\+\_\+binary\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, int num\+\_\+levels, int num\+\_\+features)
+\begin{DoxyCompactList}\small\item\em Initializes binary item memory for precomputed feature-\/level representations. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_aa2573cada51606990e92d9dc746edab6}{free\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem)
+\begin{DoxyCompactList}\small\item\em Frees the memory allocated for item memory. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{structVector}{Vector}} $\ast$ \mbox{\hyperlink{item__mem_8c_ae541bcfd91d4b24a4e3f86c18f92de60}{get\+\_\+item\+\_\+vector}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, int item\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Retrieves the vector for a specific item. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_affe971f9afde92a50a6b5f9d086f3f10}{print\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem)
+\begin{DoxyCompactList}\small\item\em Prints the contents of the item memory. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_a6447c0d2d1ed825764f19c737407d30b}{store\+\_\+item\+\_\+mem\+\_\+to\+\_\+bin}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, const char $\ast$filepath)
+\begin{DoxyCompactList}\small\item\em Stores item memory vectors to a binary file. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{item__mem_8c_ac79eef6e314ed7f1858c51dc99990cb2}{load\+\_\+item\+\_\+mem\+\_\+from\+\_\+bin}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, const char $\ast$filepath, int num\+\_\+items)
+\begin{DoxyCompactList}\small\item\em Loads item memory vectors from a binary file. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implements functions for generating and managing item memory used in hyperdimensional computing. 
+
+This file provides functionality to initialize, manage, and manipulate item memory vectors. Item memory is a key component in HDC and stores base vectors for encoding input data. The implementation supports both bipolar and binary data representations.
+
+Functions in this file include initialization of item memory for discrete and continuous items, vector interpolation, storing/loading item memory to/from files, and generating orthogonal vectors.
+
+\begin{DoxyAuthor}{Author}
+Marian Horn 
+\end{DoxyAuthor}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{item__mem_8c_aa2573cada51606990e92d9dc746edab6}\label{item__mem_8c_aa2573cada51606990e92d9dc746edab6}} 
+\index{item\_mem.c@{item\_mem.c}!free\_item\_memory@{free\_item\_memory}}
+\index{free\_item\_memory@{free\_item\_memory}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{free\_item\_memory()}{free\_item\_memory()}}
+{\footnotesize\ttfamily void free\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem }\end{DoxyParamCaption})}
+
+
+
+Frees the memory allocated for item memory. 
+
+This function releases all vectors stored in the item memory structure, as well as the structure itself.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure to be freed. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{item__mem_8c_aee2bbb5d3c20cb33fcc5c7322e3efa6e}\label{item__mem_8c_aee2bbb5d3c20cb33fcc5c7322e3efa6e}} 
+\index{item\_mem.c@{item\_mem.c}!generate\_orthogonal\_vectors@{generate\_orthogonal\_vectors}}
+\index{generate\_orthogonal\_vectors@{generate\_orthogonal\_vectors}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{generate\_orthogonal\_vectors()}{generate\_orthogonal\_vectors()}}
+{\footnotesize\ttfamily void generate\+\_\+orthogonal\+\_\+vectors (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector2,  }\item[{int}]{dimension }\end{DoxyParamCaption})}
+
+
+
+Generates two orthogonal vectors. 
+
+This function creates two vectors that are orthogonal to each other, which can be used for continuous item memory or other operations.
+
+
+\begin{DoxyParams}{Parameters}
+{\em vector1} & A pointer to the first vector to be generated. \\
+\hline
+{\em vector2} & A pointer to the second vector to be generated. \\
+\hline
+{\em dimension} & The dimensionality of the vectors. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{item__mem_8c_ae541bcfd91d4b24a4e3f86c18f92de60}\label{item__mem_8c_ae541bcfd91d4b24a4e3f86c18f92de60}} 
+\index{item\_mem.c@{item\_mem.c}!get\_item\_vector@{get\_item\_vector}}
+\index{get\_item\_vector@{get\_item\_vector}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{get\_item\_vector()}{get\_item\_vector()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{structVector}{Vector}}$\ast$ get\+\_\+item\+\_\+vector (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{int}]{item\+\_\+id }\end{DoxyParamCaption})}
+
+
+
+Retrieves the vector for a specific item. 
+
+This function fetches the base vector corresponding to a given item ID from the item memory.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure. \\
+\hline
+{\em item\+\_\+id} & The ID of the item whose vector is to be retrieved. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+A pointer to the vector corresponding to the item ID, or NULL if the ID is invalid. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{item__mem_8c_a0c21d5b15d644298ee2874fd2b454770}\label{item__mem_8c_a0c21d5b15d644298ee2874fd2b454770}} 
+\index{item\_mem.c@{item\_mem.c}!init\_binary\_item\_memory@{init\_binary\_item\_memory}}
+\index{init\_binary\_item\_memory@{init\_binary\_item\_memory}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{init\_binary\_item\_memory()}{init\_binary\_item\_memory()}}
+{\footnotesize\ttfamily void init\+\_\+binary\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{int}]{num\+\_\+levels,  }\item[{int}]{num\+\_\+features }\end{DoxyParamCaption})}
+
+
+
+Initializes binary item memory for precomputed feature-\/level representations. 
+
+This function generates a precomputed item memory for binary data, where each feature and level combination is assigned a unique vector.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure to be initialized. \\
+\hline
+{\em num\+\_\+levels} & The number of signal levels. \\
+\hline
+{\em num\+\_\+features} & The number of features to encode. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Can be activate by PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY in config.\+h 
+\end{DoxyNote}
+\mbox{\Hypertarget{item__mem_8c_ab905ad3a1ce2b338d40bff3ac352590f}\label{item__mem_8c_ab905ad3a1ce2b338d40bff3ac352590f}} 
+\index{item\_mem.c@{item\_mem.c}!init\_continuous\_item\_memory@{init\_continuous\_item\_memory}}
+\index{init\_continuous\_item\_memory@{init\_continuous\_item\_memory}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{init\_continuous\_item\_memory()}{init\_continuous\_item\_memory()}}
+{\footnotesize\ttfamily void init\+\_\+continuous\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{int}]{num\+\_\+levels }\end{DoxyParamCaption})}
+
+
+
+Initializes item memory for continuous signal levels. 
+
+This function generates a set of vectors representing continuous signal levels. It creates orthogonal vectors for the minimum and maximum levels and interpolates between them to generate intermediate levels.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure to be initialized. \\
+\hline
+{\em num\+\_\+levels} & The number of continuous signal levels. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{item__mem_8c_afc1311a62f2808cf4f901ebca9fd3122}\label{item__mem_8c_afc1311a62f2808cf4f901ebca9fd3122}} 
+\index{item\_mem.c@{item\_mem.c}!init\_item\_memory@{init\_item\_memory}}
+\index{init\_item\_memory@{init\_item\_memory}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{init\_item\_memory()}{init\_item\_memory()}}
+{\footnotesize\ttfamily void init\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{int}]{num\+\_\+items }\end{DoxyParamCaption})}
+
+
+
+Initializes item memory for discrete items, eg. features. 
+
+This function generates a set of random base vectors, either bipolar (-\/1, 1) or binary (0, 1), for encoding discrete items. The vectors are stored in the {\ttfamily \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}}} structure.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure to be initialized. \\
+\hline
+{\em num\+\_\+items} & The number of discrete items to encode. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{item__mem_8c_af2bb235c0482b9409dd8148e323ff580}\label{item__mem_8c_af2bb235c0482b9409dd8148e323ff580}} 
+\index{item\_mem.c@{item\_mem.c}!interpolate\_vectors@{interpolate\_vectors}}
+\index{interpolate\_vectors@{interpolate\_vectors}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{interpolate\_vectors()}{interpolate\_vectors()}}
+{\footnotesize\ttfamily void interpolate\+\_\+vectors (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec2,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result,  }\item[{int}]{dimension,  }\item[{double}]{ratio }\end{DoxyParamCaption})}
+
+
+
+Interpolates between two vectors. 
+
+This function creates a new vector by interpolating between two input vectors based on a specified ratio. The resulting vector contains elements randomly selected from the two input vectors according to the ratio.
+
+
+\begin{DoxyParams}{Parameters}
+{\em vec1} & A pointer to the first vector. \\
+\hline
+{\em vec2} & A pointer to the second vector. \\
+\hline
+{\em result} & A pointer to the resulting interpolated vector. \\
+\hline
+{\em dimension} & The dimensionality of the vectors. \\
+\hline
+{\em ratio} & The ratio for interpolation (0.\+0 corresponds to {\ttfamily vec1}, 1.\+0 corresponds to {\ttfamily vec2}).\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+This is used to generate equidistant hypervectors for continuous item memory 
+\end{DoxyNote}
+\mbox{\Hypertarget{item__mem_8c_ac79eef6e314ed7f1858c51dc99990cb2}\label{item__mem_8c_ac79eef6e314ed7f1858c51dc99990cb2}} 
+\index{item\_mem.c@{item\_mem.c}!load\_item\_mem\_from\_bin@{load\_item\_mem\_from\_bin}}
+\index{load\_item\_mem\_from\_bin@{load\_item\_mem\_from\_bin}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{load\_item\_mem\_from\_bin()}{load\_item\_mem\_from\_bin()}}
+{\footnotesize\ttfamily void load\+\_\+item\+\_\+mem\+\_\+from\+\_\+bin (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{const char $\ast$}]{filepath,  }\item[{int}]{num\+\_\+items }\end{DoxyParamCaption})}
+
+
+
+Loads item memory vectors from a binary file. 
+
+This function reads vectors from a binary file and initializes the item memory structure.
+
+The binary file must have the following layout\+:
+\begin{DoxyItemize}
+\item Each vector is stored sequentially.
+\item Each vector consists of {\ttfamily VECTOR\+\_\+\+DIMENSION} elements.
+\item The data type of each element must match the expected type\+:
+\begin{DoxyItemize}
+\item {\ttfamily int} for bipolar mode (values\+: -\/1 or 1).
+\item {\ttfamily bool} for binary mode (values\+: 0 or 1).
+\end{DoxyItemize}
+\end{DoxyItemize}
+
+When reading the file, the function\+:
+\begin{DoxyItemize}
+\item Initializes the item memory structure with {\ttfamily num\+\_\+items} vectors.
+\item Reads {\ttfamily num\+\_\+items $\ast$ VECTOR\+\_\+\+DIMENSION} elements from the binary file and assigns them to the vectors.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure to be loaded. \\
+\hline
+{\em filepath} & The path to the binary file containing the item memory vectors. \\
+\hline
+{\em num\+\_\+items} & The number of vectors to load into the item memory.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Ensure that the binary file corresponds to the correct {\ttfamily VECTOR\+\_\+\+DIMENSION} and {\ttfamily num\+\_\+items}. 
+\end{DoxyNote}
+\mbox{\Hypertarget{item__mem_8c_affe971f9afde92a50a6b5f9d086f3f10}\label{item__mem_8c_affe971f9afde92a50a6b5f9d086f3f10}} 
+\index{item\_mem.c@{item\_mem.c}!print\_item\_memory@{print\_item\_memory}}
+\index{print\_item\_memory@{print\_item\_memory}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{print\_item\_memory()}{print\_item\_memory()}}
+{\footnotesize\ttfamily void print\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem }\end{DoxyParamCaption})}
+
+
+
+Prints the contents of the item memory. 
+
+This function outputs the details of the item memory, including the number of vectors and their values, for debugging purposes.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{item__mem_8c_a6447c0d2d1ed825764f19c737407d30b}\label{item__mem_8c_a6447c0d2d1ed825764f19c737407d30b}} 
+\index{item\_mem.c@{item\_mem.c}!store\_item\_mem\_to\_bin@{store\_item\_mem\_to\_bin}}
+\index{store\_item\_mem\_to\_bin@{store\_item\_mem\_to\_bin}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{store\_item\_mem\_to\_bin()}{store\_item\_mem\_to\_bin()}}
+{\footnotesize\ttfamily void store\+\_\+item\+\_\+mem\+\_\+to\+\_\+bin (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{const char $\ast$}]{filepath }\end{DoxyParamCaption})}
+
+
+
+Stores item memory vectors to a binary file. 
+
+This function writes the data of all vectors stored in the item memory to a binary file.
+
+The layout in the binary file is as follows\+:
+\begin{DoxyItemize}
+\item Each vector is stored sequentially.
+\item Each vector consists of {\ttfamily VECTOR\+\_\+\+DIMENSION} elements.
+\item The data type of each element is {\ttfamily vector\+\_\+element}, which is defined as\+:
+\begin{DoxyItemize}
+\item {\ttfamily int} for bipolar mode (values\+: -\/1 or 1).
+\item {\ttfamily bool} for binary mode (values\+: 0 or 1).
+\end{DoxyItemize}
+\end{DoxyItemize}
+
+The binary file will contain {\ttfamily num\+\_\+vectors $\ast$ VECTOR\+\_\+\+DIMENSION} elements, written as a contiguous array.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure. \\
+\hline
+{\em filepath} & The path to the binary file where the vectors should be stored.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Ensure that the correct {\ttfamily VECTOR\+\_\+\+DIMENSION} is used when reading this file. 
+\end{DoxyNote}

@@ -1,0 +1,245 @@
+\hypertarget{operations_8c}{}\doxysection{hdc\+\_\+infrastructure/operations.c File Reference}
+\label{operations_8c}\index{hdc\_infrastructure/operations.c@{hdc\_infrastructure/operations.c}}
+
+
+Implements vector operations for hyperdimensional computing.  
+
+
+{\ttfamily \#include \char`\"{}operations.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdbool.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$math.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}vector.\+h\char`\"{}}\newline
+Include dependency graph for operations.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{operations_8c_a032d3e0330925fd04daae68e903545db}{bind}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vector1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vector2, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Combines two hypervectors element-\/wise. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{operations_8c_aa1dcff796e7341eddaf07ad5c581371a}{bundle}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vector1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vector2, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Aggregates two hypervectors. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{operations_8c_a0c06be3cabd660d8e1a858e3cca3d29a}{bundle\+\_\+multi}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$$\ast$vectors, int num\+\_\+vectors, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Aggregates multiple hypervectors. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{operations_8c_ac5d0fda7e04ee88402878ad9299599f0}{permute}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vector, int offset, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Performs cyclic permutation (shift) on a vector. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{operations_8c_a376010a959437123761eb44bca50e2b8}{cosine\+\_\+similarity}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vec1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vec2)
+\begin{DoxyCompactList}\small\item\em Computes the cosine similarity between two bipolar vectors. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{operations_8c_af2c7fcc054da0d45d4fcbf6fd6d1c5ef}{hamming\+\_\+distance}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vec1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vec2)
+\begin{DoxyCompactList}\small\item\em Computes the Hamming distance between two binary vectors. \end{DoxyCompactList}\item 
+double \mbox{\hyperlink{operations_8c_abff5e9fa3f552aaeb62148c2b4195b7d}{similarity\+\_\+check}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vec1, \mbox{\hyperlink{structVector}{Vector}} $\ast$vec2)
+\begin{DoxyCompactList}\small\item\em Computes the similarity between two vectors based on the vector mode. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implements vector operations for hyperdimensional computing. 
+
+This file contains functions for common operations on hypervectors, including\+:
+\begin{DoxyItemize}
+\item {\bfseries{Binding\+:}} Combines two vectors element-\/wise, either via multiplication (bipolar) or XOR (binary).
+\item {\bfseries{Bundling\+:}} Aggregates multiple vectors, using summation (bipolar) or majority voting (binary).
+\item {\bfseries{Permutation\+:}} Performs cyclic shifts on vectors for encoding temporal information.
+\item {\bfseries{Similarity\+:}} Computes similarity metrics, such as cosine similarity (bipolar) or Hamming distance (binary).
+\end{DoxyItemize}
+
+The operations are optimized for both bipolar and binary vector modes, allowing flexibility in hyperdimensional computing applications. These functions form the core of data encoding, aggregation, and classification pipelines. 
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{operations_8c_a032d3e0330925fd04daae68e903545db}\label{operations_8c_a032d3e0330925fd04daae68e903545db}} 
+\index{operations.c@{operations.c}!bind@{bind}}
+\index{bind@{bind}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{bind()}{bind()}}
+{\footnotesize\ttfamily void bind (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector2,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Combines two hypervectors element-\/wise. 
+
+Performs binding by\+:
+\begin{DoxyItemize}
+\item {\bfseries{Bipolar mode\+:}} Multiplying corresponding elements.
+\item {\bfseries{Binary mode\+:}} Applying XOR on corresponding elements.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em vector1} & The first input vector. \\
+\hline
+{\em vector2} & The second input vector. \\
+\hline
+{\em result} & The resulting bound vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+All input vectors must be initialized. The {\ttfamily result} vector is modified in-\/place. 
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+The function exits the program if any of the input vectors are uninitialized. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{operations_8c_aa1dcff796e7341eddaf07ad5c581371a}\label{operations_8c_aa1dcff796e7341eddaf07ad5c581371a}} 
+\index{operations.c@{operations.c}!bundle@{bundle}}
+\index{bundle@{bundle}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{bundle()}{bundle()}}
+{\footnotesize\ttfamily void bundle (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector2,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Aggregates two hypervectors. 
+
+Bundling combines two vectors\+:
+\begin{DoxyItemize}
+\item {\bfseries{Bipolar mode\+:}} Adds corresponding elements.
+\item {\bfseries{Binary mode\+:}} Uses majority voting across corresponding elements.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em vector1} & The first input vector. \\
+\hline
+{\em vector2} & The second input vector. \\
+\hline
+{\em result} & The resulting bundled vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The {\ttfamily result} vector is modified in-\/place. 
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+The function exits the program if any of the input vectors are uninitialized. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{operations_8c_a0c06be3cabd660d8e1a858e3cca3d29a}\label{operations_8c_a0c06be3cabd660d8e1a858e3cca3d29a}} 
+\index{operations.c@{operations.c}!bundle\_multi@{bundle\_multi}}
+\index{bundle\_multi@{bundle\_multi}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{bundle\_multi()}{bundle\_multi()}}
+{\footnotesize\ttfamily void bundle\+\_\+multi (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$$\ast$}]{vectors,  }\item[{int}]{num\+\_\+vectors,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Aggregates multiple hypervectors. 
+
+Combines an array of vectors into a single bundled vector\+:
+\begin{DoxyItemize}
+\item {\bfseries{Bipolar mode\+:}} Sums the elements of all input vectors.
+\item {\bfseries{Binary mode\+:}} Applies majority voting across corresponding elements.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em vectors} & An array of pointers to the vectors to bundle. \\
+\hline
+{\em num\+\_\+vectors} & The number of vectors to bundle. \\
+\hline
+{\em result} & The resulting bundled vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The {\ttfamily result} vector is modified in-\/place and should be initialized before calling. 
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+The function exits the program if {\ttfamily vectors} or {\ttfamily result} is uninitialized. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{operations_8c_a376010a959437123761eb44bca50e2b8}\label{operations_8c_a376010a959437123761eb44bca50e2b8}} 
+\index{operations.c@{operations.c}!cosine\_similarity@{cosine\_similarity}}
+\index{cosine\_similarity@{cosine\_similarity}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{cosine\_similarity()}{cosine\_similarity()}}
+{\footnotesize\ttfamily double cosine\+\_\+similarity (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec2 }\end{DoxyParamCaption})}
+
+
+
+Computes the cosine similarity between two bipolar vectors. 
+
+Measures the cosine of the angle between the two input vectors, returning a value in the range \mbox{[}-\/1, 1\mbox{]}.
+
+
+\begin{DoxyParams}{Parameters}
+{\em vec1} & The first input vector. \\
+\hline
+{\em vec2} & The second input vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The cosine similarity value, or -\/2 if any input vector is {\ttfamily NULL} or has zero norm.
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+This function is applicable only to bipolar vectors. 
+\end{DoxyNote}
+\mbox{\Hypertarget{operations_8c_af2c7fcc054da0d45d4fcbf6fd6d1c5ef}\label{operations_8c_af2c7fcc054da0d45d4fcbf6fd6d1c5ef}} 
+\index{operations.c@{operations.c}!hamming\_distance@{hamming\_distance}}
+\index{hamming\_distance@{hamming\_distance}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{hamming\_distance()}{hamming\_distance()}}
+{\footnotesize\ttfamily double hamming\+\_\+distance (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec2 }\end{DoxyParamCaption})}
+
+
+
+Computes the Hamming distance between two binary vectors. 
+
+Calculates the fraction of differing elements between the two vectors and projects it onto the range \mbox{[}-\/1, 1\mbox{]}.
+
+
+\begin{DoxyParams}{Parameters}
+{\em vec1} & The first input vector. \\
+\hline
+{\em vec2} & The second input vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The normalized Hamming distance in the range \mbox{[}-\/1, 1\mbox{]}.
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+This function is applicable only to binary vectors. 
+\end{DoxyNote}
+\mbox{\Hypertarget{operations_8c_ac5d0fda7e04ee88402878ad9299599f0}\label{operations_8c_ac5d0fda7e04ee88402878ad9299599f0}} 
+\index{operations.c@{operations.c}!permute@{permute}}
+\index{permute@{permute}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{permute()}{permute()}}
+{\footnotesize\ttfamily void permute (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vector,  }\item[{int}]{offset,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Performs cyclic permutation (shift) on a vector. 
+
+Shifts the elements of the input vector by the specified offset\+:
+\begin{DoxyItemize}
+\item {\bfseries{Positive offset\+:}} Right shift.
+\item {\bfseries{Negative offset\+:}} Left shift.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em vector} & The input vector to permute. \\
+\hline
+{\em offset} & The number of positions to shift. Positive values shift right; negative values shift left. \\
+\hline
+{\em result} & The resulting permuted vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The {\ttfamily result} vector is modified in-\/place and should be initialized before calling. 
+\end{DoxyNote}
+\mbox{\Hypertarget{operations_8c_abff5e9fa3f552aaeb62148c2b4195b7d}\label{operations_8c_abff5e9fa3f552aaeb62148c2b4195b7d}} 
+\index{operations.c@{operations.c}!similarity\_check@{similarity\_check}}
+\index{similarity\_check@{similarity\_check}!operations.c@{operations.c}}
+\doxysubsubsection{\texorpdfstring{similarity\_check()}{similarity\_check()}}
+{\footnotesize\ttfamily double similarity\+\_\+check (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec1,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec2 }\end{DoxyParamCaption})}
+
+
+
+Computes the similarity between two vectors based on the vector mode. 
+
+
+\begin{DoxyItemize}
+\item {\bfseries{Bipolar mode\+:}} Uses cosine similarity.
+\item {\bfseries{Binary mode\+:}} Uses normalized Hamming distance.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em vec1} & The first input vector. \\
+\hline
+{\em vec2} & The second input vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The similarity value, or -\/2 if any input vector is {\ttfamily NULL}. 
+\end{DoxyReturn}

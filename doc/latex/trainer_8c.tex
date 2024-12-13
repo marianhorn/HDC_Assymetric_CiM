@@ -1,0 +1,131 @@
+\hypertarget{trainer_8c}{}\doxysection{hdc\+\_\+infrastructure/trainer.c File Reference}
+\label{trainer_8c}\index{hdc\_infrastructure/trainer.c@{hdc\_infrastructure/trainer.c}}
+
+
+Implementation of training functions for hyperdimensional computing (HDC) models.  
+
+
+{\ttfamily \#include \char`\"{}trainer.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}vector.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}assoc\+\_\+mem.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}encoder.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}operations.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+Include dependency graph for trainer.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{trainer_8c_a41885891fd0253febb456179bf221862}{train\+\_\+model\+\_\+timeseries}} (double $\ast$$\ast$training\+\_\+data, int $\ast$training\+\_\+labels, int training\+\_\+samples, struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc)
+\begin{DoxyCompactList}\small\item\em Trains the HDC model using timeseries data. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{trainer_8c_a4067122395f829b3344045208d94c086}{train\+\_\+model\+\_\+general\+\_\+data}} (double $\ast$$\ast$training\+\_\+data, int $\ast$training\+\_\+labels, int training\+\_\+samples, struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc)
+\begin{DoxyCompactList}\small\item\em Trains the HDC model using general (non-\/timeseries) data. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implementation of training functions for hyperdimensional computing (HDC) models. 
+
+This file contains the implementation of functions for training HDC models with timeseries or general data. The training process involves encoding data into hypervectors and updating associative memory with class-\/specific bundled hypervectors.
+
+Training is performed either using\+:
+\begin{DoxyItemize}
+\item Timeseries data, encoded with n-\/grams and handled as temporal sequences.
+\item General data, where each sample is encoded independently.
+\end{DoxyItemize}
+
+The implementation supports both bipolar and binary modes\+:
+\begin{DoxyItemize}
+\item {\bfseries{Bipolar Mode\+:}} Incremental bundling of hypervectors is supported.
+\item {\bfseries{Binary Mode\+:}} Hypervectors are pre-\/bundled for each class before updating associative memory due to the nature of majority voting.
+\end{DoxyItemize}
+
+The file includes mechanisms for handling stability checks on n-\/grams and ensures proper memory management for dynamically allocated hypervectors. 
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{trainer_8c_a4067122395f829b3344045208d94c086}\label{trainer_8c_a4067122395f829b3344045208d94c086}} 
+\index{trainer.c@{trainer.c}!train\_model\_general\_data@{train\_model\_general\_data}}
+\index{train\_model\_general\_data@{train\_model\_general\_data}!trainer.c@{trainer.c}}
+\doxysubsubsection{\texorpdfstring{train\_model\_general\_data()}{train\_model\_general\_data()}}
+{\footnotesize\ttfamily void train\+\_\+model\+\_\+general\+\_\+data (\begin{DoxyParamCaption}\item[{double $\ast$$\ast$}]{training\+\_\+data,  }\item[{int $\ast$}]{training\+\_\+labels,  }\item[{int}]{training\+\_\+samples,  }\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc }\end{DoxyParamCaption})}
+
+
+
+Trains the HDC model using general (non-\/timeseries) data. 
+
+This function encodes each training sample into a hypervector and updates the associative memory with class-\/specific bundled hypervectors.
+
+
+\begin{DoxyParams}{Parameters}
+{\em training\+\_\+data} & A 2D array of training data with dimensions {\ttfamily \mbox{[}training\+\_\+samples\mbox{]}\mbox{[}NUM\+\_\+\+FEATURES\mbox{]}}. \\
+\hline
+{\em training\+\_\+labels} & An array of class labels corresponding to the training data. \\
+\hline
+{\em training\+\_\+samples} & The number of samples in the training data. \\
+\hline
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure for storing class-\/specific hypervectors. \\
+\hline
+{\em enc} & A pointer to the encoder structure for encoding the training data.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+
+\begin{DoxyItemize}
+\item In {\bfseries{bipolar mode}}, incremental bundling of hypervectors is supported.
+\item In {\bfseries{binary mode}}, pre-\/bundling of class hypervectors is necessary before updates.
+\end{DoxyItemize}
+\end{DoxyNote}
+
+\begin{DoxyItemize}
+\item Each sample is individually encoded into a hypervector.
+\item Encoded hypervectors are bundled together for each class and added to associative memory.
+\item In binary mode, majority voting influences how the bundling is performed.
+\end{DoxyItemize}
+
+\begin{DoxyWarning}{Warning}
+The caller is responsible for proper memory allocation and cleanup of all input data. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{trainer_8c_a41885891fd0253febb456179bf221862}\label{trainer_8c_a41885891fd0253febb456179bf221862}} 
+\index{trainer.c@{trainer.c}!train\_model\_timeseries@{train\_model\_timeseries}}
+\index{train\_model\_timeseries@{train\_model\_timeseries}!trainer.c@{trainer.c}}
+\doxysubsubsection{\texorpdfstring{train\_model\_timeseries()}{train\_model\_timeseries()}}
+{\footnotesize\ttfamily void train\+\_\+model\+\_\+timeseries (\begin{DoxyParamCaption}\item[{double $\ast$$\ast$}]{training\+\_\+data,  }\item[{int $\ast$}]{training\+\_\+labels,  }\item[{int}]{training\+\_\+samples,  }\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc }\end{DoxyParamCaption})}
+
+
+
+Trains the HDC model using timeseries data. 
+
+This function processes timeseries data, encoding n-\/grams into hypervectors and updating the associative memory with class-\/specific bundled hypervectors.
+
+
+\begin{DoxyParams}{Parameters}
+{\em training\+\_\+data} & A 2D array of training data with dimensions {\ttfamily \mbox{[}training\+\_\+samples\mbox{]}\mbox{[}NUM\+\_\+\+FEATURES\mbox{]}}. \\
+\hline
+{\em training\+\_\+labels} & An array of class labels corresponding to the training data. \\
+\hline
+{\em training\+\_\+samples} & The number of samples in the training data. \\
+\hline
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure for storing class-\/specific hypervectors. \\
+\hline
+{\em enc} & A pointer to the encoder structure for encoding the training data.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+
+\begin{DoxyItemize}
+\item In {\bfseries{bipolar mode}}, incremental bundling is supported, allowing real-\/time updates.
+\item In {\bfseries{binary mode}}, the hypervectors are pre-\/bundled for each class and then added.
+\end{DoxyItemize}
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+
+\begin{DoxyItemize}
+\item The function assumes proper memory allocation for all input pointers.
+\end{DoxyItemize}
+\end{DoxyWarning}
+
+\begin{DoxyItemize}
+\item This function first verifies label stability within n-\/grams.
+\item Stable n-\/grams are encoded into hypervectors, which are added to the associative memory.
+\item In bipolar mode, associative memory updates occur incrementally, while in binary mode, updates are applied after bundling. 
+\end{DoxyItemize}

@@ -1,0 +1,51 @@
+\hypertarget{structencoder}{}\doxysection{encoder Struct Reference}
+\label{structencoder}\index{encoder@{encoder}}
+
+
+Encoder structure for non-\/precomputed item memory.  
+
+
+
+
+{\ttfamily \#include $<$encoder.\+h$>$}
+
+
+
+Collaboration diagram for encoder\+:
+% FIG 0
+\doxysubsection*{Data Fields}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$ \mbox{\hyperlink{structencoder_a3bd4ae193132a5716162d63813c8c4c1}{channel\+\_\+memory}}
+\item 
+struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$ \mbox{\hyperlink{structencoder_aa2c7834de272c17c3dd1c5d8a796c2df}{signal\+\_\+memory}}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Encoder structure for non-\/precomputed item memory. 
+
+This structure maintains separate item memories for signal levels and features.
+\begin{DoxyItemize}
+\item {\bfseries{channel\+\_\+memory}}\+: Pointer to the item memory for features.
+\item {\bfseries{signal\+\_\+memory}}\+: Pointer to the item memory for signal levels. 
+\end{DoxyItemize}
+
+\doxysubsection{Field Documentation}
+\mbox{\Hypertarget{structencoder_a3bd4ae193132a5716162d63813c8c4c1}\label{structencoder_a3bd4ae193132a5716162d63813c8c4c1}} 
+\index{encoder@{encoder}!channel\_memory@{channel\_memory}}
+\index{channel\_memory@{channel\_memory}!encoder@{encoder}}
+\doxysubsubsection{\texorpdfstring{channel\_memory}{channel\_memory}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}}$\ast$ encoder\+::channel\+\_\+memory}
+
+Item memory for features. \mbox{\Hypertarget{structencoder_aa2c7834de272c17c3dd1c5d8a796c2df}\label{structencoder_aa2c7834de272c17c3dd1c5d8a796c2df}} 
+\index{encoder@{encoder}!signal\_memory@{signal\_memory}}
+\index{signal\_memory@{signal\_memory}!encoder@{encoder}}
+\doxysubsubsection{\texorpdfstring{signal\_memory}{signal\_memory}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}}$\ast$ encoder\+::signal\+\_\+memory}
+
+Item memory for signal levels. 
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+hdc\+\_\+infrastructure/encoder.\+h\end{DoxyCompactItemize}

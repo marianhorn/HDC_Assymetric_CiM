@@ -1,0 +1,176 @@
+\hypertarget{configCustom_8h}{}\doxysection{custom\+Model/config\+Custom.h File Reference}
+\label{configCustom_8h}\index{customModel/configCustom.h@{customModel/configCustom.h}}
+
+
+Configuration parameters for a model.  
+
+
+This graph shows which files directly or indirectly include this file\+:
+% FIG 0
+\doxysubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{configCustom_8h_ab30c55989a6d0dab625ada15f1e31bf9}{BIPOLAR\+\_\+\+MODE}}~1
+\begin{DoxyCompactList}\small\item\em Enables bipolar mode for vector representation. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a98d2e2076140b796ee1cb5f3e77248a7}{VECTOR\+\_\+\+DIMENSION}}~10000
+\begin{DoxyCompactList}\small\item\em Dimension of hyperdimensional vectors. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_ab122432988c73c06becf1ce34077e43b}{NUM\+\_\+\+LEVELS}}~5
+\begin{DoxyCompactList}\small\item\em Number of signal levels for discretization. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{configCustom_8h_a76fefef9133fcfabf0402b881a5a229d}\label{configCustom_8h_a76fefef9133fcfabf0402b881a5a229d}} 
+\#define \mbox{\hyperlink{configCustom_8h_a76fefef9133fcfabf0402b881a5a229d}{MIN\+\_\+\+LEVEL}}~0
+\begin{DoxyCompactList}\small\item\em Minimum level for signal normalization. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{configCustom_8h_a5bb4257ca9fa4bfcf9391b7895b97761}\label{configCustom_8h_a5bb4257ca9fa4bfcf9391b7895b97761}} 
+\#define \mbox{\hyperlink{configCustom_8h_a5bb4257ca9fa4bfcf9391b7895b97761}{MAX\+\_\+\+LEVEL}}~4
+\begin{DoxyCompactList}\small\item\em Maximum level for signal normalization. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a58dde5b4c75245b4660a165318cac36b}{WINDOW}}~100
+\begin{DoxyCompactList}\small\item\em Size of the sliding window for evaluate\+\_\+model\+\_\+timeseries\+\_\+with\+\_\+window. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_aa96e03c32bc7407bbe44b0704485f47f}{N\+\_\+\+GRAM\+\_\+\+SIZE}}~3
+\begin{DoxyCompactList}\small\item\em Size of the n-\/gram for encoding temporal information. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a061e870517c5d5c01d232d72e5b6857f}{DOWNSAMPLE}}~1
+\begin{DoxyCompactList}\small\item\em Downsampling rate for the data. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a7d5551659993636ed7aa362f9a0b5b30}{NUM\+\_\+\+CLASSES}}~3
+\begin{DoxyCompactList}\small\item\em Number of distinct classes in the dataset. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{configCustom_8h_ac2bca8adbc07c70e5c38d1d34a5568bb}\label{configCustom_8h_ac2bca8adbc07c70e5c38d1d34a5568bb}} 
+\#define \mbox{\hyperlink{configCustom_8h_ac2bca8adbc07c70e5c38d1d34a5568bb}{NUM\+\_\+\+FEATURES}}~4
+\begin{DoxyCompactList}\small\item\em Number of features (channels) in the input data. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a29cf2d41341c861a02125541ee1c9368}{NORMALIZE}}~1
+\begin{DoxyCompactList}\small\item\em Flag to enable or disable normalization. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{configCustom_8h_a38ab99177f390c49acd32a4d736c1499}\label{configCustom_8h_a38ab99177f390c49acd32a4d736c1499}} 
+\#define \mbox{\hyperlink{configCustom_8h_a38ab99177f390c49acd32a4d736c1499}{CUTTING\+\_\+\+ANGLE\+\_\+\+THRESHOLD}}~0.\+9
+\begin{DoxyCompactList}\small\item\em Threshold for cutting angle during data preprocessing. Only relevant in bipolar Mode. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a8166811f4a32b2e2afaf26db1957d0f2}{PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY}}~1
+\begin{DoxyCompactList}\small\item\em Enables precomputed item memory optimization. \end{DoxyCompactList}\item 
+\#define \mbox{\hyperlink{configCustom_8h_a64de47239f7056b19b66e6a0a4519874}{OUTPUT\+\_\+\+MODE}}~OUTPUT\+\_\+\+DEBUG
+\begin{DoxyCompactList}\small\item\em Sets the output verbosity level. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{configCustom_8h_a0240550fdee655bb23bea33334868555}\label{configCustom_8h_a0240550fdee655bb23bea33334868555}} 
+\#define {\bfseries OUTPUT\+\_\+\+NONE}~0
+\item 
+\mbox{\Hypertarget{configCustom_8h_ae3744040202ffef7ee25c30a10fb697e}\label{configCustom_8h_ae3744040202ffef7ee25c30a10fb697e}} 
+\#define {\bfseries OUTPUT\+\_\+\+BASIC}~1
+\item 
+\mbox{\Hypertarget{configCustom_8h_aceecf84ca2be3811dc457a91418ea95e}\label{configCustom_8h_aceecf84ca2be3811dc457a91418ea95e}} 
+\#define {\bfseries OUTPUT\+\_\+\+DETAILED}~2
+\item 
+\mbox{\Hypertarget{configCustom_8h_a3909a8fd57da84e1a5a34be4daa65b39}\label{configCustom_8h_a3909a8fd57da84e1a5a34be4daa65b39}} 
+\#define {\bfseries OUTPUT\+\_\+\+DEBUG}~3
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Configuration parameters for a model. 
+
+This file contains macros defining various parameters and settings needed for an HDC-\/\+Model.
+
+\begin{DoxyNote}{Note}
+This file should only be included when CUSTOM is defined via makefile. 
+\end{DoxyNote}
+
+
+\doxysubsection{Macro Definition Documentation}
+\mbox{\Hypertarget{configCustom_8h_ab30c55989a6d0dab625ada15f1e31bf9}\label{configCustom_8h_ab30c55989a6d0dab625ada15f1e31bf9}} 
+\index{configCustom.h@{configCustom.h}!BIPOLAR\_MODE@{BIPOLAR\_MODE}}
+\index{BIPOLAR\_MODE@{BIPOLAR\_MODE}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{BIPOLAR\_MODE}{BIPOLAR\_MODE}}
+{\footnotesize\ttfamily \#define BIPOLAR\+\_\+\+MODE~1}
+
+
+
+Enables bipolar mode for vector representation. 
+
+If set to 1, vectors are represented as -\/1 and 1. Otherwise, they are binary (0 and 1). \mbox{\Hypertarget{configCustom_8h_a061e870517c5d5c01d232d72e5b6857f}\label{configCustom_8h_a061e870517c5d5c01d232d72e5b6857f}} 
+\index{configCustom.h@{configCustom.h}!DOWNSAMPLE@{DOWNSAMPLE}}
+\index{DOWNSAMPLE@{DOWNSAMPLE}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{DOWNSAMPLE}{DOWNSAMPLE}}
+{\footnotesize\ttfamily \#define DOWNSAMPLE~1}
+
+
+
+Downsampling rate for the data. 
+
+Defines how much the data is reduced during preprocessing. A value of 1 means no downsampling. \mbox{\Hypertarget{configCustom_8h_aa96e03c32bc7407bbe44b0704485f47f}\label{configCustom_8h_aa96e03c32bc7407bbe44b0704485f47f}} 
+\index{configCustom.h@{configCustom.h}!N\_GRAM\_SIZE@{N\_GRAM\_SIZE}}
+\index{N\_GRAM\_SIZE@{N\_GRAM\_SIZE}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{N\_GRAM\_SIZE}{N\_GRAM\_SIZE}}
+{\footnotesize\ttfamily \#define N\+\_\+\+GRAM\+\_\+\+SIZE~3}
+
+
+
+Size of the n-\/gram for encoding temporal information. 
+
+Determines the number of timestamps bundled together to one timeseries in encoding. \mbox{\Hypertarget{configCustom_8h_a29cf2d41341c861a02125541ee1c9368}\label{configCustom_8h_a29cf2d41341c861a02125541ee1c9368}} 
+\index{configCustom.h@{configCustom.h}!NORMALIZE@{NORMALIZE}}
+\index{NORMALIZE@{NORMALIZE}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{NORMALIZE}{NORMALIZE}}
+{\footnotesize\ttfamily \#define NORMALIZE~1}
+
+
+
+Flag to enable or disable normalization. 
+
+If set to 1, the associative memory will be normalized after training. Only relevant in bipolar Mode. \mbox{\Hypertarget{configCustom_8h_a7d5551659993636ed7aa362f9a0b5b30}\label{configCustom_8h_a7d5551659993636ed7aa362f9a0b5b30}} 
+\index{configCustom.h@{configCustom.h}!NUM\_CLASSES@{NUM\_CLASSES}}
+\index{NUM\_CLASSES@{NUM\_CLASSES}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{NUM\_CLASSES}{NUM\_CLASSES}}
+{\footnotesize\ttfamily \#define NUM\+\_\+\+CLASSES~3}
+
+
+
+Number of distinct classes in the dataset. 
+
+Determines the number of different labels/classes used in the model. \mbox{\Hypertarget{configCustom_8h_ab122432988c73c06becf1ce34077e43b}\label{configCustom_8h_ab122432988c73c06becf1ce34077e43b}} 
+\index{configCustom.h@{configCustom.h}!NUM\_LEVELS@{NUM\_LEVELS}}
+\index{NUM\_LEVELS@{NUM\_LEVELS}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{NUM\_LEVELS}{NUM\_LEVELS}}
+{\footnotesize\ttfamily \#define NUM\+\_\+\+LEVELS~5}
+
+
+
+Number of signal levels for discretization. 
+
+Determines the granularity of the signal level quantization. \mbox{\Hypertarget{configCustom_8h_a64de47239f7056b19b66e6a0a4519874}\label{configCustom_8h_a64de47239f7056b19b66e6a0a4519874}} 
+\index{configCustom.h@{configCustom.h}!OUTPUT\_MODE@{OUTPUT\_MODE}}
+\index{OUTPUT\_MODE@{OUTPUT\_MODE}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{OUTPUT\_MODE}{OUTPUT\_MODE}}
+{\footnotesize\ttfamily \#define OUTPUT\+\_\+\+MODE~OUTPUT\+\_\+\+DEBUG}
+
+
+
+Sets the output verbosity level. 
+
+The {\ttfamily OUTPUT\+\_\+\+MODE} can be one of the following\+:
+\begin{DoxyItemize}
+\item {\ttfamily OUTPUT\+\_\+\+NONE}\+: No printing.
+\item {\ttfamily OUTPUT\+\_\+\+BASIC}\+: Print results.
+\item {\ttfamily OUTPUT\+\_\+\+DETAILED}\+: Print intermediate information.
+\item {\ttfamily OUTPUT\+\_\+\+DEBUG}\+: Print all debugging information. 
+\end{DoxyItemize}\mbox{\Hypertarget{configCustom_8h_a8166811f4a32b2e2afaf26db1957d0f2}\label{configCustom_8h_a8166811f4a32b2e2afaf26db1957d0f2}} 
+\index{configCustom.h@{configCustom.h}!PRECOMPUTED\_ITEM\_MEMORY@{PRECOMPUTED\_ITEM\_MEMORY}}
+\index{PRECOMPUTED\_ITEM\_MEMORY@{PRECOMPUTED\_ITEM\_MEMORY}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{PRECOMPUTED\_ITEM\_MEMORY}{PRECOMPUTED\_ITEM\_MEMORY}}
+{\footnotesize\ttfamily \#define PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY~1}
+
+
+
+Enables precomputed item memory optimization. 
+
+If set to 1, precomputes the item memory for faster encoding. \mbox{\Hypertarget{configCustom_8h_a98d2e2076140b796ee1cb5f3e77248a7}\label{configCustom_8h_a98d2e2076140b796ee1cb5f3e77248a7}} 
+\index{configCustom.h@{configCustom.h}!VECTOR\_DIMENSION@{VECTOR\_DIMENSION}}
+\index{VECTOR\_DIMENSION@{VECTOR\_DIMENSION}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{VECTOR\_DIMENSION}{VECTOR\_DIMENSION}}
+{\footnotesize\ttfamily \#define VECTOR\+\_\+\+DIMENSION~10000}
+
+
+
+Dimension of hyperdimensional vectors. 
+
+Defines the number of elements in each hyperdimensional vector. \mbox{\Hypertarget{configCustom_8h_a58dde5b4c75245b4660a165318cac36b}\label{configCustom_8h_a58dde5b4c75245b4660a165318cac36b}} 
+\index{configCustom.h@{configCustom.h}!WINDOW@{WINDOW}}
+\index{WINDOW@{WINDOW}!configCustom.h@{configCustom.h}}
+\doxysubsubsection{\texorpdfstring{WINDOW}{WINDOW}}
+{\footnotesize\ttfamily \#define WINDOW~100}
+
+
+
+Size of the sliding window for evaluate\+\_\+model\+\_\+timeseries\+\_\+with\+\_\+window. 
+
+Specifies how many samples are processed together in a single window. 

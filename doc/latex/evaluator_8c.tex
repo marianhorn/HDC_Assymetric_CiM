@@ -1,0 +1,123 @@
+\hypertarget{evaluator_8c}{}\doxysection{hdc\+\_\+infrastructure/evaluator.c File Reference}
+\label{evaluator_8c}\index{hdc\_infrastructure/evaluator.c@{hdc\_infrastructure/evaluator.c}}
+
+
+Implements functions for evaluating the performance of hyperdimensional classifiers.  
+
+
+{\ttfamily \#include \char`\"{}evaluator.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}assoc\+\_\+mem.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}operations.\+h\char`\"{}}\newline
+Include dependency graph for evaluator.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{evaluator_8c_a47dbe860ff61b3af25248a2db4031b13}\label{evaluator_8c_a47dbe860ff61b3af25248a2db4031b13}} 
+int {\bfseries mode} (int $\ast$array, int size)
+\item 
+void \mbox{\hyperlink{evaluator_8c_aed07fb906beedda29e5257bc65232a9b}{evaluate\+\_\+model\+\_\+timeseries\+\_\+with\+\_\+window}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, double $\ast$$\ast$testing\+\_\+data, int $\ast$testing\+\_\+labels, int testing\+\_\+samples)
+\begin{DoxyCompactList}\small\item\em Evaluates the HDC model using a sliding window over time-\/series data. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{evaluator_8c_aa90a74d814a24971672bd39182d314e6}{evaluate\+\_\+model\+\_\+timeseries\+\_\+direct}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, double $\ast$$\ast$testing\+\_\+data, int $\ast$testing\+\_\+labels, int testing\+\_\+samples)
+\begin{DoxyCompactList}\small\item\em Directly evaluates the HDC model on a time-\/series dataset. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{evaluator_8c_a8df1cdd88a7d44e3462237095794b178}{evaluate\+\_\+model\+\_\+general\+\_\+direct}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, double $\ast$$\ast$testing\+\_\+data, int $\ast$testing\+\_\+labels, int testing\+\_\+samples)
+\begin{DoxyCompactList}\small\item\em Directly evaluates the HDC model on general (non-\/time-\/series) data. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implements functions for evaluating the performance of hyperdimensional classifiers. 
+
+This file contains evaluation functions for assessing the accuracy and performance of HDC models on EMG data. It supports both time-\/series-\/based and general data-\/based evaluation methods and generates detailed results, including confusion matrices.
+
+The evaluation process involves encoding the input data, classifying it using the associative memory, and comparing the predictions with ground truth labels.
+
+\begin{DoxyDate}{Date}
+2023-\/12-\/11 
+\end{DoxyDate}
+\begin{DoxyAuthor}{Author}
+Marian Horn 
+\end{DoxyAuthor}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{evaluator_8c_a8df1cdd88a7d44e3462237095794b178}\label{evaluator_8c_a8df1cdd88a7d44e3462237095794b178}} 
+\index{evaluator.c@{evaluator.c}!evaluate\_model\_general\_direct@{evaluate\_model\_general\_direct}}
+\index{evaluate\_model\_general\_direct@{evaluate\_model\_general\_direct}!evaluator.c@{evaluator.c}}
+\doxysubsubsection{\texorpdfstring{evaluate\_model\_general\_direct()}{evaluate\_model\_general\_direct()}}
+{\footnotesize\ttfamily void evaluate\+\_\+model\+\_\+general\+\_\+direct (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{double $\ast$$\ast$}]{testing\+\_\+data,  }\item[{int $\ast$}]{testing\+\_\+labels,  }\item[{int}]{testing\+\_\+samples }\end{DoxyParamCaption})}
+
+
+
+Directly evaluates the HDC model on general (non-\/time-\/series) data. 
+
+This function evaluates the model by encoding individual data points (rather than N-\/grams) and predicting their labels. It computes accuracy metrics and generates a confusion matrix for the predictions.
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure. \\
+\hline
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em testing\+\_\+data} & A 2D array of testing data. \\
+\hline
+{\em testing\+\_\+labels} & An array of ground truth labels for the testing data. \\
+\hline
+{\em testing\+\_\+samples} & The number of testing samples in the dataset. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{evaluator_8c_aa90a74d814a24971672bd39182d314e6}\label{evaluator_8c_aa90a74d814a24971672bd39182d314e6}} 
+\index{evaluator.c@{evaluator.c}!evaluate\_model\_timeseries\_direct@{evaluate\_model\_timeseries\_direct}}
+\index{evaluate\_model\_timeseries\_direct@{evaluate\_model\_timeseries\_direct}!evaluator.c@{evaluator.c}}
+\doxysubsubsection{\texorpdfstring{evaluate\_model\_timeseries\_direct()}{evaluate\_model\_timeseries\_direct()}}
+{\footnotesize\ttfamily void evaluate\+\_\+model\+\_\+timeseries\+\_\+direct (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{double $\ast$$\ast$}]{testing\+\_\+data,  }\item[{int $\ast$}]{testing\+\_\+labels,  }\item[{int}]{testing\+\_\+samples }\end{DoxyParamCaption})}
+
+
+
+Directly evaluates the HDC model on a time-\/series dataset. 
+
+This function evaluates the model without using a sliding window. Instead, it processes the data in fixed N-\/grams, encodes each N-\/gram, and predicts the label for that N-\/gram. Results are compared to the ground truth labels to calculate accuracy and generate a confusion matrix.
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure. \\
+\hline
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em testing\+\_\+data} & A 2D array of testing data. \\
+\hline
+{\em testing\+\_\+labels} & An array of ground truth labels for the testing data. \\
+\hline
+{\em testing\+\_\+samples} & The number of testing samples in the dataset. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{evaluator_8c_aed07fb906beedda29e5257bc65232a9b}\label{evaluator_8c_aed07fb906beedda29e5257bc65232a9b}} 
+\index{evaluator.c@{evaluator.c}!evaluate\_model\_timeseries\_with\_window@{evaluate\_model\_timeseries\_with\_window}}
+\index{evaluate\_model\_timeseries\_with\_window@{evaluate\_model\_timeseries\_with\_window}!evaluator.c@{evaluator.c}}
+\doxysubsubsection{\texorpdfstring{evaluate\_model\_timeseries\_with\_window()}{evaluate\_model\_timeseries\_with\_window()}}
+{\footnotesize\ttfamily void evaluate\+\_\+model\+\_\+timeseries\+\_\+with\+\_\+window (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{double $\ast$$\ast$}]{testing\+\_\+data,  }\item[{int $\ast$}]{testing\+\_\+labels,  }\item[{int}]{testing\+\_\+samples }\end{DoxyParamCaption})}
+
+
+
+Evaluates the HDC model using a sliding window over time-\/series data. 
+
+This function evaluates the performance of the HDC model on a time-\/series dataset by applying a sliding window approach. For each window, it determines the most frequent ground truth label, encodes the data for all N-\/grams in the window, and predicts the label of the N-\/gram with the highest similarity to the class vectors. Results are compared to the ground truth labels to calculate accuracy and generate a confusion matrix
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure. \\
+\hline
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em testing\+\_\+data} & A 2D array of testing data. \\
+\hline
+{\em testing\+\_\+labels} & An array of ground truth labels for the testing data. \\
+\hline
+{\em testing\+\_\+samples} & The number of testing samples in the dataset.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The window\textquotesingle{}s size is determined by WINDOW in config.\+h 
+\end{DoxyNote}

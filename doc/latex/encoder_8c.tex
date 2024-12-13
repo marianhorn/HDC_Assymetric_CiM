@@ -1,0 +1,191 @@
+\hypertarget{encoder_8c}{}\doxysection{hdc\+\_\+infrastructure/encoder.c File Reference}
+\label{encoder_8c}\index{hdc\_infrastructure/encoder.c@{hdc\_infrastructure/encoder.c}}
+
+
+Implements functionality for encoding EMG signals into hypervectors.  
+
+
+{\ttfamily \#include \char`\"{}encoder.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}operations.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include $<$math.\+h$>$}\newline
+Include dependency graph for encoder.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{encoder_8c_ab9213ff336998de408c2acb5482407a9}{init\+\_\+encoder}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$channel\+\_\+memory, struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$signal\+\_\+memory)
+\begin{DoxyCompactList}\small\item\em Initializes the encoder with channel and signal memory. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{encoder_8c_a559cc4823a87cb1e654306b4adbf4808}{get\+\_\+signal\+\_\+level}} (double emg\+\_\+value)
+\begin{DoxyCompactList}\small\item\em Converts an EMG value to a discrete signal level. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{encoder_8c_ae3e6b0d81e111c9b20a2f73cf20575ff}{encode\+\_\+timestamp}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, double $\ast$emg\+\_\+sample, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Encodes a single timestamp of data into a hypervector. \end{DoxyCompactList}\item 
+bool \mbox{\hyperlink{encoder_8c_a87b52a425280cbf9b3dcc0788bd00314}{is\+\_\+window\+\_\+stable}} (int $\ast$labels)
+\begin{DoxyCompactList}\small\item\em Checks if a sliding window of labels is stable. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{encoder_8c_abd1fc64b66c9ee684f08ce13ee6c9d6c}{encode\+\_\+timeseries}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, double $\ast$$\ast$emg\+\_\+data, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Encodes a sequence of data into a single hypervector (N-\/gram). \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{encoder_8c_a7acca54c9ce00766249f294af095f271}{encode\+\_\+general\+\_\+data}} (struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, double $\ast$emg\+\_\+data, \mbox{\hyperlink{structVector}{Vector}} $\ast$result)
+\begin{DoxyCompactList}\small\item\em Encodes a single EMG data point into a hypervector. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implements functionality for encoding EMG signals into hypervectors. 
+
+The encoder maps raw EMG signals into high-\/dimensional representations (hypervectors) for further processing in Hyperdimensional Computing (HDC). It supports both spatial and temporal encoding. The encoded hypervectors are used for tasks such as classification and evaluation.
+
+Key features include\+:
+\begin{DoxyItemize}
+\item Conversion of continuous EMG signals into discrete levels.
+\item Encoding of individual timestamps (spatial encoding).
+\item Aggregation of multiple timestamps into N-\/gram hypervectors (temporal encoding).
+\item Compatibility with both bipolar and binary modes.
+\end{DoxyItemize}
+
+\begin{DoxyNote}{Note}
+This file supports configurations for both precomputed and dynamically generated item memories through the {\ttfamily PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY} macro.
+\end{DoxyNote}
+\begin{DoxyAuthor}{Author}
+Marian Horn 
+\end{DoxyAuthor}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{encoder_8c_a7acca54c9ce00766249f294af095f271}\label{encoder_8c_a7acca54c9ce00766249f294af095f271}} 
+\index{encoder.c@{encoder.c}!encode\_general\_data@{encode\_general\_data}}
+\index{encode\_general\_data@{encode\_general\_data}!encoder.c@{encoder.c}}
+\doxysubsubsection{\texorpdfstring{encode\_general\_data()}{encode\_general\_data()}}
+{\footnotesize\ttfamily int encode\+\_\+general\+\_\+data (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{double $\ast$}]{emg\+\_\+data,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Encodes a single EMG data point into a hypervector. 
+
+This function performs spatial encoding for general data by binding channel and signal vectors and bundling them into a single hypervector.
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure. \\
+\hline
+{\em emg\+\_\+data} & An array representing the EMG data point to encode. \\
+\hline
+{\em result} & A pointer to the resulting hypervector. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+0 on success, -\/1 if any pointer is NULL or memory allocation fails. 
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+This function can be used for other applications than timeseries classification. 
+\end{DoxyNote}
+\mbox{\Hypertarget{encoder_8c_abd1fc64b66c9ee684f08ce13ee6c9d6c}\label{encoder_8c_abd1fc64b66c9ee684f08ce13ee6c9d6c}} 
+\index{encoder.c@{encoder.c}!encode\_timeseries@{encode\_timeseries}}
+\index{encode\_timeseries@{encode\_timeseries}!encoder.c@{encoder.c}}
+\doxysubsubsection{\texorpdfstring{encode\_timeseries()}{encode\_timeseries()}}
+{\footnotesize\ttfamily int encode\+\_\+timeseries (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{double $\ast$$\ast$}]{emg\+\_\+data,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Encodes a sequence of data into a single hypervector (N-\/gram). 
+
+This function performs temporal encoding by iteratively encoding each timestamp and applying binding and permutation for N-\/gram aggregation.
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure. \\
+\hline
+{\em emg\+\_\+data} & A 2D array of EMG data to encode. \\
+\hline
+{\em result} & A pointer to the resulting hypervector. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+0 on success, -\/1 if any pointer is NULL. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{encoder_8c_ae3e6b0d81e111c9b20a2f73cf20575ff}\label{encoder_8c_ae3e6b0d81e111c9b20a2f73cf20575ff}} 
+\index{encoder.c@{encoder.c}!encode\_timestamp@{encode\_timestamp}}
+\index{encode\_timestamp@{encode\_timestamp}!encoder.c@{encoder.c}}
+\doxysubsubsection{\texorpdfstring{encode\_timestamp()}{encode\_timestamp()}}
+{\footnotesize\ttfamily void encode\+\_\+timestamp (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{double $\ast$}]{emg\+\_\+sample,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{result }\end{DoxyParamCaption})}
+
+
+
+Encodes a single timestamp of data into a hypervector. 
+
+This function performs spatial encoding by binding channel and signal vectors for each feature and bundling them into a single hypervector.
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure. \\
+\hline
+{\em emg\+\_\+sample} & An array of EMG data for a single timestamp. \\
+\hline
+{\em result} & A pointer to the resulting hypervector. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{encoder_8c_a559cc4823a87cb1e654306b4adbf4808}\label{encoder_8c_a559cc4823a87cb1e654306b4adbf4808}} 
+\index{encoder.c@{encoder.c}!get\_signal\_level@{get\_signal\_level}}
+\index{get\_signal\_level@{get\_signal\_level}!encoder.c@{encoder.c}}
+\doxysubsubsection{\texorpdfstring{get\_signal\_level()}{get\_signal\_level()}}
+{\footnotesize\ttfamily int get\+\_\+signal\+\_\+level (\begin{DoxyParamCaption}\item[{double}]{emg\+\_\+value }\end{DoxyParamCaption})}
+
+
+
+Converts an EMG value to a discrete signal level. 
+
+This function maps a continuous EMG signal value to a discrete level based on the predefined minimum and maximum levels (MIN\+\_\+\+LEVEL, MAX\+\_\+\+LEVEL, NUM\+\_\+\+LEVELS).
+
+
+\begin{DoxyParams}{Parameters}
+{\em emg\+\_\+value} & The EMG signal value to be converted. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The discrete signal level (integer) corresponding to the EMG value. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{encoder_8c_ab9213ff336998de408c2acb5482407a9}\label{encoder_8c_ab9213ff336998de408c2acb5482407a9}} 
+\index{encoder.c@{encoder.c}!init\_encoder@{init\_encoder}}
+\index{init\_encoder@{init\_encoder}!encoder.c@{encoder.c}}
+\doxysubsubsection{\texorpdfstring{init\_encoder()}{init\_encoder()}}
+{\footnotesize\ttfamily void init\+\_\+encoder (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{channel\+\_\+memory,  }\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{signal\+\_\+memory }\end{DoxyParamCaption})}
+
+
+
+Initializes the encoder with channel and signal memory. 
+
+This function sets up the encoder for use with dynamically generated channel and signal item memories.
+
+
+\begin{DoxyParams}{Parameters}
+{\em enc} & A pointer to the encoder structure to initialize. \\
+\hline
+{\em channel\+\_\+memory} & A pointer to the item memory for channels. \\
+\hline
+{\em signal\+\_\+memory} & A pointer to the item memory for signal levels.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Only used when {\ttfamily PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY} is disabled. 
+\end{DoxyNote}
+\mbox{\Hypertarget{encoder_8c_a87b52a425280cbf9b3dcc0788bd00314}\label{encoder_8c_a87b52a425280cbf9b3dcc0788bd00314}} 
+\index{encoder.c@{encoder.c}!is\_window\_stable@{is\_window\_stable}}
+\index{is\_window\_stable@{is\_window\_stable}!encoder.c@{encoder.c}}
+\doxysubsubsection{\texorpdfstring{is\_window\_stable()}{is\_window\_stable()}}
+{\footnotesize\ttfamily bool is\+\_\+window\+\_\+stable (\begin{DoxyParamCaption}\item[{int $\ast$}]{labels }\end{DoxyParamCaption})}
+
+
+
+Checks if a sliding window of labels is stable. 
+
+This function verifies if all labels in the current N-\/gram window are identical, indicating a stable state.
+
+
+\begin{DoxyParams}{Parameters}
+{\em labels} & A pointer to the array of labels. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+{\ttfamily true} if the window is stable, {\ttfamily false} otherwise. 
+\end{DoxyReturn}

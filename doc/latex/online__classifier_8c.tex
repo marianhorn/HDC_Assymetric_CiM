@@ -1,0 +1,89 @@
+\hypertarget{online__classifier_8c}{}\doxysection{hdc\+\_\+infrastructure/online\+\_\+classifier.c File Reference}
+\label{online__classifier_8c}\index{hdc\_infrastructure/online\_classifier.c@{hdc\_infrastructure/online\_classifier.c}}
+
+
+Implements real-\/time classification for EMG signals using HDC models.  
+
+
+{\ttfamily \#include \char`\"{}online\+\_\+classifier.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}vector.\+h\char`\"{}}\newline
+Include dependency graph for online\+\_\+classifier.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{online__classifier_8c_af6002e87495299e11752a5e0f65f9f5f}{init\+\_\+online\+\_\+classifier}} (struct \mbox{\hyperlink{structonlineClassifier}{online\+Classifier}} $\ast$classifier, struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$ass\+Mem, struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$enc, int batch\+Size)
+\begin{DoxyCompactList}\small\item\em Initializes an online classifier for real-\/time EMG signal evaluation. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{online__classifier_8c_affe2264d4a3d629966637e8e94b5eabc}{calculate\+Update}} (struct \mbox{\hyperlink{structonlineClassifier}{online\+Classifier}} $\ast$classifier, double $\ast$$\ast$testing\+\_\+data)
+\begin{DoxyCompactList}\small\item\em Calculates the predicted label for a batch of testing data. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implements real-\/time classification for EMG signals using HDC models. 
+
+This file contains functionality to initialize an online classifier, process streaming EMG data in batches, and calculate predictions based on similarity measures.
+
+The online classifier uses a batch-\/based approach to process EMG signals and classify them using hyperdimensional computing principles. It supports both bipolar and binary vector modes and utilizes the associative memory for classification. \begin{DoxyAuthor}{Author}
+Marian Horn 
+\end{DoxyAuthor}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{online__classifier_8c_affe2264d4a3d629966637e8e94b5eabc}\label{online__classifier_8c_affe2264d4a3d629966637e8e94b5eabc}} 
+\index{online\_classifier.c@{online\_classifier.c}!calculateUpdate@{calculateUpdate}}
+\index{calculateUpdate@{calculateUpdate}!online\_classifier.c@{online\_classifier.c}}
+\doxysubsubsection{\texorpdfstring{calculateUpdate()}{calculateUpdate()}}
+{\footnotesize\ttfamily int calculate\+Update (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structonlineClassifier}{online\+Classifier}} $\ast$}]{classifier,  }\item[{double $\ast$$\ast$}]{testing\+\_\+data }\end{DoxyParamCaption})}
+
+
+
+Calculates the predicted label for a batch of testing data. 
+
+This function encodes each time-\/series data sample in the batch using the provided encoder, classifies it using the associative memory, and determines the best-\/predicted label based on similarity scores.
+
+
+\begin{DoxyParams}{Parameters}
+{\em classifier} & A pointer to the {\ttfamily \mbox{\hyperlink{structonlineClassifier}{online\+Classifier}}} structure. \\
+\hline
+{\em testing\+\_\+data} & A 2D array of testing data samples, where each row is a feature vector.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The best-\/predicted label for the batch.
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+The function assumes that the batch size is larger than {\ttfamily N\+\_\+\+GRAM\+\_\+\+SIZE}. If this condition is not met, the behavior is undefined.
+\end{DoxyNote}
+
+\begin{DoxyItemize}
+\item {\bfseries{Encoding\+:}} Each sample is encoded into a hypervector.
+\item {\bfseries{Classification\+:}} The hypervector is compared against class vectors in the associative memory to determine the closest match.
+\item {\bfseries{Confidence\+:}} The similarity score (e.\+g., cosine similarity) is used to evaluate the prediction confidence.
+\end{DoxyItemize}
+
+\begin{DoxyWarning}{Warning}
+If the classification result is invalid ({\ttfamily -\/1}), the function terminates the program. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{online__classifier_8c_af6002e87495299e11752a5e0f65f9f5f}\label{online__classifier_8c_af6002e87495299e11752a5e0f65f9f5f}} 
+\index{online\_classifier.c@{online\_classifier.c}!init\_online\_classifier@{init\_online\_classifier}}
+\index{init\_online\_classifier@{init\_online\_classifier}!online\_classifier.c@{online\_classifier.c}}
+\doxysubsubsection{\texorpdfstring{init\_online\_classifier()}{init\_online\_classifier()}}
+{\footnotesize\ttfamily void init\+\_\+online\+\_\+classifier (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structonlineClassifier}{online\+Classifier}} $\ast$}]{classifier,  }\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{ass\+Mem,  }\item[{struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$}]{enc,  }\item[{int}]{batch\+Size }\end{DoxyParamCaption})}
+
+
+
+Initializes an online classifier for real-\/time EMG signal evaluation. 
+
+This function sets up the online classifier by associating it with an encoder and an associative memory structure and specifying the batch size for processing.
+
+
+\begin{DoxyParams}{Parameters}
+{\em classifier} & A pointer to the {\ttfamily \mbox{\hyperlink{structonlineClassifier}{online\+Classifier}}} structure to initialize. \\
+\hline
+{\em ass\+Mem} & A pointer to the associative memory used for classification. \\
+\hline
+{\em enc} & A pointer to the encoder used for feature extraction. \\
+\hline
+{\em batch\+Size} & The number of samples to process in one batch. \\
+\hline
+\end{DoxyParams}

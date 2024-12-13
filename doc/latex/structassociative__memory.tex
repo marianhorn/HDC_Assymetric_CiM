@@ -1,0 +1,42 @@
+\hypertarget{structassociative__memory}{}\doxysection{associative\+\_\+memory Struct Reference}
+\label{structassociative__memory}\index{associative\_memory@{associative\_memory}}
+
+
+Represents the associative memory used for HDC.  
+
+
+
+
+{\ttfamily \#include $<$assoc\+\_\+mem.\+h$>$}
+
+
+
+Collaboration diagram for associative\+\_\+memory\+:
+% FIG 0
+\doxysubsection*{Data Fields}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{structassociative__memory_abd6afc6615245860374520eca2deb7a9}\label{structassociative__memory_abd6afc6615245860374520eca2deb7a9}} 
+int {\bfseries num\+\_\+classes}
+\item 
+\mbox{\Hypertarget{structassociative__memory_a69797712d4b6cd1414923a63024dad31}\label{structassociative__memory_a69797712d4b6cd1414923a63024dad31}} 
+\mbox{\hyperlink{structVector}{Vector}} $\ast$$\ast$ {\bfseries class\+\_\+vectors}
+\item 
+\mbox{\Hypertarget{structassociative__memory_acae506218699ab10b487b0cc629be19d}\label{structassociative__memory_acae506218699ab10b487b0cc629be19d}} 
+int $\ast$ {\bfseries counts}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Represents the associative memory used for HDC. 
+
+This structure holds the class vectors and their associated counts.
+\begin{DoxyItemize}
+\item {\bfseries{num\+\_\+classes}}\+: The total number of classes in the associative memory.
+\item {\bfseries{class\+\_\+vectors}}\+: Array of hypervectors, one for each class.
+\item {\bfseries{counts}}\+: Array of integers tracking the number of samples per class. 
+\end{DoxyItemize}
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+hdc\+\_\+infrastructure/assoc\+\_\+mem.\+h\end{DoxyCompactItemize}

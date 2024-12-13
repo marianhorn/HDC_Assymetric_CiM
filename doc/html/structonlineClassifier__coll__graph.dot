@@ -1,0 +1,16 @@
+digraph "onlineClassifier"
+{
+ // LATEX_PDF_SIZE
+  edge [fontname="Helvetica",fontsize="10",labelfontname="Helvetica",labelfontsize="10"];
+  node [fontname="Helvetica",fontsize="10",shape=record];
+  Node1 [label="onlineClassifier",height=0.2,width=0.4,color="black", fillcolor="grey75", style="filled", fontcolor="black",tooltip="Represents the online classifier for real-time predictions."];
+  Node2 -> Node1 [dir="back",color="darkorchid3",fontsize="10",style="dashed",label=" assoc_mem" ,fontname="Helvetica"];
+  Node2 [label="associative_memory",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$structassociative__memory.html",tooltip="Represents the associative memory used for HDC."];
+  Node3 -> Node2 [dir="back",color="darkorchid3",fontsize="10",style="dashed",label=" class_vectors" ,fontname="Helvetica"];
+  Node3 [label="Vector",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$structVector.html",tooltip="Represents the item memory used in Hyperdimensional Computing."];
+  Node4 -> Node1 [dir="back",color="darkorchid3",fontsize="10",style="dashed",label=" enc" ,fontname="Helvetica"];
+  Node4 [label="encoder",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$structencoder.html",tooltip="Encoder structure for non-precomputed item memory."];
+  Node5 -> Node4 [dir="back",color="darkorchid3",fontsize="10",style="dashed",label=" channel_memory\nsignal_memory" ,fontname="Helvetica"];
+  Node5 [label="item_memory",height=0.2,width=0.4,color="black", fillcolor="white", style="filled",URL="$structitem__memory.html",tooltip=" "];
+  Node3 -> Node5 [dir="back",color="darkorchid3",fontsize="10",style="dashed",label=" base_vectors" ,fontname="Helvetica"];
+}

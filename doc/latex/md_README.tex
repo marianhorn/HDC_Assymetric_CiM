@@ -1,0 +1,42 @@
+Computer science project for master CE (Marian Horn)\hypertarget{md_README_autotoc_md1}{}\doxysection{Goal}\label{md_README_autotoc_md1}
+Implement a well-\/structured version of EMG gesture recognition with HDC in C. Should have the same functionality as torch\+HDExample\+Code.\+py.
+
+This serves for evaluation of HDC for EMG classification (hand and foot).\hypertarget{md_README_autotoc_md2}{}\doxysection{Usage}\label{md_README_autotoc_md2}
+To build the executable please execute\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{```make foot}
+
+\end{DoxyCode}
+
+
+To run the models execute\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{ \{/modelHand```\}}
+\DoxyCodeLine{}
+\DoxyCodeLine{```./modelFoot}
+
+\end{DoxyCode}
+\hypertarget{md_README_autotoc_md3}{}\doxysection{Files}\label{md_README_autotoc_md3}
+
+\begin{DoxyItemize}
+\item \#\#\#\# torch\+HDExample\+Code.\+py\+:
+
+Contains python code for HDC classification of the hand\+EMG dataset. Serves as reference program. Downloaded from \href{https://github.com/hyperdimensional-computing/torchhd/blob/main/examples/emg_hand_gestures.py}{\texttt{ here}}.
+\item \#\#\#\# model.\+c\+: Main program, clones the functionality of torch\+HDExample\+Code.\+py
+\item \#\#\#\# hdc\+\_\+infrastructure\+: directory for general hdc components; contains\+:
+\begin{DoxyItemize}
+\item \#\#\#\# \mbox{\hyperlink{assoc__mem_8c}{assoc\+\_\+mem.\+c}}\+: Associative memory stores the trained class vectors
+\item \#\#\#\# \mbox{\hyperlink{item__mem_8c}{item\+\_\+mem.\+c}}\+: Generates and stores the hdc base vectors for encoding
+\item \#\#\#\# \mbox{\hyperlink{encoder_8c}{encoder.\+c}}\+: Provides methods for encoding the input signals into hypervectors
+\item \#\#\#\# \mbox{\hyperlink{operations_8c}{operations.\+c}}\+: Provides methods for binding, bundling and permutation
+\item \#\#\#\# \mbox{\hyperlink{trainer_8c}{trainer.\+c}} Provides method train\+\_\+model, fills the assoc mem
+\item \#\#\#\# \mbox{\hyperlink{evaluator_8c}{evaluator.\+c}} Inference for testing data and evaluation of predictions
+\end{DoxyItemize}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md4}{}\doxysection{Author}\label{md_README_autotoc_md4}
+Marian Horn
+
+\href{mailto:marian.horn@fau.de}{\texttt{ marian.\+horn@fau.\+de}} 

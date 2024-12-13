@@ -1,0 +1,52 @@
+\hypertarget{modelCustom_8c}{}\doxysection{custom\+Model/model\+Custom.c File Reference}
+\label{modelCustom_8c}\index{customModel/modelCustom.c@{customModel/modelCustom.c}}
+
+
+Main file for implementing new HDC-\/\+Models. Should be replaced or extended.  
+
+
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}config\+Custom.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}data\+Reader\+Custom.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/assoc\+\_\+mem.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/item\+\_\+mem.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/encoder.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/operations.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/evaluator.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/vector.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/trainer.\+h\char`\"{}}\newline
+Include dependency graph for model\+Custom.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{modelCustom_8c_ae66f6b31b5ad750f1fe042a706a4e3d4}{main}} ()
+\begin{DoxyCompactList}\small\item\em Main entry point of the program. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Main file for implementing new HDC-\/\+Models. Should be replaced or extended. 
+
+This program implements the training and evaluation pipeline for hyperdimensional classification of a general example problem (no timeseries data). It includes data preprocessing, model training, and evaluation stages.
+
+The program supports two configurations\+:
+\begin{DoxyItemize}
+\item Precomputed item memory ({\ttfamily PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY} enabled)
+\item Dynamic item memory initialization ({\ttfamily PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY} disabled) 
+\end{DoxyItemize}
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{modelCustom_8c_ae66f6b31b5ad750f1fe042a706a4e3d4}\label{modelCustom_8c_ae66f6b31b5ad750f1fe042a706a4e3d4}} 
+\index{modelCustom.c@{modelCustom.c}!main@{main}}
+\index{main@{main}!modelCustom.c@{modelCustom.c}}
+\doxysubsubsection{\texorpdfstring{main()}{main()}}
+{\footnotesize\ttfamily int main (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Main entry point of the program. 
+
+\begin{DoxyReturn}{Returns}
+Returns 1 on successful execution. 
+\end{DoxyReturn}

@@ -1,0 +1,90 @@
+\hypertarget{dataReaderCustom_8c}{}\doxysection{custom\+Model/data\+Reader\+Custom.c File Reference}
+\label{dataReaderCustom_8c}\index{customModel/dataReaderCustom.c@{customModel/dataReaderCustom.c}}
+
+
+This file provides functions for reading, allocating, and managing training and testing data.  
+
+
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$time.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}data\+Reader\+Custom.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}../hdc\+\_\+infrastructure/preprocessor.\+h\char`\"{}}\newline
+Include dependency graph for data\+Reader\+Custom.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{dataReaderCustom_8c_a41000eef61f1cb16218e9bb21b803a9d}{free\+Data}} (double $\ast$$\ast$data, size\+\_\+t rows)
+\begin{DoxyCompactList}\small\item\em Frees a dynamically allocated 2D array. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{dataReaderCustom_8c_acdf3328331916eae228dc82d907cc624}{get\+Data}} (double $\ast$$\ast$$\ast$training\+Data, double $\ast$$\ast$$\ast$testing\+Data, int $\ast$$\ast$training\+Labels, int $\ast$$\ast$testing\+Labels, int $\ast$training\+Samples, int $\ast$testing\+Samples)
+\begin{DoxyCompactList}\small\item\em Allocates and initializes training and testing datasets. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+This file provides functions for reading, allocating, and managing training and testing data. 
+
+The file defines functions for\+:
+\begin{DoxyItemize}
+\item Freeing dynamically allocated 2D arrays.
+\item Preparing training and testing datasets for an example problem.
+\end{DoxyItemize}
+
+This implementation uses predefined static arrays for demonstration and simulates data loading.
+
+\begin{DoxyAuthor}{Author}
+Marian Horn 
+\end{DoxyAuthor}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{dataReaderCustom_8c_a41000eef61f1cb16218e9bb21b803a9d}\label{dataReaderCustom_8c_a41000eef61f1cb16218e9bb21b803a9d}} 
+\index{dataReaderCustom.c@{dataReaderCustom.c}!freeData@{freeData}}
+\index{freeData@{freeData}!dataReaderCustom.c@{dataReaderCustom.c}}
+\doxysubsubsection{\texorpdfstring{freeData()}{freeData()}}
+{\footnotesize\ttfamily void free\+Data (\begin{DoxyParamCaption}\item[{double $\ast$$\ast$}]{data,  }\item[{size\+\_\+t}]{rows }\end{DoxyParamCaption})}
+
+
+
+Frees a dynamically allocated 2D array. 
+
+This function releases memory allocated for a 2D array of doubles.
+
+
+\begin{DoxyParams}{Parameters}
+{\em data} & A pointer to the 2D array to be freed. \\
+\hline
+{\em rows} & The number of rows in the 2D array. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{dataReaderCustom_8c_acdf3328331916eae228dc82d907cc624}\label{dataReaderCustom_8c_acdf3328331916eae228dc82d907cc624}} 
+\index{dataReaderCustom.c@{dataReaderCustom.c}!getData@{getData}}
+\index{getData@{getData}!dataReaderCustom.c@{dataReaderCustom.c}}
+\doxysubsubsection{\texorpdfstring{getData()}{getData()}}
+{\footnotesize\ttfamily void get\+Data (\begin{DoxyParamCaption}\item[{double $\ast$$\ast$$\ast$}]{training\+Data,  }\item[{double $\ast$$\ast$$\ast$}]{testing\+Data,  }\item[{int $\ast$$\ast$}]{training\+Labels,  }\item[{int $\ast$$\ast$}]{testing\+Labels,  }\item[{int $\ast$}]{training\+Samples,  }\item[{int $\ast$}]{testing\+Samples }\end{DoxyParamCaption})}
+
+
+
+Allocates and initializes training and testing datasets. 
+
+This function initializes training and testing datasets using predefined static arrays, splits the data into training and testing samples, and assigns appropriate labels.
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ out}}  & {\em training\+Data} & Pointer to the allocated training data. \\
+\hline
+\mbox{\texttt{ out}}  & {\em testing\+Data} & Pointer to the allocated testing data. \\
+\hline
+\mbox{\texttt{ out}}  & {\em training\+Labels} & Pointer to the allocated training labels. \\
+\hline
+\mbox{\texttt{ out}}  & {\em testing\+Labels} & Pointer to the allocated testing labels. \\
+\hline
+\mbox{\texttt{ out}}  & {\em training\+Samples} & Pointer to the number of training samples. \\
+\hline
+\mbox{\texttt{ out}}  & {\em testing\+Samples} & Pointer to the number of testing samples.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The data layout assumes a fixed number of features as defined by {\ttfamily NUM\+\_\+\+FEATURES}. This implementation is for demonstration and uses hardcoded data arrays. 
+\end{DoxyNote}

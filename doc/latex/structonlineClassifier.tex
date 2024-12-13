@@ -1,0 +1,62 @@
+\hypertarget{structonlineClassifier}{}\doxysection{online\+Classifier Struct Reference}
+\label{structonlineClassifier}\index{onlineClassifier@{onlineClassifier}}
+
+
+Represents the online classifier for real-\/time predictions.  
+
+
+
+
+{\ttfamily \#include $<$online\+\_\+classifier.\+h$>$}
+
+
+
+Collaboration diagram for online\+Classifier\+:
+% FIG 0
+\doxysubsection*{Data Fields}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$ \mbox{\hyperlink{structonlineClassifier_a76dd294ee477095bf902e2d448366394}{assoc\+\_\+mem}}
+\item 
+struct \mbox{\hyperlink{structencoder}{encoder}} $\ast$ \mbox{\hyperlink{structonlineClassifier_abca2ca0125d2a2e09f62494b32bb2b92}{enc}}
+\item 
+int \mbox{\hyperlink{structonlineClassifier_a6aefcffdda56b7cecf85b8b57e04d10d}{batch\+\_\+size}}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Represents the online classifier for real-\/time predictions. 
+
+This structure handles batch-\/based online classification using a pre-\/trained associative memory and encoder.
+
+Members\+:
+\begin{DoxyItemize}
+\item {\bfseries{assoc\+\_\+mem}}\+: Pointer to the associative memory used for classification.
+\item {\bfseries{enc}}\+: Pointer to the encoder used for transforming input data into hypervectors.
+\item {\bfseries{batch\+\_\+size}}\+: The number of samples to process in each batch. 
+\end{DoxyItemize}
+
+\doxysubsection{Field Documentation}
+\mbox{\Hypertarget{structonlineClassifier_a76dd294ee477095bf902e2d448366394}\label{structonlineClassifier_a76dd294ee477095bf902e2d448366394}} 
+\index{onlineClassifier@{onlineClassifier}!assoc\_mem@{assoc\_mem}}
+\index{assoc\_mem@{assoc\_mem}!onlineClassifier@{onlineClassifier}}
+\doxysubsubsection{\texorpdfstring{assoc\_mem}{assoc\_mem}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}}$\ast$ online\+Classifier\+::assoc\+\_\+mem}
+
+Pointer to the associative memory. \mbox{\Hypertarget{structonlineClassifier_a6aefcffdda56b7cecf85b8b57e04d10d}\label{structonlineClassifier_a6aefcffdda56b7cecf85b8b57e04d10d}} 
+\index{onlineClassifier@{onlineClassifier}!batch\_size@{batch\_size}}
+\index{batch\_size@{batch\_size}!onlineClassifier@{onlineClassifier}}
+\doxysubsubsection{\texorpdfstring{batch\_size}{batch\_size}}
+{\footnotesize\ttfamily int online\+Classifier\+::batch\+\_\+size}
+
+Number of samples in a batch. \mbox{\Hypertarget{structonlineClassifier_abca2ca0125d2a2e09f62494b32bb2b92}\label{structonlineClassifier_abca2ca0125d2a2e09f62494b32bb2b92}} 
+\index{onlineClassifier@{onlineClassifier}!enc@{enc}}
+\index{enc@{enc}!onlineClassifier@{onlineClassifier}}
+\doxysubsubsection{\texorpdfstring{enc}{enc}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structencoder}{encoder}}$\ast$ online\+Classifier\+::enc}
+
+Pointer to the encoder. 
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+hdc\+\_\+infrastructure/online\+\_\+classifier.\+h\end{DoxyCompactItemize}

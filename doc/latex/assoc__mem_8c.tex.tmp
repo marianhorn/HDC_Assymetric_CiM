@@ -1,0 +1,262 @@
+\hypertarget{assoc__mem_8c}{}\doxysection{hdc\+\_\+infrastructure/assoc\+\_\+mem.c File Reference}
+\label{assoc__mem_8c}\index{hdc\_infrastructure/assoc\_mem.c@{hdc\_infrastructure/assoc\_mem.c}}
+
+
+Implements functions for managing associative memory.  
+
+
+{\ttfamily \#include \char`\"{}assoc\+\_\+mem.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$math.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}operations.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}vector.\+h\char`\"{}}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+Include dependency graph for assoc\+\_\+mem.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{assoc__mem_8c_abbd223e98974db67076baaa60aca1a27}{init\+\_\+assoc\+\_\+mem}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem)
+\begin{DoxyCompactList}\small\item\em Initializes the associative memory structure. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{assoc__mem_8c_a6d99718b7cb56df288e2d5f5be8fa2a4}{add\+\_\+to\+\_\+assoc\+\_\+mem}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, \mbox{\hyperlink{structVector}{Vector}} $\ast$sample\+\_\+hv, int class\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Adds or sets a hypervector to the associative memory for a specific class. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{assoc__mem_8c_a491c26b13d52e55c363830abd69cefe2}{classify}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, \mbox{\hyperlink{structVector}{Vector}} $\ast$sample\+\_\+hv)
+\begin{DoxyCompactList}\small\item\em Classifies an input hypervector based on its similarity to stored class vectors. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{structVector}{Vector}} $\ast$ \mbox{\hyperlink{assoc__mem_8c_a9d767d6379fcf5d3f8c7cbda153b3bf9}{get\+\_\+class\+\_\+vector}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, int class\+\_\+id)
+\begin{DoxyCompactList}\small\item\em Retrieves the class vector for a given class ID. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{assoc__mem_8c_ae7a64b1ebfce6d4632215a2de09a9832}{free\+\_\+assoc\+\_\+mem}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem)
+\begin{DoxyCompactList}\small\item\em Frees the memory allocated for associative memory. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{assoc__mem_8c_ab6aafbf0de47bb919c9ffaac45201f42}{print\+\_\+class\+\_\+vectors}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem)
+\begin{DoxyCompactList}\small\item\em Prints all the class vectors stored in the associative memory. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{assoc__mem_8c_a82da615ef9a7955218f457263044a43d}{normalize}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem)
+\begin{DoxyCompactList}\small\item\em Normalizes the class vectors by dividing each element by the number of samples in the class. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{assoc__mem_8c_a39ea11d22e020320fda4f6220fd71dd8}{store\+\_\+assoc\+\_\+mem\+\_\+to\+\_\+bin}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, const char $\ast$file\+\_\+path)
+\begin{DoxyCompactList}\small\item\em Stores the associative memory to a binary file. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{assoc__mem_8c_a54ec9962989295c106f58c391db083f8}{load\+\_\+assoc\+\_\+mem\+\_\+from\+\_\+bin}} (struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$assoc\+\_\+mem, const char $\ast$filepath)
+\begin{DoxyCompactList}\small\item\em Loads the associative memory from a binary file. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implements functions for managing associative memory. 
+
+The associative memory module provides functionality to store hypervectors for various classes, classify new input vectors, and update class vectors dynamically (in bipolar mode). It supports both bipolar and binary modes of operation and includes utilities for loading and saving memory.
+
+\begin{DoxyAuthor}{Author}
+Marian Horn 
+\end{DoxyAuthor}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{assoc__mem_8c_a6d99718b7cb56df288e2d5f5be8fa2a4}\label{assoc__mem_8c_a6d99718b7cb56df288e2d5f5be8fa2a4}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!add\_to\_assoc\_mem@{add\_to\_assoc\_mem}}
+\index{add\_to\_assoc\_mem@{add\_to\_assoc\_mem}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{add\_to\_assoc\_mem()}{add\_to\_assoc\_mem()}}
+{\footnotesize\ttfamily int add\+\_\+to\+\_\+assoc\+\_\+mem (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{sample\+\_\+hv,  }\item[{int}]{class\+\_\+id }\end{DoxyParamCaption})}
+
+
+
+Adds or sets a hypervector to the associative memory for a specific class. 
+
+
+\begin{DoxyItemize}
+\item In {\bfseries{bipolar mode}}, this function incrementally updates the class vector by bundling the input hypervector with the existing class vector, but only if similarity of class and input hypervector is below CUTTING\+\_\+\+ANGLE\+\_\+\+THRESHOLD.
+\item In {\bfseries{binary mode}}, since majority voting does not support incremental bundling, the class vector is directly set to the input hypervector.
+\end{DoxyItemize}
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em hv} & The input hypervector to add or set. \\
+\hline
+{\em class\+\_\+label} & The class label to which the hypervector belongs.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The {\ttfamily class\+\_\+label} must be within the range {\ttfamily \mbox{[}0, NUM\+\_\+\+CLASSES -\/ 1\mbox{]}}. 
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+Ensure the input hypervector ({\ttfamily hv}) is not {\ttfamily NULL}. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{assoc__mem_8c_a491c26b13d52e55c363830abd69cefe2}\label{assoc__mem_8c_a491c26b13d52e55c363830abd69cefe2}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!classify@{classify}}
+\index{classify@{classify}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{classify()}{classify()}}
+{\footnotesize\ttfamily int classify (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{sample\+\_\+hv }\end{DoxyParamCaption})}
+
+
+
+Classifies an input hypervector based on its similarity to stored class vectors. 
+
+Compares the input vector with each class vector in the associative memory using cosine similarity (for bipolar mode) or Hamming distance (for binary mode).
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em hv} & The input hypervector to classify. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+The predicted class label, or {\ttfamily -\/1} if no valid classification is possible. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{assoc__mem_8c_ae7a64b1ebfce6d4632215a2de09a9832}\label{assoc__mem_8c_ae7a64b1ebfce6d4632215a2de09a9832}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!free\_assoc\_mem@{free\_assoc\_mem}}
+\index{free\_assoc\_mem@{free\_assoc\_mem}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{free\_assoc\_mem()}{free\_assoc\_mem()}}
+{\footnotesize\ttfamily void free\+\_\+assoc\+\_\+mem (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem }\end{DoxyParamCaption})}
+
+
+
+Frees the memory allocated for associative memory. 
+
+This function frees the memory allocated for the class vectors and count array in the associative memory.
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure to be freed. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{assoc__mem_8c_a9d767d6379fcf5d3f8c7cbda153b3bf9}\label{assoc__mem_8c_a9d767d6379fcf5d3f8c7cbda153b3bf9}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!get\_class\_vector@{get\_class\_vector}}
+\index{get\_class\_vector@{get\_class\_vector}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{get\_class\_vector()}{get\_class\_vector()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{structVector}{Vector}}$\ast$ get\+\_\+class\+\_\+vector (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{int}]{class\+\_\+id }\end{DoxyParamCaption})}
+
+
+
+Retrieves the class vector for a given class ID. 
+
+This function fetches the class vector for the specified class ID.
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em class\+\_\+id} & The class ID for which the vector is to be fetched.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+A pointer to the class vector.
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+If the class ID is invalid, the program will terminate with an error. 
+\end{DoxyNote}
+\mbox{\Hypertarget{assoc__mem_8c_abbd223e98974db67076baaa60aca1a27}\label{assoc__mem_8c_abbd223e98974db67076baaa60aca1a27}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!init\_assoc\_mem@{init\_assoc\_mem}}
+\index{init\_assoc\_mem@{init\_assoc\_mem}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{init\_assoc\_mem()}{init\_assoc\_mem()}}
+{\footnotesize\ttfamily void init\+\_\+assoc\+\_\+mem (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem }\end{DoxyParamCaption})}
+
+
+
+Initializes the associative memory structure. 
+
+Allocates memory for storing hypervectors for each class and initializes the vectors to zero. The memory structure also tracks the number of stored vectors per class.
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the {\ttfamily \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}}} structure to initialize. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{assoc__mem_8c_a54ec9962989295c106f58c391db083f8}\label{assoc__mem_8c_a54ec9962989295c106f58c391db083f8}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!load\_assoc\_mem\_from\_bin@{load\_assoc\_mem\_from\_bin}}
+\index{load\_assoc\_mem\_from\_bin@{load\_assoc\_mem\_from\_bin}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{load\_assoc\_mem\_from\_bin()}{load\_assoc\_mem\_from\_bin()}}
+{\footnotesize\ttfamily void load\+\_\+assoc\+\_\+mem\+\_\+from\+\_\+bin (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{const char $\ast$}]{filepath }\end{DoxyParamCaption})}
+
+
+
+Loads the associative memory from a binary file. 
+
+This function reads the associative memory\textquotesingle{}s class vectors from a binary file. The file is expected to follow the same data layout as written by {\ttfamily store\+\_\+assoc\+\_\+mem\+\_\+to\+\_\+bin}.
+
+
+\begin{DoxyItemize}
+\item For {\bfseries{bipolar mode}}\+: Each element of the class vector is read as an {\ttfamily int} and is expected to be {\ttfamily -\/1} or {\ttfamily 1}.
+\item For {\bfseries{binary mode}}\+: Each element of the class vector is read as an {\ttfamily bool} and is expected to be {\ttfamily 0} or {\ttfamily 1}.
+\end{DoxyItemize}
+
+The function allocates memory for the class vectors as needed.
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em filepath} & The path to the binary file from which to load the memory.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyWarning}{Warning}
+The function will terminate the program if the file format or size is invalid. 
+\end{DoxyWarning}
+\mbox{\Hypertarget{assoc__mem_8c_a82da615ef9a7955218f457263044a43d}\label{assoc__mem_8c_a82da615ef9a7955218f457263044a43d}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!normalize@{normalize}}
+\index{normalize@{normalize}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{normalize()}{normalize()}}
+{\footnotesize\ttfamily void normalize (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem }\end{DoxyParamCaption})}
+
+
+
+Normalizes the class vectors by dividing each element by the number of samples in the class. 
+
+This function performs a simple normalization of the class vectors by dividing each element by the count of data samples in that class. This helps in balancing the class vectors over time.
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+Can be activated/deactivated by NORMALIZE in config.\+h 
+\end{DoxyNote}
+\mbox{\Hypertarget{assoc__mem_8c_ab6aafbf0de47bb919c9ffaac45201f42}\label{assoc__mem_8c_ab6aafbf0de47bb919c9ffaac45201f42}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!print\_class\_vectors@{print\_class\_vectors}}
+\index{print\_class\_vectors@{print\_class\_vectors}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{print\_class\_vectors()}{print\_class\_vectors()}}
+{\footnotesize\ttfamily void print\+\_\+class\+\_\+vectors (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem }\end{DoxyParamCaption})}
+
+
+
+Prints all the class vectors stored in the associative memory. 
+
+This function prints the learned class vectors and the number of trained elements per class.
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure to print. \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{assoc__mem_8c_a39ea11d22e020320fda4f6220fd71dd8}\label{assoc__mem_8c_a39ea11d22e020320fda4f6220fd71dd8}} 
+\index{assoc\_mem.c@{assoc\_mem.c}!store\_assoc\_mem\_to\_bin@{store\_assoc\_mem\_to\_bin}}
+\index{store\_assoc\_mem\_to\_bin@{store\_assoc\_mem\_to\_bin}!assoc\_mem.c@{assoc\_mem.c}}
+\doxysubsubsection{\texorpdfstring{store\_assoc\_mem\_to\_bin()}{store\_assoc\_mem\_to\_bin()}}
+{\footnotesize\ttfamily void store\+\_\+assoc\+\_\+mem\+\_\+to\+\_\+bin (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structassociative__memory}{associative\+\_\+memory}} $\ast$}]{assoc\+\_\+mem,  }\item[{const char $\ast$}]{file\+\_\+path }\end{DoxyParamCaption})}
+
+
+
+Stores the associative memory to a binary file. 
+
+This function writes the associative memory\textquotesingle{}s class vectors to a binary file. Each class vector is stored sequentially in the file. The data layout is as follows\+:
+
+
+\begin{DoxyItemize}
+\item For {\bfseries{bipolar mode}}\+: Each element of the class vector is stored as an {\ttfamily int} with values {\ttfamily -\/1} or {\ttfamily 1}.
+\item For {\bfseries{binary mode}}\+: Each element of the class vector is stored as an {\ttfamily bool} with values {\ttfamily 0} or {\ttfamily 1}.
+\end{DoxyItemize}
+
+The total size of the binary file will be\+: {\ttfamily NUM\+\_\+\+CLASSES $\ast$ VECTOR\+\_\+\+DIMENSION $\ast$ sizeof(vector\+\_\+element)}
+
+
+\begin{DoxyParams}{Parameters}
+{\em assoc\+\_\+mem} & A pointer to the associative memory structure. \\
+\hline
+{\em file\+\_\+path} & The path to the binary file where the memory should be stored.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The caller must ensure the associative memory is properly initialized before calling this function. 
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+The file will be overwritten if it already exists. 
+\end{DoxyWarning}

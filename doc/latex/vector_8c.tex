@@ -1,0 +1,140 @@
+\hypertarget{vector_8c}{}\doxysection{hdc\+\_\+infrastructure/vector.c File Reference}
+\label{vector_8c}\index{hdc\_infrastructure/vector.c@{hdc\_infrastructure/vector.c}}
+
+
+Implementation of functions for managing and debugging hyperdimensional vectors.  
+
+
+{\ttfamily \#include \char`\"{}vector.\+h\char`\"{}}\newline
+Include dependency graph for vector.\+c\+:
+% FIG 0
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{structVector}{Vector}} $\ast$ \mbox{\hyperlink{vector_8c_af7690155e15f5451639b706a89ea9d12}{create\+\_\+vector}} ()
+\begin{DoxyCompactList}\small\item\em Allocates and initializes a new vector. \end{DoxyCompactList}\item 
+\mbox{\hyperlink{structVector}{Vector}} $\ast$ \mbox{\hyperlink{vector_8c_a7eed9344d1c8ace7d91fc2ccea88dd34}{create\+\_\+uninitialized\+\_\+vector}} ()
+\begin{DoxyCompactList}\small\item\em Allocates a new vector without initializing its elements. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{vector_8c_a198417967ef24ada410abbb475e6966d}{free\+\_\+vector}} (\mbox{\hyperlink{structVector}{Vector}} $\ast$vec)
+\begin{DoxyCompactList}\small\item\em Frees the memory allocated for a vector. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{vector_8c_a755a1050a84cfdb2d6a5ffae1fe06a6e}{print\+\_\+vector}} (const \mbox{\hyperlink{structVector}{Vector}} $\ast$vec)
+\begin{DoxyCompactList}\small\item\em Prints the first 10,000 elements of a vector. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Implementation of functions for managing and debugging hyperdimensional vectors. 
+
+This file contains functions to initialize, free, and debug vectors used in hyperdimensional computing (HDC). Vectors are represented as arrays of elements and can be either binary or bipolar, depending on the configuration.
+
+
+\begin{DoxyItemize}
+\item {\bfseries{\mbox{\hyperlink{structVector}{Vector}} Initialization\+:}} Vectors are allocated dynamically, with values initialized to default values based on the chosen mode\+:
+\begin{DoxyItemize}
+\item Binary Mode\+: Elements are initialized to {\ttfamily false} (0).
+\item Bipolar Mode\+: Elements are initialized to {\ttfamily -\/1}.
+\end{DoxyItemize}
+\item {\bfseries{\mbox{\hyperlink{structVector}{Vector}} Debugging\+:}} The file includes functions to print vector values, aiding in debugging.
+\end{DoxyItemize}
+
+\begin{DoxyNote}{Note}
+Ensure proper memory management to avoid memory leaks. 
+\end{DoxyNote}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{vector_8c_a7eed9344d1c8ace7d91fc2ccea88dd34}\label{vector_8c_a7eed9344d1c8ace7d91fc2ccea88dd34}} 
+\index{vector.c@{vector.c}!create\_uninitialized\_vector@{create\_uninitialized\_vector}}
+\index{create\_uninitialized\_vector@{create\_uninitialized\_vector}!vector.c@{vector.c}}
+\doxysubsubsection{\texorpdfstring{create\_uninitialized\_vector()}{create\_uninitialized\_vector()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{structVector}{Vector}}$\ast$ create\+\_\+uninitialized\+\_\+vector (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Allocates a new vector without initializing its elements. 
+
+This function creates a vector of dimension {\ttfamily VECTOR\+\_\+\+DIMENSION}. The vector\textquotesingle{}s data is allocated but not initialized, leaving its contents undefined.
+
+\begin{DoxyReturn}{Returns}
+A pointer to the newly created uninitialized vector.
+\end{DoxyReturn}
+\begin{DoxyWarning}{Warning}
+
+\begin{DoxyItemize}
+\item The function exits with an error if memory allocation fails.
+\item Ensure the allocated vector is initialized before use.
+\item Free the vector after use with {\ttfamily free\+\_\+vector} to prevent memory leaks. 
+\end{DoxyItemize}
+\end{DoxyWarning}
+\mbox{\Hypertarget{vector_8c_af7690155e15f5451639b706a89ea9d12}\label{vector_8c_af7690155e15f5451639b706a89ea9d12}} 
+\index{vector.c@{vector.c}!create\_vector@{create\_vector}}
+\index{create\_vector@{create\_vector}!vector.c@{vector.c}}
+\doxysubsubsection{\texorpdfstring{create\_vector()}{create\_vector()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{structVector}{Vector}}$\ast$ create\+\_\+vector (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Allocates and initializes a new vector. 
+
+This function creates a vector of dimension {\ttfamily VECTOR\+\_\+\+DIMENSION} and initializes its elements based on the selected mode (binary or bipolar).
+
+\begin{DoxyReturn}{Returns}
+A pointer to the newly created vector.
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+
+\begin{DoxyItemize}
+\item In {\bfseries{bipolar mode}}, elements are initialized to {\ttfamily -\/1}.
+\item In {\bfseries{binary mode}}, elements are initialized to {\ttfamily false} (0).
+\end{DoxyItemize}
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+
+\begin{DoxyItemize}
+\item The function exits with an error if memory allocation fails.
+\item Ensure the allocated vector is freed after use with {\ttfamily free\+\_\+vector}. 
+\end{DoxyItemize}
+\end{DoxyWarning}
+\mbox{\Hypertarget{vector_8c_a198417967ef24ada410abbb475e6966d}\label{vector_8c_a198417967ef24ada410abbb475e6966d}} 
+\index{vector.c@{vector.c}!free\_vector@{free\_vector}}
+\index{free\_vector@{free\_vector}!vector.c@{vector.c}}
+\doxysubsubsection{\texorpdfstring{free\_vector()}{free\_vector()}}
+{\footnotesize\ttfamily void free\+\_\+vector (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec }\end{DoxyParamCaption})}
+
+
+
+Frees the memory allocated for a vector. 
+
+This function releases the memory used by the vector and its data.
+
+
+\begin{DoxyParams}{Parameters}
+{\em vec} & A pointer to the vector to be freed.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+The vector must have been created with {\ttfamily create\+\_\+vector} or {\ttfamily create\+\_\+uninitialized\+\_\+vector}. 
+\end{DoxyNote}
+\mbox{\Hypertarget{vector_8c_a755a1050a84cfdb2d6a5ffae1fe06a6e}\label{vector_8c_a755a1050a84cfdb2d6a5ffae1fe06a6e}} 
+\index{vector.c@{vector.c}!print\_vector@{print\_vector}}
+\index{print\_vector@{print\_vector}!vector.c@{vector.c}}
+\doxysubsubsection{\texorpdfstring{print\_vector()}{print\_vector()}}
+{\footnotesize\ttfamily void print\+\_\+vector (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{structVector}{Vector}} $\ast$}]{vec }\end{DoxyParamCaption})}
+
+
+
+Prints the first 10,000 elements of a vector. 
+
+This function prints the values of a vector for debugging purposes.
+
+
+\begin{DoxyParams}{Parameters}
+{\em vec} & A pointer to the vector to be printed.\\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+
+\begin{DoxyItemize}
+\item Only the first 100 elements are printed to avoid excessive output.
+\item Ensure the vector is not NULL before calling this function. 
+\end{DoxyItemize}
+\end{DoxyNote}
