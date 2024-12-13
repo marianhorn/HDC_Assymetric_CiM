@@ -1,0 +1,318 @@
+/**
+ * @file item_mem.c
+ * @brief Implements functions for generating and managing item memory used in hyperdimensional computing.
+ * 
+ * @details
+ * This file provides functionality to initialize, manage, and manipulate item memory vectors. 
+ * Item memory is a key component in HDC and stores base vectors for encoding input data. The implementation 
+ * supports both bipolar and binary data representations.
+ * 
+ * Functions in this file include initialization of item memory for discrete and continuous items, 
+ * vector interpolation, storing/loading item memory to/from files, and generating orthogonal vectors.
+ * 
+ * @author Marian Horn
+ */
+#include "item_mem.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include "vector.h"
+/**
+ * @brief Initializes item memory for discrete items, eg. features.
+ * 
+ * @details
+ * This function generates a set of random base vectors, either bipolar (-1, 1) or binary (0, 1),
+ * for encoding discrete items. The vectors are stored in the `item_memory` structure.
+ * 
+ * @param item_mem A pointer to the item memory structure to be initialized.
+ * @param num_items The number of discrete items to encode.
+ */
+void init_item_memory(struct item_memory *item_mem, int num_items) {
+    #if OUTPUT_MODE>=OUTPUT_DETAILED
+        printf("Initializing item memory for %d features.\n",num_items);
+    #endif
+    item_mem->num_vectors = num_items;
+    item_mem->base_vectors = (Vector **)malloc(num_items * sizeof(Vector*));
+    for (int i = 0; i < num_items; i++) {
+        item_mem->base_vectors[i] = create_uninitialized_vector();
+        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+#if BIPOLAR_MODE
+            item_mem->base_vectors[i]->data[j] = (rand() % 2) * 2 - 1; //-1 or 1 for bipolar
+#else
+            item_mem->base_vectors[i]->data[j] = rand() % 2; //0 or 1 for binary
+#endif
+        }
+    }
+    #if OUTPUT_MODE>=OUTPUT_DEBUG
+        print_item_memory(item_mem);
+        printf("\n");
+    #endif
+}
+
+/**
+ * @brief Generates two orthogonal vectors.
+ * 
+ * @details
+ * This function creates two vectors that are orthogonal to each other, 
+ * which can be used for continuous item memory or other operations.
+ * 
+ * @param vector1 A pointer to the first vector to be generated.
+ * @param vector2 A pointer to the second vector to be generated.
+ * @param dimension The dimensionality of the vectors.
+ */
+void generate_orthogonal_vectors(Vector *vector1, Vector *vector2, int dimension) {
+    for (int i = 0; i < dimension; i++) {
+#if BIPOLAR_MODE
+        vector1->data[i] = (rand() % 2) * 2 - 1; // -1 or 1 for bipolar
+        vector2->data[i] = -vector1->data[i]; // Orthogonal for bipolar
+#else
+        vector1->data[i] = rand() % 2;
+        vector2->data[i] = !vector1->data[i]; // Orthogonal for binary
+#endif
+    }
+}
+
+/**
+ * @brief Interpolates between two vectors.
+ * 
+ * @details
+ * This function creates a new vector by interpolating between two input vectors 
+ * based on a specified ratio. The resulting vector contains elements randomly selected 
+ * from the two input vectors according to the ratio.
+ * 
+ * @param vec1 A pointer to the first vector.
+ * @param vec2 A pointer to the second vector.
+ * @param result A pointer to the resulting interpolated vector.
+ * @param dimension The dimensionality of the vectors.
+ * @param ratio The ratio for interpolation (0.0 corresponds to `vec1`, 1.0 corresponds to `vec2`).
+ * 
+ * @note This is used to generate equidistant hypervectors for continuous item memory
+ */
+void interpolate_vectors(Vector *vec1, Vector *vec2, Vector *result, int dimension, double ratio) {
+    int flip_count = (int)(dimension * ratio);
+    memcpy(result->data, vec1->data, dimension * sizeof(vector_element));
+    for (int i = 0; i < flip_count; i++) {
+        int index = rand() % dimension;
+        result->data[index] = vec2->data[index];
+    }
+}
+
+/**
+ * @brief Initializes item memory for continuous signal levels.
+ * 
+ * @details
+ * This function generates a set of vectors representing continuous signal levels. 
+ * It creates orthogonal vectors for the minimum and maximum levels and interpolates 
+ * between them to generate intermediate levels.
+ * 
+ * @param item_mem A pointer to the item memory structure to be initialized.
+ * @param num_levels The number of continuous signal levels.
+ */
+void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
+    #if OUTPUT_MODE>=OUTPUT_DETAILED
+        printf("Initializing continuous item memory with %d levels.\n",num_levels);
+    #endif
+    item_mem->num_vectors = num_levels;
+    item_mem->base_vectors = (Vector **)malloc(num_levels * sizeof(Vector *));
+    for (int i = 0; i < num_levels; i++) {
+        item_mem->base_vectors[i] = create_uninitialized_vector();
+    }
+
+    Vector *min_vector = create_uninitialized_vector();
+    Vector *max_vector = create_uninitialized_vector();
+
+    generate_orthogonal_vectors(min_vector, max_vector, VECTOR_DIMENSION);
+
+    for (int i = 0; i < num_levels; i++) {
+        double ratio = (double)i / (num_levels - 1);
+        interpolate_vectors(min_vector, max_vector, item_mem->base_vectors[i], VECTOR_DIMENSION, ratio);
+    }
+
+    free_vector(min_vector);
+    free_vector(max_vector);
+    #if OUTPUT_MODE>=OUTPUT_DEBUG
+        print_item_memory(item_mem);
+        printf("\n");
+    #endif
+}
+
+void generate_random_hv(vector_element *data, int dimension) {
+    for (int i = 0; i < dimension; i++) {
+        #if BIPOLAR_MODE
+        data[i] = (rand() % 2) * 2 - 1; // Randomly assign -1 or 1 for bipolar
+
+        #else
+        data[i] = rand() % 2; // Randomly assign 0 or 1 for binary
+        #endif
+    }
+}
+/**
+ * @brief Initializes binary item memory for precomputed feature-level representations.
+ * 
+ * @details
+ * This function generates a precomputed item memory for binary data, 
+ * where each feature and level combination is assigned a unique vector.
+ * 
+ * @param item_mem A pointer to the item memory structure to be initialized.
+ * @param num_levels The number of signal levels.
+ * @param num_features The number of features to encode.
+ * @note Can be activate by PRECOMPUTED_ITEM_MEMORY in config.h
+ */
+void init_binary_item_memory(struct item_memory *item_mem, int num_levels, int num_features) {
+    #if OUTPUT_MODE>=OUTPUT_DETAILED
+        printf("Initializing binary precomputed item memory with %d levels for %d features.\n",num_levels,num_features);
+    #endif
+    int total_vectors = num_levels * num_features; // Total vectors required
+    item_mem->num_vectors = total_vectors;
+    item_mem->base_vectors = (Vector **)malloc(total_vectors * sizeof(Vector *));
+    for (int i = 0; i < num_levels*num_features; i++) {
+        item_mem->base_vectors[i] = create_uninitialized_vector();
+    }
+    // Seed for reproducible randomness
+    srand(1);
+    for (int feature = 0; feature < num_features; feature++) {
+        // Generate an initial orthogonal vector for this feature
+        generate_orthogonal_vectors(item_mem->base_vectors[feature],item_mem->base_vectors[(num_features*(num_levels-1))+feature],VECTOR_DIMENSION);
+        for(int level = 0; level<num_levels; level++){
+            double ratio = (double)level / (num_levels-1);
+            interpolate_vectors(item_mem->base_vectors[feature],item_mem->base_vectors[(num_features*(num_levels-1))+feature],item_mem->base_vectors[(level*num_features)+feature], VECTOR_DIMENSION,ratio);
+        }
+    }
+    #if OUTPUT_MODE>=OUTPUT_DEBUG
+        print_item_memory(item_mem);
+        printf("\n");
+    #endif
+}
+
+/**
+ * @brief Frees the memory allocated for item memory.
+ * 
+ * @details
+ * This function releases all vectors stored in the item memory structure, 
+ * as well as the structure itself.
+ * 
+ * @param item_mem A pointer to the item memory structure to be freed.
+ */
+void free_item_memory(struct item_memory *item_mem) {
+    for (int i = 0; i < item_mem->num_vectors; i++) {
+        free_vector(item_mem->base_vectors[i]);
+    }
+    free(item_mem->base_vectors);
+}
+
+/**
+ * @brief Retrieves the vector for a specific item.
+ * 
+ * @details
+ * This function fetches the base vector corresponding to a given item ID from the item memory.
+ * 
+ * @param item_mem A pointer to the item memory structure.
+ * @param item_id The ID of the item whose vector is to be retrieved.
+ * @return A pointer to the vector corresponding to the item ID, or NULL if the ID is invalid.
+ */
+Vector* get_item_vector(struct item_memory *item_mem, int item_id) {
+    if (item_id >= 0 && item_id < item_mem->num_vectors) {
+        return item_mem->base_vectors[item_id];
+    }
+    return NULL;
+}
+/**
+ * @brief Prints the contents of the item memory.
+ * 
+ * @details
+ * This function outputs the details of the item memory, including the number of vectors 
+ * and their values, for debugging purposes.
+ * 
+ * @param item_mem A pointer to the item memory structure.
+ */
+void print_item_memory(struct item_memory *item_mem) {
+    printf("Item memory contains %d vectors of dimension %d\n", item_mem->num_vectors, VECTOR_DIMENSION);
+    for (int j = 0; j < VECTOR_DIMENSION; j += 1000) {
+        for (int i = 0; i < item_mem->num_vectors; i++) {
+            printf("%d ", item_mem->base_vectors[i]->data[j]);
+        }
+        printf("\n");
+    }
+}
+/**
+ * @brief Stores item memory vectors to a binary file.
+ * 
+ * @details
+ * This function writes the data of all vectors stored in the item memory to a binary file.
+ * 
+ * The layout in the binary file is as follows:
+ * - Each vector is stored sequentially.
+ * - Each vector consists of `VECTOR_DIMENSION` elements.
+ * - The data type of each element is `vector_element`, which is defined as:
+ *   - `int` for bipolar mode (values: -1 or 1).
+ *   - `bool` for binary mode (values: 0 or 1).
+ * 
+ * The binary file will contain `num_vectors * VECTOR_DIMENSION` elements, 
+ * written as a contiguous array.
+ * 
+ * @param item_mem A pointer to the item memory structure.
+ * @param filepath The path to the binary file where the vectors should be stored.
+ * 
+ * @note Ensure that the correct `VECTOR_DIMENSION` is used when reading this file.
+ */
+void store_item_mem_to_bin(struct item_memory *item_mem, const char *filepath) {
+    FILE *file = fopen(filepath, "wb");
+    if (!file) {
+        perror("Failed to open file for writing item memory");
+        exit(EXIT_FAILURE);
+    }
+
+    // Write each vector's data
+    for (int i = 0; i < item_mem->num_vectors; i++) {
+        fwrite(item_mem->base_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file);
+    }
+
+    fclose(file);
+    printf("Item memory successfully stored to %s\n", filepath);
+}
+/**
+ * @brief Loads item memory vectors from a binary file.
+ * 
+ * @details
+ * This function reads vectors from a binary file and initializes the item memory structure.
+ * 
+ * The binary file must have the following layout:
+ * - Each vector is stored sequentially.
+ * - Each vector consists of `VECTOR_DIMENSION` elements.
+ * - The data type of each element must match the expected type:
+ *   - `int` for bipolar mode (values: -1 or 1).
+ *   - `bool` for binary mode (values: 0 or 1).
+ * 
+ * When reading the file, the function:
+ * - Initializes the item memory structure with `num_items` vectors.
+ * - Reads `num_items * VECTOR_DIMENSION` elements from the binary file and assigns them to the vectors.
+ * 
+ * @param item_mem A pointer to the item memory structure to be loaded.
+ * @param filepath The path to the binary file containing the item memory vectors.
+ * @param num_items The number of vectors to load into the item memory.
+ * 
+ * @note Ensure that the binary file corresponds to the correct `VECTOR_DIMENSION` and `num_items`.
+ */
+void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, int num_items) {
+    FILE *file = fopen(filepath, "rb");
+    if (!file) {
+        perror("Failed to open file for reading item memory");
+        exit(EXIT_FAILURE);
+    }
+
+    init_item_memory(item_mem, num_items);
+
+    for (int i = 0; i < num_items; i++) {
+        size_t items_read = fread(item_mem->base_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file);
+        if (items_read != VECTOR_DIMENSION) {
+            fprintf(stderr, "Error: Incomplete vector data at row %d with only %ld elements\n", i,items_read);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+   
+    
+
+    fclose(file);
+    printf("Item memory successfully loaded from %s\n", filepath);
+}
