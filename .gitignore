@@ -1,0 +1,12 @@
+.idea
+build/*
+model
+modelHand
+modelFoot
+parameter_tuning_results.xlsx
+modelRISCV
+spikeLog.txt
+Debugging/difference.txt
+Debugging/indexListHDCMatlab.txt
+Debugging/indexListHDCMeinCode.txt
+modelCustom
