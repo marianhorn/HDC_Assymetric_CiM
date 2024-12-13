@@ -17,7 +17,7 @@ int main(){
     #if OUTPUT_MODE>=OUTPUT_BASIC
         printf("\nHDC-classification for EMG-signals:\n\n");
     #endif
-    for(int dataset = 1; dataset<7;dataset++){
+    for(int dataset = 0; dataset<4;dataset++){
 
         #if OUTPUT_MODE>= OUTPUT_BASIC
             printf("\n\nModel for dataset #%d\n",dataset);
