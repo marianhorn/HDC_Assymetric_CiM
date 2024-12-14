@@ -2,48 +2,52 @@
 
 Computer science project for master CE (Marian Horn)
 
-## Goal
-Implement a well-structured version of EMG gesture recognition with HDC in C.
-Should have the same functionality as torchHDExampleCode.py.
+## Description
+Implementation of a well-structured framework for hyperdimensional computing (HDC).
+Evaluation Example: EMG-Classification of foot movement for NOE-EMY project.
+For documentation about system and functions please refer to /doc and Abschlussbericht.pdf.
+The development repository of this project with all its intermediate artifacts is available at: https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc
 
-This serves for evaluation of HDC for EMG classification (hand and foot).
 
-## Usage
+## Getting started
 
-To build the executable please execute:
+Clone repository
 
-```make hand```
+```git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn```
+
+
+To build the model for EMG classification run: 
 
 ```make foot```
 
-To run the models execute: 
-
-```./modelHand```
+To train and evaluate the model for 4 different subjects run:
 
 ```./modelFoot```
 
-## Files
-- #### torchHDExampleCode.py:
+To explore effects of different system parameters change Constants in /foot/configFoot.h, rebuild and rerun.
 
-    Contains python code for HDC classification of the handEMG dataset. Serves as reference program. Downloaded from [here](https://github.com/hyperdimensional-computing/torchhd/blob/main/examples/emg_hand_gestures.py).
-- #### model.c:
-    Main program, clones the functionality of torchHDExampleCode.py
-- #### hdc_infrastructure:
-    directory for general hdc components;
-    contains:
-    - #### assoc_mem.c: 
-        Associative memory stores the trained class vectors
-    - #### item_mem.c: 
-        Generates and stores the hdc base vectors for encoding
-    - #### encoder.c:
-        Provides methods for encoding the input signals into hypervectors
-    - #### operations.c:
-        Provides methods for binding, bundling and permutation
-    - #### trainer.c
-        Provides method train_model, fills the assoc mem
-    - #### evaluator.c
-        Inference for testing data and evaluation of predictions
+## Building your own HDC model
 
+A template with dummy data is available in /customModel. The model can be run immediately with only dummy data by:
+
+```make custom```
+
+```./modelCustom```
+
+System parameters can be set in /customModel/configCustom.h
+
+A data reading function specific to your problem and data has to be implemented by the user in /customModel/dataReaderCustom.c
+
+The models main file is /customModel/modelCustom.c
+
+If working on timeseries classification change train_model_general_data() and evaluate_model_general_direct() to train_model_timeseries() and evaluate_model_timeseries_direct().
+
+If necessary extend the encoder by additional encoding algorithms (eg. for pictures, music...).
+
+    Include /hdc_infrastructure/operations.h to use binding, bundling, permutation and similarity check.
+    Include /hdc_infrastructure/vector.h to utilize vector struct, that contains binary or bipolar vectors, depending on configCustom.h, and functions for initialization and modification.
+
+Include /hdc_infrastructure/online_classifier.h to evaluate a trained model on live data
 ## Author
 Marian Horn
 
