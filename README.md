@@ -1,4 +1,4 @@
-# emgHandGesturesHDC
+# HDC-Framework Horn
 
 **Computer Science Project for Master CE**  
 **Author: Marian Horn**
