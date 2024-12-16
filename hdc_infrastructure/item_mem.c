@@ -156,11 +156,11 @@ void generate_random_hv(vector_element *data, int dimension) {
  * @param item_mem A pointer to the item memory structure to be initialized.
  * @param num_levels The number of signal levels.
  * @param num_features The number of features to encode.
- * @note Can be activate by PRECOMPUTED_ITEM_MEMORY in config.h
+ * @note If used, activate PRECOMPUTED_ITEM_MEMORY in config.h
  */
-void init_binary_item_memory(struct item_memory *item_mem, int num_levels, int num_features) {
+void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int num_features) {
     #if OUTPUT_MODE>=OUTPUT_DETAILED
-        printf("Initializing binary precomputed item memory with %d levels for %d features.\n",num_levels,num_features);
+        printf("Initializing precomputed item memory with %d levels for %d features.\n",num_levels,num_features);
     #endif
     int total_vectors = num_levels * num_features; // Total vectors required
     item_mem->num_vectors = total_vectors;

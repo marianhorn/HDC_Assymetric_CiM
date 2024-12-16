@@ -24,7 +24,7 @@ int main(){
         #endif
         #if PRECOMPUTED_ITEM_MEMORY
         struct item_memory itemMem;
-        init_binary_item_memory(&itemMem,NUM_LEVELS,NUM_FEATURES);
+        init_precomp_item_memory(&itemMem,NUM_LEVELS,NUM_FEATURES);
 
         struct encoder enc;
         init_encoder(&enc,&itemMem);
