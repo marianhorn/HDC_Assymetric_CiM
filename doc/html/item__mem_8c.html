@@ -102,9 +102,9 @@ Functions</h2></td></tr>
 <tr class="memitem:aabdd1ebaebecabf47395aa5384ed1fbe"><td class="memItemLeft" align="right" valign="top"><a id="aabdd1ebaebecabf47395aa5384ed1fbe"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>generate_random_hv</b> (vector_element *data, int dimension)</td></tr>
 <tr class="separator:aabdd1ebaebecabf47395aa5384ed1fbe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0c21d5b15d644298ee2874fd2b454770"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="item__mem_8c.html#a0c21d5b15d644298ee2874fd2b454770">init_binary_item_memory</a> (struct <a class="el" href="structitem__memory.html">item_memory</a> *item_mem, int num_levels, int num_features)</td></tr>
-<tr class="memdesc:a0c21d5b15d644298ee2874fd2b454770"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initializes binary item memory for precomputed feature-level representations.  <a href="item__mem_8c.html#a0c21d5b15d644298ee2874fd2b454770">More...</a><br /></td></tr>
-<tr class="separator:a0c21d5b15d644298ee2874fd2b454770"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a57318cb4ab57cfaa02b2d65f6c126c63"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="item__mem_8c.html#a57318cb4ab57cfaa02b2d65f6c126c63">init_precomp_item_memory</a> (struct <a class="el" href="structitem__memory.html">item_memory</a> *item_mem, int num_levels, int num_features)</td></tr>
+<tr class="memdesc:a57318cb4ab57cfaa02b2d65f6c126c63"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initializes binary item memory for precomputed feature-level representations.  <a href="item__mem_8c.html#a57318cb4ab57cfaa02b2d65f6c126c63">More...</a><br /></td></tr>
+<tr class="separator:a57318cb4ab57cfaa02b2d65f6c126c63"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa2573cada51606990e92d9dc746edab6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="item__mem_8c.html#aa2573cada51606990e92d9dc746edab6">free_item_memory</a> (struct <a class="el" href="structitem__memory.html">item_memory</a> *item_mem)</td></tr>
 <tr class="memdesc:aa2573cada51606990e92d9dc746edab6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Frees the memory allocated for item memory.  <a href="item__mem_8c.html#aa2573cada51606990e92d9dc746edab6">More...</a><br /></td></tr>
 <tr class="separator:aa2573cada51606990e92d9dc746edab6"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -238,52 +238,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>generate_random_hv</b
 
 </div>
 </div>
-<a id="a0c21d5b15d644298ee2874fd2b454770"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0c21d5b15d644298ee2874fd2b454770">&#9670;&nbsp;</a></span>init_binary_item_memory()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void init_binary_item_memory </td>
-          <td>(</td>
-          <td class="paramtype">struct <a class="el" href="structitem__memory.html">item_memory</a> *&#160;</td>
-          <td class="paramname"><em>item_mem</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>num_levels</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>num_features</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Initializes binary item memory for precomputed feature-level representations. </p>
-<p>This function generates a precomputed item memory for binary data, where each feature and level combination is assigned a unique vector.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">item_mem</td><td>A pointer to the item memory structure to be initialized. </td></tr>
-    <tr><td class="paramname">num_levels</td><td>The number of signal levels. </td></tr>
-    <tr><td class="paramname">num_features</td><td>The number of features to encode. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section note"><dt>Note</dt><dd>Can be activate by PRECOMPUTED_ITEM_MEMORY in config.h </dd></dl>
-
-</div>
-</div>
 <a id="ab905ad3a1ce2b338d40bff3ac352590f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab905ad3a1ce2b338d40bff3ac352590f">&#9670;&nbsp;</a></span>init_continuous_item_memory()</h2>
 
@@ -357,6 +311,52 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>generate_random_hv</b
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="a57318cb4ab57cfaa02b2d65f6c126c63"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a57318cb4ab57cfaa02b2d65f6c126c63">&#9670;&nbsp;</a></span>init_precomp_item_memory()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void init_precomp_item_memory </td>
+          <td>(</td>
+          <td class="paramtype">struct <a class="el" href="structitem__memory.html">item_memory</a> *&#160;</td>
+          <td class="paramname"><em>item_mem</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>num_levels</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>num_features</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Initializes binary item memory for precomputed feature-level representations. </p>
+<p>This function generates a precomputed item memory for binary data, where each feature and level combination is assigned a unique vector.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">item_mem</td><td>A pointer to the item memory structure to be initialized. </td></tr>
+    <tr><td class="paramname">num_levels</td><td>The number of signal levels. </td></tr>
+    <tr><td class="paramname">num_features</td><td>The number of features to encode. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section note"><dt>Note</dt><dd>If used, activate PRECOMPUTED_ITEM_MEMORY in config.h </dd></dl>
 
 </div>
 </div>

@@ -193,7 +193,7 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Allocates and initializes training and testing datasets. </p>
-<p>This function initializes training and testing datasets using predefined static arrays, splits the data into training and testing samples, and assigns appropriate labels.</p>
+<p>This function initializes training and testing datasets using predefined static arrays and assigns appropriate labels.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[out]</td><td class="paramname">trainingData</td><td>Pointer to the allocated training data. </td></tr>
@@ -205,7 +205,29 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section note"><dt>Note</dt><dd>The data layout assumes a fixed number of features as defined by <code>NUM_FEATURES</code>. This implementation is for demonstration and uses hardcoded data arrays. </dd></dl>
+<dl class="section note"><dt>Note</dt><dd>The input data and labels must follow this structure:</dd></dl>
+<ul>
+<li><p class="startli">**Data (<code>trainingData</code>, <code>testingData</code>):** A 2D array of type <code>double</code>, where:</p><ul>
+<li>Each row represents a sample.</li>
+<li>Each column represents a feature.</li>
+<li>The dimensions are <code>numSamples x numFeatures</code>.</li>
+</ul>
+<p class="startli">Example: </p><div class="fragment"><div class="line">trainingData = {</div>
+<div class="line">    {feature_1, feature_2, ..., feature_n},  <span class="comment">// Sample 1</span></div>
+<div class="line">    {feature_1, feature_2, ..., feature_n},  <span class="comment">// Sample 2</span></div>
+<div class="line">    ...</div>
+<div class="line">};</div>
+</div><!-- fragment --></li>
+<li><p class="startli">**Labels (<code>trainingLabels</code>, <code>testingLabels</code>):** A 1D array of type <code>int</code>, where:</p><ul>
+<li>Each element corresponds to the class label of a sample.</li>
+</ul>
+<p class="startli">Example: </p><div class="fragment"><div class="line">trainingLabels = {0, 1, ..., k}; <span class="comment">// Class labels for each sample</span></div>
+</div><!-- fragment --></li>
+</ul>
+<p>Ensure that:</p><ul>
+<li>The number of samples in the label array matches the number of rows in the data array.</li>
+<li>The data is correctly preprocessed to match the requirements of the model, including the number of features and the label space. </li>
+</ul>
 
 </div>
 </div>

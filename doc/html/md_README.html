@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.9.1"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>HDC-Framework Horn: emgHandGesturesHDC</title>
+<title>HDC-Framework Horn: HDC-Framework Horn</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -62,43 +62,73 @@ $(function() {
 </div><!-- top -->
 <div class="PageDoc"><div class="header">
   <div class="headertitle">
-<div class="title">emgHandGesturesHDC </div>  </div>
+<div class="title">HDC-Framework Horn </div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p>Computer science project for master CE (Marian Horn)</p>
-<h1><a class="anchor" id="autotoc_md1"></a>
-Goal</h1>
-<p>Implement a well-structured version of EMG gesture recognition with HDC in C. Should have the same functionality as torchHDExampleCode.py.</p>
-<p>This serves for evaluation of HDC for EMG classification (hand and foot).</p>
+<div class="textblock"><p><b>Computer Science Project for Master CE</b> <br  />
+ <b>Author: Marian Horn</b></p>
+<hr  />
 <h1><a class="anchor" id="autotoc_md2"></a>
-Usage</h1>
-<p>To build the executable please execute:</p>
-<div class="fragment"><div class="line">```make foot</div>
-</div><!-- fragment --><p>To run the models execute:</p>
-<div class="fragment"><div class="line"> {/modelHand```}</div>
-<div class="line"> </div>
-<div class="line">```./modelFoot</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md3"></a>
-Files</h1>
-<ul>
-<li><p class="startli">#### torchHDExampleCode.py:</p>
-<p class="startli">Contains python code for HDC classification of the handEMG dataset. Serves as reference program. Downloaded from <a href="https://github.com/hyperdimensional-computing/torchhd/blob/main/examples/emg_hand_gestures.py">here</a>.</p>
-</li>
-<li>#### model.c: Main program, clones the functionality of torchHDExampleCode.py</li>
-<li>#### hdc_infrastructure: directory for general hdc components; contains:<ul>
-<li>#### <a class="el" href="assoc__mem_8c.html" title="Implements functions for managing associative memory.">assoc_mem.c</a>: Associative memory stores the trained class vectors</li>
-<li>#### <a class="el" href="item__mem_8c.html" title="Implements functions for generating and managing item memory used in hyperdimensional computing.">item_mem.c</a>: Generates and stores the hdc base vectors for encoding</li>
-<li>#### <a class="el" href="encoder_8c.html" title="Implements functionality for encoding EMG signals into hypervectors.">encoder.c</a>: Provides methods for encoding the input signals into hypervectors</li>
-<li>#### <a class="el" href="operations_8c.html" title="Implements vector operations for hyperdimensional computing.">operations.c</a>: Provides methods for binding, bundling and permutation</li>
-<li>#### <a class="el" href="trainer_8c.html" title="Implementation of training functions for hyperdimensional computing (HDC) models.">trainer.c</a> Provides method train_model, fills the assoc mem</li>
-<li>#### <a class="el" href="evaluator_8c.html" title="Implements functions for evaluating the performance of hyperdimensional classifiers.">evaluator.c</a> Inference for testing data and evaluation of predictions</li>
+Description</h1>
+<p>This project implements a well-structured framework for Hyperdimensional Computing (HDC).</p>
+<p><b>Evaluation Example:</b> EMG-Classification of foot movements for the NOE-EMY project.</p>
+<p><b>Documentation:</b></p><ul>
+<li>System and function details are available in the <a href="./doc/html/mainpage_8h_source.html"><code>/doc</code></a> folder and <a href="./Abschlussbericht.pdf"><code>Abschlussbericht.pdf</code></a>.</li>
+<li>The development repository with all intermediate artifacts is available at: <a href="https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc">Development Repository</a>.</li>
 </ul>
-</li>
-</ul>
+<hr  />
 <h1><a class="anchor" id="autotoc_md4"></a>
+Getting Started</h1>
+<h2><a class="anchor" id="autotoc_md5"></a>
+Clone Repository</h2>
+<div class="fragment"><div class="line">git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn</div>
+<div class="line">cd hdcframeworkhorn/</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md6"></a>
+Build and Run the Model for EMG Classification</h2>
+<p>To build the model: </p><div class="fragment"><div class="line">make foot</div>
+</div><!-- fragment --><p>To train and evaluate the model for 4 different subjects: </p><div class="fragment"><div class="line">./modelFoot</div>
+</div><!-- fragment --><p>To explore the effects of different system parameters, modify the constants in <a href="./foot/configFoot.h"><code>configFoot.h</code></a>, rebuild, and rerun the model.</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md8"></a>
+Building Your Own HDC Model</h1>
+<p>A template with dummy data is available in <a href="./customModel"><code>/customModel</code></a>. This model can be run immediately with the dummy data:</p>
+<div class="fragment"><div class="line">make custom</div>
+</div><!-- fragment --> <div class="fragment"><div class="line">./modelCustom</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md9"></a>
+Customization Options</h2>
+<h3><a class="anchor" id="autotoc_md10"></a>
+Set System Parameters</h3>
+<p>Set system parameters in <a href="./customModel/configCustom.h"><code>configCustom.h</code></a>.</p>
+<h3><a class="anchor" id="autotoc_md11"></a>
+Implement a Data Reader</h3>
+<p>Implement a data-reading function specific to your problem and data in <a href="./customModel/dataReaderCustom.c"><code>dataReaderCustom.c</code></a>.</p><ul>
+<li>The training and testing data should be a 2D array of doubles, where each row represents a sample and each column represents a feature.</li>
+<li>The training and testing labels should be a 1D array of integers, where each element corresponds to the label of a sample.</li>
+</ul>
+<h3><a class="anchor" id="autotoc_md12"></a>
+Modify the Model</h3>
+<p>The main file of the custom model is <a href="./customModel/modelCustom.c"><code>modelCustom.c</code></a>.</p><ul>
+<li>If working with categorical or discrete data, use the predefined functions in <a href="./customModel/modelCustom.c"><code>modelCustom.c</code></a>.</li>
+<li>If working on time-series classification, replace <code><a class="el" href="trainer_8c.html#a4067122395f829b3344045208d94c086" title="Trains the HDC model using general (non-timeseries) data.">train_model_general_data()</a></code> and <code><a class="el" href="evaluator_8c.html#a8df1cdd88a7d44e3462237095794b178" title="Directly evaluates the HDC model on general (non-time-series) data.">evaluate_model_general_direct()</a></code> with <code><a class="el" href="trainer_8c.html#a41885891fd0253febb456179bf221862" title="Trains the HDC model using timeseries data.">train_model_timeseries()</a></code> and <code><a class="el" href="evaluator_8c.html#aa90a74d814a24971672bd39182d314e6" title="Directly evaluates the HDC model on a time-series dataset.">evaluate_model_timeseries_direct()</a></code>.</li>
+<li>For other types of data, extend the encoder to include additional encoding algorithms (e.g., for images, music, etc.). Use the following resources:<ul>
+<li><a href="./hdc_infrastructure/vector.h"><code>vector.h</code></a>: Provides vector structures (binary or bipolar, depending on <a href="./customModel/configCustom.h"><code>configCustom.h</code></a>) and related functions for initialization and modification.</li>
+<li><a href="./hdc_infrastructure/operations.h"><code>operations.h</code></a>: For binding, bundling, permutation, and similarity checks.</li>
+</ul>
+</li>
+</ul>
+<h3><a class="anchor" id="autotoc_md13"></a>
+Other Features</h3>
+<ul>
+<li>Include <a href="./hdc_infrastructure/preprocessor.h"><code>preprocessor.h</code></a> to downsample the data.</li>
+<li>Include <a href="./hdc_infrastructure/trainer.h"><code>trainer.h</code></a> to process the training dataset, call the encoder on it, and set the associative memory.</li>
+<li>Include <a href="./hdc_infrastructure/evaluator.h"><code>evaluator.h</code></a> to test the model using the testing dataset.</li>
+<li>Include <a href="./hdc_infrastructure/online_classifier.h"><code>online_classifier.h</code></a> to evaluate a trained model on live data.</li>
+</ul>
+<hr  />
+<h1><a class="anchor" id="autotoc_md15"></a>
 Author</h1>
-<p>Marian Horn</p>
-<p><a href="#" onclick="location.href='mai'+'lto:'+'mar'+'ia'+'n.h'+'or'+'n@f'+'au'+'.de'; return false;">maria<span style="display: none;">.nosp@m.</span>n.ho<span style="display: none;">.nosp@m.</span>rn@fa<span style="display: none;">.nosp@m.</span>u.de</a> </p>
+<p><b>Marian Horn</b> <br  />
+ Email: <a href="#" onclick="location.href='mai'+'lto:'+'mar'+'ia'+'n.h'+'or'+'n@f'+'au'+'.de'; return false;">marian.horn@fau.de</a> </p>
 </div></div><!-- contents -->
 </div><!-- PageDoc -->
 <!-- start footer part -->

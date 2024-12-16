@@ -68,7 +68,7 @@ This function releases memory allocated for a 2D array of doubles.
 
 Allocates and initializes training and testing datasets. 
 
-This function initializes training and testing datasets using predefined static arrays, splits the data into training and testing samples, and assigns appropriate labels.
+This function initializes training and testing datasets using predefined static arrays and assigns appropriate labels.
 
 
 \begin{DoxyParams}[1]{Parameters}
@@ -86,5 +86,42 @@ This function initializes training and testing datasets using predefined static 
 \hline
 \end{DoxyParams}
 \begin{DoxyNote}{Note}
-The data layout assumes a fixed number of features as defined by {\ttfamily NUM\+\_\+\+FEATURES}. This implementation is for demonstration and uses hardcoded data arrays. 
+The input data and labels must follow this structure\+:
 \end{DoxyNote}
+
+\begin{DoxyItemize}
+\item $\ast$$\ast$\+Data ({\ttfamily training\+Data}, {\ttfamily testing\+Data})\+:$\ast$$\ast$ A 2D array of type {\ttfamily double}, where\+:
+\begin{DoxyItemize}
+\item Each row represents a sample.
+\item Each column represents a feature.
+\item The dimensions are {\ttfamily num\+Samples x num\+Features}.
+\end{DoxyItemize}
+
+Example\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{trainingData = \{}
+\DoxyCodeLine{    \{feature\_1, feature\_2, ..., feature\_n\},  \textcolor{comment}{// Sample 1}}
+\DoxyCodeLine{    \{feature\_1, feature\_2, ..., feature\_n\},  \textcolor{comment}{// Sample 2}}
+\DoxyCodeLine{    ...}
+\DoxyCodeLine{\};}
+
+\end{DoxyCode}
+
+\item $\ast$$\ast$\+Labels ({\ttfamily training\+Labels}, {\ttfamily testing\+Labels})\+:$\ast$$\ast$ A 1D array of type {\ttfamily int}, where\+:
+\begin{DoxyItemize}
+\item Each element corresponds to the class label of a sample.
+\end{DoxyItemize}
+
+Example\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{trainingLabels = \{0, 1, ..., k\}; \textcolor{comment}{// Class labels for each sample}}
+
+\end{DoxyCode}
+
+\end{DoxyItemize}
+
+Ensure that\+:
+\begin{DoxyItemize}
+\item The number of samples in the label array matches the number of rows in the data array.
+\item The data is correctly preprocessed to match the requirements of the model, including the number of features and the label space. 
+\end{DoxyItemize}

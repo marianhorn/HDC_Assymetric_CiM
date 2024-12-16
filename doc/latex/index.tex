@@ -1,23 +1,59 @@
 \hypertarget{index_intro}{}\doxysection{Introduction}\label{index_intro}
-This documentation covers the implementation of the Hyperdimensional Computing (HDC) framework for various use cases including EMG-\/based movement recognition and custom dataset evaluation. It is based on the work of \href{https://github.com/abbas-rahimi/HDC-EMG}{\texttt{ https\+://github.\+com/abbas-\/rahimi/\+HDC-\/\+EMG}} This is a reduced version of the project. For the complete version including intermediate results, debugging information and development artifacts refer to \href{https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc}{\texttt{ https\+://gitlab.\+cs.\+fau.\+de/ew14ozom/emghandgestureshdc}}
+This documentation covers the implementation of the Hyperdimensional Computing (HDC) framework for various use cases including EMG-\/based movement recognition and custom dataset evaluation. It is based on the work of \href{https://github.com/abbas-rahimi/HDC-EMG}{\texttt{ https\+://github.\+com/abbas-\/rahimi/\+HDC-\/\+EMG}} This version of the project focuses on providing a clean and extensible framework for developing new HDC models. Non-\/essential components, intermediate results, and debugging artifacts have been omitted for clarity. For a comprehensive version of the project, including all development artifacts, refer to the \href{https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc}{\texttt{ FAU Git\+Lab Repository}}.
 
 The framework consists of the following modules\+:
 \begin{DoxyItemize}
-\item {\bfseries{Associative Memory (\mbox{\hyperlink{assoc__mem_8c}{assoc\+\_\+mem.\+c}})}}\+: Implements storage and retrieval of hypervectors.
+\item {\bfseries{Item Memory (\mbox{\hyperlink{item__mem_8c}{item\+\_\+mem.\+c}})}}\+: Manages the discrete and continuous mappings for features and values into hyperdimensional space.
+\item {\bfseries{Associative Memory (\mbox{\hyperlink{assoc__mem_8c}{assoc\+\_\+mem.\+c}})}}\+: Stores and retrieves class hypervectors efficiently.
 \item {\bfseries{Encoder (\mbox{\hyperlink{encoder_8c}{encoder.\+c}})}}\+: Encodes input data into hyperdimensional vectors.
-\item {\bfseries{Item Memory (\mbox{\hyperlink{item__mem_8c}{item\+\_\+mem.\+c}})}}\+: Manages item memory for discrete and continuous signals.
-\item {\bfseries{Operations (\mbox{\hyperlink{operations_8c}{operations.\+c}})}}\+: Contains operations such as binding, bundling, and permutation.
-\item {\bfseries{Evaluator (\mbox{\hyperlink{evaluator_8c}{evaluator.\+c}})}}\+: Provides evaluation metrics and classification results.
-\item {\bfseries{Trainer (\mbox{\hyperlink{trainer_8c}{trainer.\+c}})}}\+: Handles training of the associative memory.
+\item {\bfseries{Operations (\mbox{\hyperlink{operations_8c}{operations.\+c}})}}\+: Provides low-\/level vector operations, including binding, bundling, and similarity checks.
+\item {\bfseries{Trainer (\mbox{\hyperlink{trainer_8c}{trainer.\+c}})}}\+: Handles training of the associative memory based on training dataset.
+\item {\bfseries{Evaluator (\mbox{\hyperlink{evaluator_8c}{evaluator.\+c}})}}\+: Evaluates a trained model based on testing dataset.
+\item {\bfseries{Online Classifier (\mbox{\hyperlink{online__classifier_8c}{online\+\_\+classifier.\+c}})}}\+: Evaluates a trained model based on batches of real time incoming test data.
 \item {\bfseries{Preprocessor (\mbox{\hyperlink{preprocessor_8c}{preprocessor.\+c}})}}\+: Prepares and downsamples datasets.
 \item {\bfseries{Main Files (e.\+g., \mbox{\hyperlink{modelCustom_8c}{model\+Custom.\+c}})}}\+: Entry points for specific use cases.
 \end{DoxyItemize}\hypertarget{index_usage}{}\doxysection{Usage}\label{index_usage}
+\hypertarget{index_getting_started}{}\doxysubsection{Getting Started}\label{index_getting_started}
 
 \begin{DoxyItemize}
-\item Clone the repository and ensure all dependencies are installed.
-\item Configure the project by modifying the appropriate configuration file (e.\+g., {\ttfamily \mbox{\hyperlink{configCustom_8h}{config\+Custom.\+h}}}).
-\item Compile the project using {\ttfamily make}.
-\item Run the appropriate executable (e.\+g., {\ttfamily model\+Custom}) to train and evaluate the model.
+\item Clone the repository\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn}
+\DoxyCodeLine{cd hdcframeworkhorn/}
+
+\end{DoxyCode}
+
+\item Build and run the EMG classification model\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{make foot}
+\DoxyCodeLine{./modelFoot}
+
+\end{DoxyCode}
+
+\item Modify constants in {\ttfamily \mbox{\hyperlink{configFoot_8h_source}{config\+Foot.\+h}}} to explore parameter effects. After making changes, rebuild and rerun the model.
+\end{DoxyItemize}\hypertarget{index_building_custom_model}{}\doxysubsection{Building Your Own HDC Model}\label{index_building_custom_model}
+A template with dummy data is available in the {\ttfamily custom\+Model} directory.
+
+
+\begin{DoxyItemize}
+\item Build and run the dummy model\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{make custom}
+\DoxyCodeLine{./modelCustom}
+
+\end{DoxyCode}
+
+\item Customize the template\+:
+\begin{DoxyEnumerate}
+\item {\bfseries{Set System Parameters}}\+: Modify constants in {\ttfamily \mbox{\hyperlink{configCustom_8h}{custom\+Model/config\+Custom.\+h}}}.
+\item {\bfseries{Implement a Data Reader}}\+: Create a custom data-\/reading function in {\ttfamily \mbox{\hyperlink{dataReaderCustom_8c}{custom\+Model/data\+Reader\+Custom.\+c}}}.
+\item {\bfseries{Edit the Model}}\+: Adjust the main file {\ttfamily \mbox{\hyperlink{modelCustom_8c}{custom\+Model/model\+Custom.\+c}}} to fit your use case.
+\end{DoxyEnumerate}
+\item If working with time-\/series classification, replace\+:
+\begin{DoxyItemize}
+\item {\ttfamily \mbox{\hyperlink{trainer_8c_a4067122395f829b3344045208d94c086}{train\+\_\+model\+\_\+general\+\_\+data()}}} with {\ttfamily \mbox{\hyperlink{trainer_8c_a41885891fd0253febb456179bf221862}{train\+\_\+model\+\_\+timeseries()}}}
+\item {\ttfamily \mbox{\hyperlink{evaluator_8c_a8df1cdd88a7d44e3462237095794b178}{evaluate\+\_\+model\+\_\+general\+\_\+direct()}}} with {\ttfamily \mbox{\hyperlink{evaluator_8c_aa90a74d814a24971672bd39182d314e6}{evaluate\+\_\+model\+\_\+timeseries\+\_\+direct()}}}
+\end{DoxyItemize}
 \end{DoxyItemize}\hypertarget{index_structure}{}\doxysection{Project Structure}\label{index_structure}
 
 \begin{DoxyItemize}

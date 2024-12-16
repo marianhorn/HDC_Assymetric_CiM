@@ -26,7 +26,7 @@ void \mbox{\hyperlink{item__mem_8c_ab905ad3a1ce2b338d40bff3ac352590f}{init\+\_\+
 \mbox{\Hypertarget{item__mem_8c_aabdd1ebaebecabf47395aa5384ed1fbe}\label{item__mem_8c_aabdd1ebaebecabf47395aa5384ed1fbe}} 
 void {\bfseries generate\+\_\+random\+\_\+hv} (vector\+\_\+element $\ast$data, int dimension)
 \item 
-void \mbox{\hyperlink{item__mem_8c_a0c21d5b15d644298ee2874fd2b454770}{init\+\_\+binary\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, int num\+\_\+levels, int num\+\_\+features)
+void \mbox{\hyperlink{item__mem_8c_a57318cb4ab57cfaa02b2d65f6c126c63}{init\+\_\+precomp\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem, int num\+\_\+levels, int num\+\_\+features)
 \begin{DoxyCompactList}\small\item\em Initializes binary item memory for precomputed feature-\/level representations. \end{DoxyCompactList}\item 
 void \mbox{\hyperlink{item__mem_8c_aa2573cada51606990e92d9dc746edab6}{free\+\_\+item\+\_\+memory}} (struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$item\+\_\+mem)
 \begin{DoxyCompactList}\small\item\em Frees the memory allocated for item memory. \end{DoxyCompactList}\item 
@@ -113,30 +113,6 @@ This function fetches the base vector corresponding to a given item ID from the 
 \begin{DoxyReturn}{Returns}
 A pointer to the vector corresponding to the item ID, or NULL if the ID is invalid. 
 \end{DoxyReturn}
-\mbox{\Hypertarget{item__mem_8c_a0c21d5b15d644298ee2874fd2b454770}\label{item__mem_8c_a0c21d5b15d644298ee2874fd2b454770}} 
-\index{item\_mem.c@{item\_mem.c}!init\_binary\_item\_memory@{init\_binary\_item\_memory}}
-\index{init\_binary\_item\_memory@{init\_binary\_item\_memory}!item\_mem.c@{item\_mem.c}}
-\doxysubsubsection{\texorpdfstring{init\_binary\_item\_memory()}{init\_binary\_item\_memory()}}
-{\footnotesize\ttfamily void init\+\_\+binary\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{int}]{num\+\_\+levels,  }\item[{int}]{num\+\_\+features }\end{DoxyParamCaption})}
-
-
-
-Initializes binary item memory for precomputed feature-\/level representations. 
-
-This function generates a precomputed item memory for binary data, where each feature and level combination is assigned a unique vector.
-
-
-\begin{DoxyParams}{Parameters}
-{\em item\+\_\+mem} & A pointer to the item memory structure to be initialized. \\
-\hline
-{\em num\+\_\+levels} & The number of signal levels. \\
-\hline
-{\em num\+\_\+features} & The number of features to encode. \\
-\hline
-\end{DoxyParams}
-\begin{DoxyNote}{Note}
-Can be activate by PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY in config.\+h 
-\end{DoxyNote}
 \mbox{\Hypertarget{item__mem_8c_ab905ad3a1ce2b338d40bff3ac352590f}\label{item__mem_8c_ab905ad3a1ce2b338d40bff3ac352590f}} 
 \index{item\_mem.c@{item\_mem.c}!init\_continuous\_item\_memory@{init\_continuous\_item\_memory}}
 \index{init\_continuous\_item\_memory@{init\_continuous\_item\_memory}!item\_mem.c@{item\_mem.c}}
@@ -175,6 +151,30 @@ This function generates a set of random base vectors, either bipolar (-\/1, 1) o
 {\em num\+\_\+items} & The number of discrete items to encode. \\
 \hline
 \end{DoxyParams}
+\mbox{\Hypertarget{item__mem_8c_a57318cb4ab57cfaa02b2d65f6c126c63}\label{item__mem_8c_a57318cb4ab57cfaa02b2d65f6c126c63}} 
+\index{item\_mem.c@{item\_mem.c}!init\_precomp\_item\_memory@{init\_precomp\_item\_memory}}
+\index{init\_precomp\_item\_memory@{init\_precomp\_item\_memory}!item\_mem.c@{item\_mem.c}}
+\doxysubsubsection{\texorpdfstring{init\_precomp\_item\_memory()}{init\_precomp\_item\_memory()}}
+{\footnotesize\ttfamily void init\+\_\+precomp\+\_\+item\+\_\+memory (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structitem__memory}{item\+\_\+memory}} $\ast$}]{item\+\_\+mem,  }\item[{int}]{num\+\_\+levels,  }\item[{int}]{num\+\_\+features }\end{DoxyParamCaption})}
+
+
+
+Initializes binary item memory for precomputed feature-\/level representations. 
+
+This function generates a precomputed item memory for binary data, where each feature and level combination is assigned a unique vector.
+
+
+\begin{DoxyParams}{Parameters}
+{\em item\+\_\+mem} & A pointer to the item memory structure to be initialized. \\
+\hline
+{\em num\+\_\+levels} & The number of signal levels. \\
+\hline
+{\em num\+\_\+features} & The number of features to encode. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyNote}{Note}
+If used, activate PRECOMPUTED\+\_\+\+ITEM\+\_\+\+MEMORY in config.\+h 
+\end{DoxyNote}
 \mbox{\Hypertarget{item__mem_8c_af2bb235c0482b9409dd8148e323ff580}\label{item__mem_8c_af2bb235c0482b9409dd8148e323ff580}} 
 \index{item\_mem.c@{item\_mem.c}!interpolate\_vectors@{interpolate\_vectors}}
 \index{interpolate\_vectors@{interpolate\_vectors}!item\_mem.c@{item\_mem.c}}

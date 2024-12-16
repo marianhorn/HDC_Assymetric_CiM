@@ -1,42 +1,85 @@
-Computer science project for master CE (Marian Horn)\hypertarget{md_README_autotoc_md1}{}\doxysection{Goal}\label{md_README_autotoc_md1}
-Implement a well-\/structured version of EMG gesture recognition with HDC in C. Should have the same functionality as torch\+HDExample\+Code.\+py.
+{\bfseries{Computer Science Project for Master CE}} ~\newline
+ {\bfseries{Author\+: Marian Horn}}
 
-This serves for evaluation of HDC for EMG classification (hand and foot).\hypertarget{md_README_autotoc_md2}{}\doxysection{Usage}\label{md_README_autotoc_md2}
-To build the executable please execute\+:
+\DoxyHorRuler{0}
+\hypertarget{md_README_autotoc_md2}{}\doxysection{Description}\label{md_README_autotoc_md2}
+This project implements a well-\/structured framework for Hyperdimensional Computing (HDC).
 
+{\bfseries{Evaluation Example\+:}} EMG-\/\+Classification of foot movements for the NOE-\/\+EMY project.
 
-\begin{DoxyCode}{0}
-\DoxyCodeLine{```make foot}
-
-\end{DoxyCode}
-
-
-To run the models execute\+:
-
-
-\begin{DoxyCode}{0}
-\DoxyCodeLine{ \{/modelHand```\}}
-\DoxyCodeLine{}
-\DoxyCodeLine{```./modelFoot}
-
-\end{DoxyCode}
-\hypertarget{md_README_autotoc_md3}{}\doxysection{Files}\label{md_README_autotoc_md3}
-
+{\bfseries{Documentation\+:}}
 \begin{DoxyItemize}
-\item \#\#\#\# torch\+HDExample\+Code.\+py\+:
-
-Contains python code for HDC classification of the hand\+EMG dataset. Serves as reference program. Downloaded from \href{https://github.com/hyperdimensional-computing/torchhd/blob/main/examples/emg_hand_gestures.py}{\texttt{ here}}.
-\item \#\#\#\# model.\+c\+: Main program, clones the functionality of torch\+HDExample\+Code.\+py
-\item \#\#\#\# hdc\+\_\+infrastructure\+: directory for general hdc components; contains\+:
-\begin{DoxyItemize}
-\item \#\#\#\# \mbox{\hyperlink{assoc__mem_8c}{assoc\+\_\+mem.\+c}}\+: Associative memory stores the trained class vectors
-\item \#\#\#\# \mbox{\hyperlink{item__mem_8c}{item\+\_\+mem.\+c}}\+: Generates and stores the hdc base vectors for encoding
-\item \#\#\#\# \mbox{\hyperlink{encoder_8c}{encoder.\+c}}\+: Provides methods for encoding the input signals into hypervectors
-\item \#\#\#\# \mbox{\hyperlink{operations_8c}{operations.\+c}}\+: Provides methods for binding, bundling and permutation
-\item \#\#\#\# \mbox{\hyperlink{trainer_8c}{trainer.\+c}} Provides method train\+\_\+model, fills the assoc mem
-\item \#\#\#\# \mbox{\hyperlink{evaluator_8c}{evaluator.\+c}} Inference for testing data and evaluation of predictions
+\item System and function details are available in the \href{./doc/html/mainpage_8h_source.html}{\texttt{ {\ttfamily /doc}}} folder and \href{./Abschlussbericht.pdf}{\texttt{ {\ttfamily Abschlussbericht.\+pdf}}}.
+\item The development repository with all intermediate artifacts is available at\+: \href{https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc}{\texttt{ Development Repository}}.
 \end{DoxyItemize}
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md4}{}\doxysection{Author}\label{md_README_autotoc_md4}
-Marian Horn
 
-\href{mailto:marian.horn@fau.de}{\texttt{ marian.\+horn@fau.\+de}} 
+\DoxyHorRuler{0}
+\hypertarget{md_README_autotoc_md4}{}\doxysection{Getting Started}\label{md_README_autotoc_md4}
+\hypertarget{md_README_autotoc_md5}{}\doxysubsection{Clone Repository}\label{md_README_autotoc_md5}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn}
+\DoxyCodeLine{cd hdcframeworkhorn/}
+
+\end{DoxyCode}
+\hypertarget{md_README_autotoc_md6}{}\doxysubsection{Build and Run the Model for EMG Classification}\label{md_README_autotoc_md6}
+To build the model\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{make foot}
+
+\end{DoxyCode}
+
+
+To train and evaluate the model for 4 different subjects\+: 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{./modelFoot}
+
+\end{DoxyCode}
+
+
+To explore the effects of different system parameters, modify the constants in \href{./foot/configFoot.h}{\texttt{ {\ttfamily config\+Foot.\+h}}}, rebuild, and rerun the model.
+
+\DoxyHorRuler{0}
+\hypertarget{md_README_autotoc_md8}{}\doxysection{Building Your Own HDC Model}\label{md_README_autotoc_md8}
+A template with dummy data is available in \href{./customModel}{\texttt{ {\ttfamily /custom\+Model}}}. This model can be run immediately with the dummy data\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{make custom}
+
+\end{DoxyCode}
+ 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{./modelCustom}
+
+\end{DoxyCode}
+\hypertarget{md_README_autotoc_md9}{}\doxysubsection{Customization Options}\label{md_README_autotoc_md9}
+\hypertarget{md_README_autotoc_md10}{}\doxysubsubsection{Set System Parameters}\label{md_README_autotoc_md10}
+Set system parameters in \href{./customModel/configCustom.h}{\texttt{ {\ttfamily config\+Custom.\+h}}}.\hypertarget{md_README_autotoc_md11}{}\doxysubsubsection{Implement a Data Reader}\label{md_README_autotoc_md11}
+Implement a data-\/reading function specific to your problem and data in \href{./customModel/dataReaderCustom.c}{\texttt{ {\ttfamily data\+Reader\+Custom.\+c}}}.
+\begin{DoxyItemize}
+\item The training and testing data should be a 2D array of doubles, where each row represents a sample and each column represents a feature.
+\item The training and testing labels should be a 1D array of integers, where each element corresponds to the label of a sample.
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md12}{}\doxysubsubsection{Modify the Model}\label{md_README_autotoc_md12}
+The main file of the custom model is \href{./customModel/modelCustom.c}{\texttt{ {\ttfamily model\+Custom.\+c}}}.
+\begin{DoxyItemize}
+\item If working with categorical or discrete data, use the predefined functions in \href{./customModel/modelCustom.c}{\texttt{ {\ttfamily model\+Custom.\+c}}}.
+\item If working on time-\/series classification, replace {\ttfamily \mbox{\hyperlink{trainer_8c_a4067122395f829b3344045208d94c086}{train\+\_\+model\+\_\+general\+\_\+data()}}} and {\ttfamily \mbox{\hyperlink{evaluator_8c_a8df1cdd88a7d44e3462237095794b178}{evaluate\+\_\+model\+\_\+general\+\_\+direct()}}} with {\ttfamily \mbox{\hyperlink{trainer_8c_a41885891fd0253febb456179bf221862}{train\+\_\+model\+\_\+timeseries()}}} and {\ttfamily \mbox{\hyperlink{evaluator_8c_aa90a74d814a24971672bd39182d314e6}{evaluate\+\_\+model\+\_\+timeseries\+\_\+direct()}}}.
+\item For other types of data, extend the encoder to include additional encoding algorithms (e.\+g., for images, music, etc.). Use the following resources\+:
+\begin{DoxyItemize}
+\item \href{./hdc_infrastructure/vector.h}{\texttt{ {\ttfamily vector.\+h}}}\+: Provides vector structures (binary or bipolar, depending on \href{./customModel/configCustom.h}{\texttt{ {\ttfamily config\+Custom.\+h}}}) and related functions for initialization and modification.
+\item \href{./hdc_infrastructure/operations.h}{\texttt{ {\ttfamily operations.\+h}}}\+: For binding, bundling, permutation, and similarity checks.
+\end{DoxyItemize}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md13}{}\doxysubsubsection{Other Features}\label{md_README_autotoc_md13}
+
+\begin{DoxyItemize}
+\item Include \href{./hdc_infrastructure/preprocessor.h}{\texttt{ {\ttfamily preprocessor.\+h}}} to downsample the data.
+\item Include \href{./hdc_infrastructure/trainer.h}{\texttt{ {\ttfamily trainer.\+h}}} to process the training dataset, call the encoder on it, and set the associative memory.
+\item Include \href{./hdc_infrastructure/evaluator.h}{\texttt{ {\ttfamily evaluator.\+h}}} to test the model using the testing dataset.
+\item Include \href{./hdc_infrastructure/online_classifier.h}{\texttt{ {\ttfamily online\+\_\+classifier.\+h}}} to evaluate a trained model on live data.
+\end{DoxyItemize}
+
+\DoxyHorRuler{0}
+\hypertarget{md_README_autotoc_md15}{}\doxysection{Author}\label{md_README_autotoc_md15}
+{\bfseries{Marian Horn}} ~\newline
+ Email\+: \href{mailto:marian.horn@fau.de}{\texttt{ marian.\+horn@fau.\+de}} 
