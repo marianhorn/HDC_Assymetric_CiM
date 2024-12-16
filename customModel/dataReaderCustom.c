@@ -37,8 +37,7 @@ void freeData(double** data, size_t rows) {
 /**
  * @brief Allocates and initializes training and testing datasets.
  *
- * This function initializes training and testing datasets using predefined static arrays,
- * splits the data into training and testing samples, and assigns appropriate labels.
+ * This function initializes training and testing datasets using predefined static arrays and assigns appropriate labels.
  *
  * @param[out] trainingData Pointer to the allocated training data.
  * @param[out] testingData Pointer to the allocated testing data.
@@ -47,8 +46,37 @@ void freeData(double** data, size_t rows) {
  * @param[out] trainingSamples Pointer to the number of training samples.
  * @param[out] testingSamples Pointer to the number of testing samples.
  *
- * @note The data layout assumes a fixed number of features as defined by `NUM_FEATURES`.
- *       This implementation is for demonstration and uses hardcoded data arrays.
+ * @note
+ * The input data and labels must follow this structure:
+ *
+ * - **Data (`trainingData`, `testingData`):** 
+ *   A 2D array of type `double`, where:
+ *   - Each row represents a sample.
+ *   - Each column represents a feature.
+ *   - The dimensions are `numSamples x numFeatures`.
+ *
+ *   Example:
+ *   @code
+ *   trainingData = {
+ *       {feature_1, feature_2, ..., feature_n},  // Sample 1
+ *       {feature_1, feature_2, ..., feature_n},  // Sample 2
+ *       ...
+ *   };
+ *   @endcode
+ *
+ * - **Labels (`trainingLabels`, `testingLabels`):**
+ *   A 1D array of type `int`, where:
+ *   - Each element corresponds to the class label of a sample.
+ *
+ *   Example:
+ *   @code
+ *   trainingLabels = {0, 1, ..., k}; // Class labels for each sample
+ *   @endcode
+ *
+ * Ensure that:
+ * - The number of samples in the label array matches the number of rows in the data array.
+ * - The data is correctly preprocessed to match the requirements of the model, including 
+ *   the number of features and the label space.
  */
 
 void getData(double*** trainingData, double*** testingData, int** trainingLabels, int** testingLabels, int* trainingSamples, int* testingSamples) {
