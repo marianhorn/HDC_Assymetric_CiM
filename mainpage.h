@@ -4,23 +4,55 @@
  * @section intro Introduction
  * This documentation covers the implementation of the Hyperdimensional Computing (HDC) framework 
  * for various use cases including EMG-based movement recognition and custom dataset evaluation. It is based on the work of https://github.com/abbas-rahimi/HDC-EMG
- * This is a reduced version of the project. For the complete version including intermediate results, debugging information and development artifacts refer to https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc
+ * This version of the project focuses on providing a clean and extensible framework for developing new HDC models. Non-essential components, intermediate results, and debugging artifacts have been omitted for clarity. For a comprehensive version of the project, including all development artifacts, refer to the [FAU GitLab Repository](https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc).
  * 
  * The framework consists of the following modules:
- * - **Associative Memory (assoc_mem.c)**: Implements storage and retrieval of hypervectors.
+ * - **Item Memory (item_mem.c)**: Manages the discrete and continuous mappings for features and values into hyperdimensional space.
+ * - **Associative Memory (assoc_mem.c)**: Stores and retrieves class hypervectors efficiently.
  * - **Encoder (encoder.c)**: Encodes input data into hyperdimensional vectors.
- * - **Item Memory (item_mem.c)**: Manages item memory for discrete and continuous signals.
- * - **Operations (operations.c)**: Contains operations such as binding, bundling, and permutation.
- * - **Evaluator (evaluator.c)**: Provides evaluation metrics and classification results.
- * - **Trainer (trainer.c)**: Handles training of the associative memory.
+ * - **Operations (operations.c)**: Provides low-level vector operations, including binding, bundling, and similarity checks.
+ * - **Trainer (trainer.c)**: Handles training of the associative memory based on training dataset.
+ * - **Evaluator (evaluator.c)**: Evaluates a trained model based on testing dataset.
+ * - **Online Classifier (online_classifier.c)**: Evaluates a trained model based on batches of real time incoming test data.
  * - **Preprocessor (preprocessor.c)**: Prepares and downsamples datasets.
  * - **Main Files (e.g., modelCustom.c)**: Entry points for specific use cases.
  *
  * @section usage Usage
- * - Clone the repository and ensure all dependencies are installed.
- * - Configure the project by modifying the appropriate configuration file (e.g., `configCustom.h`).
- * - Compile the project using `make`.
- * - Run the appropriate executable (e.g., `modelCustom`) to train and evaluate the model.
+ *
+ * @subsection getting_started Getting Started
+ * 
+ * - Clone the repository:
+ *   @code{.bash}
+ *   git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn
+ *   cd hdcframeworkhorn/
+ *   @endcode
+ *
+ * - Build and run the EMG classification model:
+ *   @code{.bash}
+ *   make foot
+ *   ./modelFoot
+ *   @endcode
+ *
+ * - Modify constants in `configFoot.h` to explore parameter effects. After making changes, rebuild and rerun the model.
+ *
+ * @subsection building_custom_model Building Your Own HDC Model
+ * 
+ * A template with dummy data is available in the `customModel` directory.
+ * 
+ * - Build and run the dummy model:
+ *   @code{.bash}
+ *   make custom
+ *   ./modelCustom
+ *   @endcode
+ * 
+ * - Customize the template:
+ *   1. **Set System Parameters**: Modify constants in `customModel/configCustom.h`.
+ *   2. **Implement a Data Reader**: Create a custom data-reading function in `customModel/dataReaderCustom.c`.
+ *   3. **Edit the Model**: Adjust the main file `customModel/modelCustom.c` to fit your use case.
+ * 
+ * - If working with time-series classification, replace:
+ *   - `train_model_general_data()` with `train_model_timeseries()`
+ *   - `evaluate_model_general_direct()` with `evaluate_model_timeseries_direct()`
  *
  * @section structure Project Structure
  * - **hdc_infrastructure**: Core framework modules.

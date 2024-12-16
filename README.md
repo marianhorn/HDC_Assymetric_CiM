@@ -11,7 +11,7 @@ This project implements a well-structured framework for Hyperdimensional Computi
 **Evaluation Example:** EMG-Classification of foot movements for the NOE-EMY project.
 
 **Documentation:** 
-- System and function details are available in the [`/doc`](./doc) folder and [`Abschlussbericht.pdf`](./Abschlussbericht.pdf).
+- System and function details are available in the [`/doc`](./doc/html/mainpage_8h_source.html) folder and [`Abschlussbericht.pdf`](./Abschlussbericht.pdf).
 - The development repository with all intermediate artifacts is available at: [Development Repository](https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc).
 
 ---
@@ -21,6 +21,7 @@ This project implements a well-structured framework for Hyperdimensional Computi
 ### Clone Repository
 ```bash
 git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn
+cd hdcframeworkhorn/
 ```
 
 ### Build and Run the Model for EMG Classification
