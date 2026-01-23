@@ -2,6 +2,13 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=c11
 LDFLAGS = -lm
 
+# Optional OpenMP support (set USE_OPENMP=1)
+USE_OPENMP ?= 0
+ifeq ($(USE_OPENMP),1)
+	CFLAGS += -fopenmp
+	LDFLAGS += -fopenmp
+endif
+
 # Directories
 SRCDIR_FOOT = foot
 SRCDIR_CUSTOM = customModel

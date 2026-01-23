@@ -8,11 +8,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
-#define GA_DEFAULT_POPULATION_SIZE 4 //Default: 12
-#define GA_DEFAULT_GENERATIONS 4 //Default: 10
+#define GA_DEFAULT_POPULATION_SIZE 16 //Default: 12
+#define GA_DEFAULT_GENERATIONS 16 //Default: 10
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 //Default 0.7
-#define GA_DEFAULT_MUTATION_RATE 0.02 //Default 0.02
+#define GA_DEFAULT_MUTATION_RATE 0.5 //Default 0.02
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 //Default 3
 #define GA_DEFAULT_LOG_EVERY 0 //Default 0
 #define GA_DEFAULT_SEED 1u
@@ -543,22 +546,37 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     double best_fitness = -1.0;
 
     for (int gen = 0; gen < params->generations; gen++) {
+#if OUTPUT_MODE >= OUTPUT_BASIC
+        printf("GA generation %d/%d\n", gen + 1, params->generations);
+#endif
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
         for (int i = 0; i < population_size; i++) {
             fitness[i] = evaluate_fitness(&population[i * genome_length], &ctx);
+        }
 #if OUTPUT_MODE >= OUTPUT_BASIC
-            printf("GA gen %d/%d individual %d/%d accuracy: %.3f%%\n",
-                   gen + 1,
-                   params->generations,
+        for (int i = 0; i < population_size; i++) {
+            printf("  individual %d/%d accuracy: %.3f%%\n",
                    i + 1,
                    population_size,
                    fitness[i] * 100.0);
+        }
 #endif
-            if (fitness[i] > best_fitness) {
-                best_fitness = fitness[i];
-                memcpy(best_individual,
-                       &population[i * genome_length],
-                       (size_t)genome_length * sizeof(uint16_t));
+
+        double gen_best = -1.0;
+        int gen_best_index = 0;
+        for (int i = 0; i < population_size; i++) {
+            if (fitness[i] > gen_best) {
+                gen_best = fitness[i];
+                gen_best_index = i;
             }
+        }
+        if (gen_best > best_fitness) {
+            best_fitness = gen_best;
+            memcpy(best_individual,
+                   &population[gen_best_index * genome_length],
+                   (size_t)genome_length * sizeof(uint16_t));
         }
 
         if (params->log_every > 0 && (gen % params->log_every == 0)) {
