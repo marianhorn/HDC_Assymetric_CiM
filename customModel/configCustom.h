@@ -83,6 +83,12 @@
  */
 #define PRECOMPUTED_ITEM_MEMORY 0
 /** 
+ * @brief Enables GA-based asymmetric item memory generation.
+ * 
+ * If set to 1, uses genetic optimization for item memory generation.
+ */
+#define USE_GENETIC_ITEM_MEMORY 0
+/** 
  * @brief Sets the output verbosity level.
  * 
  * The `OUTPUT_MODE` can be one of the following:

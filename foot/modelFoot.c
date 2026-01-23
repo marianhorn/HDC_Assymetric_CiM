@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "../hdc_infrastructure/assoc_mem.h"
 #include "../hdc_infrastructure/item_mem.h"
+#include "../hdc_infrastructure/asymItemMemory.h"
 #include "../hdc_infrastructure/encoder.h"
 #include "../hdc_infrastructure/operations.h"
 #include "dataReaderFootEMG.h"
@@ -17,7 +18,7 @@ int main(){
     #if OUTPUT_MODE>=OUTPUT_BASIC
         printf("\nHDC-classification for EMG-signals:\n\n");
     #endif
-    for(int dataset = 0; dataset<4;dataset++){
+    for(int dataset = 2; dataset<3;dataset++){
 
         #if OUTPUT_MODE>= OUTPUT_BASIC
             printf("\n\nModel for dataset #%d\n",dataset);
@@ -48,6 +49,17 @@ int main(){
         init_assoc_mem(&assMem);
 
         getData(dataset,&trainingData,&testingData,&trainingLabels,&testingLabels,&trainingSamples,&testingSamples);
+
+        #if USE_GENETIC_ITEM_MEMORY
+                optimize_item_memory(&intensityLevels,
+                                    &electrodes,
+                                     trainingData,
+                                     trainingLabels,
+                                     trainingSamples,
+                                     testingData,
+                                     testingLabels,
+                                     testingSamples);
+        #endif
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
             
