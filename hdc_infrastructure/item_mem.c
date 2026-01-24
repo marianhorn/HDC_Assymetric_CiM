@@ -270,6 +270,37 @@ void store_item_mem_to_bin(struct item_memory *item_mem, const char *filepath) {
     fclose(file);
     printf("Item memory successfully stored to %s\n", filepath);
 }
+
+/**
+ * @brief Stores item memory vectors to a CSV file.
+ *
+ * @details
+ * This function writes each vector as one row in a CSV file. Each row contains
+ * `VECTOR_DIMENSION` elements separated by commas.
+ *
+ * @param item_mem A pointer to the item memory structure.
+ * @param filepath The path to the CSV file where the vectors should be stored.
+ */
+void store_item_mem_to_csv(struct item_memory *item_mem, const char *filepath) {
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        perror("Failed to open file for writing item memory CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < item_mem->num_vectors; i++) {
+        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+            fprintf(file, "%d", (int)item_mem->base_vectors[i]->data[j]);
+            if (j < VECTOR_DIMENSION - 1) {
+                fputc(',', file);
+            }
+        }
+        fputc('\n', file);
+    }
+
+    fclose(file);
+    printf("Item memory successfully stored to %s\n", filepath);
+}
 /**
  * @brief Loads item memory vectors from a binary file.
  * 
@@ -312,6 +343,53 @@ void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, 
 
    
     
+
+    fclose(file);
+    printf("Item memory successfully loaded from %s\n", filepath);
+}
+
+/**
+ * @brief Loads item memory vectors from a CSV file.
+ *
+ * @details
+ * This function reads vectors from a CSV file and initializes the item memory structure.
+ * The CSV file must have one vector per row and `VECTOR_DIMENSION` comma-separated elements.
+ *
+ * @param item_mem A pointer to the item memory structure to be loaded.
+ * @param filepath The path to the CSV file containing the item memory vectors.
+ * @param num_items The number of vectors to load into the item memory.
+ */
+void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, int num_items) {
+    FILE *file = fopen(filepath, "r");
+    if (!file) {
+        perror("Failed to open file for reading item memory CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    init_item_memory(item_mem, num_items);
+
+    for (int i = 0; i < num_items; i++) {
+        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+            int value = 0;
+            if (fscanf(file, "%d", &value) != 1) {
+                fprintf(stderr, "Error: Incomplete vector data at row %d, col %d\n", i, j);
+                exit(EXIT_FAILURE);
+            }
+            item_mem->base_vectors[i]->data[j] = (vector_element)value;
+            if (j < VECTOR_DIMENSION - 1) {
+                int ch = fgetc(file);
+                if (ch != ',') {
+                    fprintf(stderr, "Error: Expected ',' at row %d, col %d\n", i, j);
+                    exit(EXIT_FAILURE);
+                }
+            }
+        }
+        int ch = fgetc(file);
+        if (ch != '\n' && ch != EOF) {
+            fprintf(stderr, "Error: Expected end of line at row %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
 
     fclose(file);
     printf("Item memory successfully loaded from %s\n", filepath);

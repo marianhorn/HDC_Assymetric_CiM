@@ -34,5 +34,7 @@ Vector* get_item_vector(struct item_memory *item_mem, int item_id);
 void print_item_memory(struct item_memory *item_mem);
 void store_item_mem_to_bin(struct item_memory *item_mem, const char *filepath);
 void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, int num_items);
+void store_item_mem_to_csv(struct item_memory *item_mem, const char *filepath);
+void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, int num_items);
 
 #endif // ITEM_MEMORY_H
