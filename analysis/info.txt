@@ -1,0 +1,1 @@
+this test was conducted with GA(8/8), 10000 dims, 101 lvls and bipolar vectors
