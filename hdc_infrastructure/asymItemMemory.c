@@ -549,6 +549,14 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #if OUTPUT_MODE >= OUTPUT_BASIC
         printf("GA generation %d/%d\n", gen + 1, params->generations);
 #endif
+#if OUTPUT_MODE >= OUTPUT_DETAILED
+#ifdef _OPENMP
+        printf("GA evaluating with %d threads\n", omp_get_max_threads());
+#else
+        printf("GA evaluating with 1 thread\n");
+#endif
+#endif
+
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
 #endif
