@@ -16,7 +16,7 @@
 
 #define GA_DEFAULT_POPULATION_SIZE 32 //Default: 12
 #define GA_DEFAULT_GENERATIONS 32 //Default: 10
-#define GA_DEFAULT_CROSSOVER_RATE 0.1 //Default 0.7
+#define GA_DEFAULT_CROSSOVER_RATE 0.0 //Default 0.7
 #define GA_DEFAULT_MUTATION_RATE 0.1 //Default 0.02
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 //Default 3
 #define GA_DEFAULT_LOG_EVERY 0 //Default 0
@@ -338,14 +338,32 @@ static void mutate_individual(uint16_t *individual,
                               int gene_count,
                               double mutation_rate,
                               uint32_t *rng_state) {
-    for (int level = 0; level < gene_count; level++) {
+    if (!individual || gene_count <= 1) {
+        return;
+    }
+
+    for (int step = 0; step < gene_count; step++) {
         if (rng_uniform(rng_state) < mutation_rate) {
-            int delta = rng_range(rng_state, 2) == 0 ? -1 : 1;
-            int value = (int)individual[level] + delta;
-            if (value < 0) {
-                value = 0;
+            int donor = -1;
+            int max_tries = gene_count * 2;
+            for (int tries = 0; tries < max_tries; tries++) {
+                int idx = rng_range(rng_state, gene_count);
+                if (individual[idx] > 0) {
+                    donor = idx;
+                    break;
+                }
             }
-            individual[level] = (uint16_t)value;
+            if (donor < 0) {
+                continue;
+            }
+
+            int receiver = rng_range(rng_state, gene_count);
+            if (receiver == donor && gene_count > 1) {
+                receiver = (donor + 1 + rng_range(rng_state, gene_count - 1)) % gene_count;
+            }
+
+            individual[donor] -= 1;
+            individual[receiver] += 1;
         }
     }
 }
