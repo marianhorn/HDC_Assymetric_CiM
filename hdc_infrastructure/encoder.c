@@ -176,7 +176,7 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         free_vector(result_permuted);
     }
 
-    if(OUTPUT_MODE>=OUTPUT_DEBUG){
+    if (output_mode >= OUTPUT_DEBUG) {
 
         bool vectorContainsOnlyZeroEntries = true;
         for(int z = 0; z<VECTOR_DIMENSION; z++){
@@ -203,7 +203,7 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         free_vector(encoded);
         free_vector(result_permuted);
     }
-    #if OUTPUT_MODE >= OUTPUT_DEBUG
+    if (output_mode >= OUTPUT_DEBUG) {
         bool vectorContainsOnlyZeroEntries = true;
         for(int z = 0; z<VECTOR_DIMENSION; z++){
             if(result->data[z]!=0){
@@ -215,7 +215,7 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
             print_vector(result);
             fprintf(stdout,"Encoding Error: This vector is zero\n");
         }
-    #endif
+    }
     #endif
     return 0;
 

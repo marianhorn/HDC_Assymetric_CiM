@@ -14,15 +14,17 @@
 #include "../hdc_infrastructure/vector.h"
 #include "../hdc_infrastructure/trainer.h"
 
+int output_mode = OUTPUT_MODE;
+
 int main(){
-    #if OUTPUT_MODE>=OUTPUT_BASIC
+    if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
-    #endif
+    }
     for(int dataset = 2; dataset<3;dataset++){
 
-        #if OUTPUT_MODE>= OUTPUT_BASIC
+        if (output_mode >= OUTPUT_BASIC) {
             printf("\n\nModel for dataset #%d\n",dataset);
-        #endif
+        }
         #if PRECOMPUTED_ITEM_MEMORY
         struct item_memory itemMem;
         init_precomp_item_memory(&itemMem,NUM_LEVELS,NUM_FEATURES);

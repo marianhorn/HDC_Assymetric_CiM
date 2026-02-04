@@ -96,14 +96,14 @@ void evaluate_model_timeseries_with_window(struct encoder *enc, struct associati
             correct++;
         }else{not_correct++;}
     }
-    #if OUTPUT_MODE>=OUTPUT_BASIC
+    if (output_mode >= OUTPUT_BASIC) {
         int number_total_tests = correct+not_correct;
         float accuracy = (float)correct / (number_total_tests);
 
         printf("Testing accuracy: %.3f%%\n", accuracy * 100);
 
         printf("Total: %ld of %d ngrams correctly classified\n",correct,number_total_tests);
-        #if OUTPUT_MODE>=OUTPUT_DETAILED
+        if (output_mode >= OUTPUT_DETAILED) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {
@@ -117,8 +117,8 @@ void evaluate_model_timeseries_with_window(struct encoder *enc, struct associati
                 }
                 printf("\n");
             }
-        #endif
-    #endif
+        }
+    }
 }
 /**
  * @brief Directly evaluates the HDC model on a time-series dataset.
@@ -136,9 +136,9 @@ void evaluate_model_timeseries_with_window(struct encoder *enc, struct associati
  * @param testing_samples The number of testing samples in the dataset.
  */
 void evaluate_model_timeseries_direct(struct encoder *enc, struct associative_memory *assoc_mem, double **testing_data, int *testing_labels, int testing_samples) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Evaluating HDC-Model for %d testing samples.\n",testing_samples);
-    #endif
+    }
     size_t correct = 0;
     size_t not_correct = 0;
     size_t transition_error = 0;
@@ -176,7 +176,7 @@ void evaluate_model_timeseries_direct(struct encoder *enc, struct associative_me
         } else{not_correct++;}
     }
 
-    #if OUTPUT_MODE>=OUTPUT_BASIC
+    if (output_mode >= OUTPUT_BASIC) {
         int number_total_tests = correct+not_correct+transition_error;
         float accuracy = (float)correct / (number_total_tests);
         float accuracyTranz = ((float)correct + (float)transition_error) / (number_total_tests);
@@ -185,7 +185,7 @@ void evaluate_model_timeseries_direct(struct encoder *enc, struct associative_me
         printf("Accuracy excluding gesture transitions: %.3f%%\n",accuracyTranz*100);
         printf("Total: %ld of %d ngrams correctly classified\n",correct,number_total_tests);
         printf("Transition error: %ld\n",transition_error);
-        #if OUTPUT_MODE>=OUTPUT_DETAILED
+        if (output_mode >= OUTPUT_DETAILED) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {
@@ -199,8 +199,8 @@ void evaluate_model_timeseries_direct(struct encoder *enc, struct associative_me
                 }
                 printf("\n");
             }
-        #endif
-    #endif
+        }
+    }
 }
 /**
  * @brief Directly evaluates the HDC model on general (non-time-series) data.
@@ -217,9 +217,9 @@ void evaluate_model_timeseries_direct(struct encoder *enc, struct associative_me
  * @param testing_samples The number of testing samples in the dataset.
  */
 void evaluate_model_general_direct(struct encoder *enc, struct associative_memory *assoc_mem, double **testing_data, int *testing_labels, int testing_samples) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Evaluating HDC-Model for %d testing samples.\n",testing_samples);
-    #endif
+    }
     size_t correct = 0;
     size_t not_correct = 0;
     int confusion_matrix[NUM_CLASSES][NUM_CLASSES] = {0};
@@ -251,13 +251,13 @@ void evaluate_model_general_direct(struct encoder *enc, struct associative_memor
         }else{not_correct++;}
     }
 
-    #if OUTPUT_MODE>=OUTPUT_BASIC
+    if (output_mode >= OUTPUT_BASIC) {
         int number_total_tests = correct+not_correct;
         float accuracy = (float)correct / (number_total_tests);
         printf("Testing accuracy: %.3f%%\n", accuracy * 100);
 
         printf("Total: %ld of %d ngrams correctly classified\n",correct,number_total_tests);
-        #if OUTPUT_MODE>=OUTPUT_DETAILED
+        if (output_mode >= OUTPUT_DETAILED) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {
@@ -271,7 +271,7 @@ void evaluate_model_general_direct(struct encoder *enc, struct associative_memor
                 }
                 printf("\n");
             }
-        #endif
-    #endif
+        }
+    }
 }
 

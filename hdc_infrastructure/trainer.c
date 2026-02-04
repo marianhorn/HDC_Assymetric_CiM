@@ -54,10 +54,10 @@
  * - In bipolar mode, associative memory updates occur incrementally, while in binary mode, updates are applied after bundling.
  */
 void train_model_timeseries(double **training_data, int *training_labels, int training_samples, struct associative_memory *assoc_mem, struct encoder *enc) {
-    #if OUTPUT_MODE >= OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Training HDC-Model for %d training samples.\n",training_samples);
         fflush(stdout);
-    #endif
+    }
     #if BIPOLAR_MODE
 
     for (int j = 0; j < training_samples - N_GRAM_SIZE; j++) {
@@ -120,9 +120,9 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
     free(vector_counts);
     #endif
 
-    #if OUTPUT_MODE >= OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         print_class_vectors(assoc_mem);
-    #endif
+    }
 }
 /**
  * @brief Trains the HDC model using general (non-timeseries) data.
@@ -149,10 +149,10 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
  */
 
 void train_model_general_data(double **training_data, int *training_labels, int training_samples, struct associative_memory *assoc_mem, struct encoder *enc) {
-    #if OUTPUT_MODE >= OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Training HDC-Model for %d training samples.",training_samples);
         fflush(stdout);
-    #endif
+    }
     #if BIPOLAR_MODE
     // Training loop
     for (int j = 0; j < training_samples; j++) {
@@ -205,7 +205,7 @@ void train_model_general_data(double **training_data, int *training_labels, int 
     free(vector_counts);
     #endif
 
-    #if OUTPUT_MODE >= OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         print_class_vectors(assoc_mem);
-    #endif
+    }
 }

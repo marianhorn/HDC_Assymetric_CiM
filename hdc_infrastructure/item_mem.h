@@ -22,7 +22,7 @@ struct item_memory {
 // Initialize item memory for discrete items
 void init_item_memory(struct item_memory *item_mem, int num_items);
 void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int num_features);
-void init_precomp_item_memory_custom(struct item_memory *item_mem,
+void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                                      int num_levels,
                                      int num_features,
                                      const int *B);

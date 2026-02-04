@@ -136,9 +136,9 @@ void getTestingData(int dataset, double*** testingData, int** testingLabels, int
 }
 // Function to get training and testing data
 void getData(int dataset,double*** trainingData, double*** testingData, int** trainingLabels, int** testingLabels, int* trainingSamples, int* testingSamples) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Reading data.\n");
-    #endif
+    }
     // Load raw training data
     char training_emg_file_name[128], training_labels_file_name[128], testing_emg_file_name[128], testing_labels_file_name[128];
     get_file_paths(dataset,training_emg_file_name,training_labels_file_name,testing_emg_file_name,testing_labels_file_name);

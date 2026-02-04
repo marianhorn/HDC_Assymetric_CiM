@@ -28,9 +28,9 @@
  * @param num_items The number of discrete items to encode.
  */
 void init_item_memory(struct item_memory *item_mem, int num_items) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing item memory for %d features.\n",num_items);
-    #endif
+    }
     item_mem->num_vectors = num_items;
     item_mem->base_vectors = (Vector **)malloc(num_items * sizeof(Vector*));
     for (int i = 0; i < num_items; i++) {
@@ -43,10 +43,10 @@ void init_item_memory(struct item_memory *item_mem, int num_items) {
 #endif
         }
     }
-    #if OUTPUT_MODE>=OUTPUT_DEBUG
+    if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
         printf("\n");
-    #endif
+    }
 }
 
 /**
@@ -109,9 +109,9 @@ void interpolate_vectors(Vector *vec1, Vector *vec2, Vector *result, int dimensi
  * @param num_levels The number of continuous signal levels.
  */
 void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing continuous item memory with %d levels.\n",num_levels);
-    #endif
+    }
     item_mem->num_vectors = num_levels;
     item_mem->base_vectors = (Vector **)malloc(num_levels * sizeof(Vector *));
     for (int i = 0; i < num_levels; i++) {
@@ -179,10 +179,10 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
 
     free(perm);
     free_vector(min_vector);
-    #if OUTPUT_MODE>=OUTPUT_DEBUG
+    if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
         printf("\n");
-    #endif
+    }
 }
 
 void generate_random_hv(vector_element *data, int dimension) {
@@ -208,9 +208,9 @@ void generate_random_hv(vector_element *data, int dimension) {
  * @note If used, activate PRECOMPUTED_ITEM_MEMORY in config.h
  */
 void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int num_features) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing precomputed item memory with %d levels for %d features.\n",num_levels,num_features);
-    #endif
+    }
     int total_vectors = num_levels * num_features; // Total vectors required
     item_mem->num_vectors = total_vectors;
     item_mem->base_vectors = (Vector **)malloc(total_vectors * sizeof(Vector *));
@@ -282,10 +282,10 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
         free(perm);
         free_vector(min_vector);
     }
-    #if OUTPUT_MODE>=OUTPUT_DEBUG
+    if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
         printf("\n");
-    #endif
+    }
 }
 
 /**
@@ -303,19 +303,19 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
  * @param num_features The number of features to encode.
  * @param B Row-major matrix of size num_features x (num_levels-1) with flip counts.
  */
-void init_precomp_item_memory_custom(struct item_memory *item_mem,
+void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                                      int num_levels,
                                      int num_features,
                                      const int *B) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing precomputed item memory (B-driven) with %d levels for %d features.\n",
                num_levels, num_features);
-    #endif
+    }
 
     if (!B) {
-        #if OUTPUT_MODE>=OUTPUT_BASIC
+        if (output_mode >= OUTPUT_BASIC) {
             fprintf(stderr, "init_precomp_item_memory_with_B: B is NULL.\n");
-        #endif
+        }
         return;
     }
 
@@ -387,10 +387,10 @@ void init_precomp_item_memory_custom(struct item_memory *item_mem,
         free_vector(min_vector);
     }
 
-    #if OUTPUT_MODE>=OUTPUT_DEBUG
+    if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
         printf("\n");
-    #endif
+    }
 }
 
 /**

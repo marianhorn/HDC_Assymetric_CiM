@@ -89,12 +89,12 @@ static void build_asym_item_memory_from_B(
 
     int dimension = vector_dimension > 0 ? vector_dimension : VECTOR_DIMENSION;
     if (dimension != VECTOR_DIMENSION) {
-#if OUTPUT_MODE >= OUTPUT_BASIC
-        fprintf(stderr,
-                "Warning: vector_dimension (%d) != VECTOR_DIMENSION (%d). Using VECTOR_DIMENSION.\n",
-                vector_dimension,
-                VECTOR_DIMENSION);
-#endif
+        if (output_mode >= OUTPUT_BASIC) {
+            fprintf(stderr,
+                    "Warning: vector_dimension (%d) != VECTOR_DIMENSION (%d). Using VECTOR_DIMENSION.\n",
+                    vector_dimension,
+                    VECTOR_DIMENSION);
+        }
         dimension = VECTOR_DIMENSION;
     }
 
@@ -546,16 +546,16 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     double best_fitness = -1.0;
 
     for (int gen = 0; gen < params->generations; gen++) {
-#if OUTPUT_MODE >= OUTPUT_BASIC
-        printf("GA generation %d/%d\n", gen + 1, params->generations);
-#endif
-#if OUTPUT_MODE >= OUTPUT_DETAILED
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("GA generation %d/%d\n", gen + 1, params->generations);
+        }
+        if (output_mode >= OUTPUT_DETAILED) {
 #ifdef _OPENMP
-        printf("GA evaluating with %d threads\n", omp_get_max_threads());
+            printf("GA evaluating with %d threads\n", omp_get_max_threads());
 #else
-        printf("GA evaluating with 1 thread\n");
+            printf("GA evaluating with 1 thread\n");
 #endif
-#endif
+        }
 
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
@@ -563,14 +563,14 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         for (int i = 0; i < population_size; i++) {
             fitness[i] = evaluate_fitness(&population[i * genome_length], &ctx);
         }
-#if OUTPUT_MODE >= OUTPUT_BASIC
-        for (int i = 0; i < population_size; i++) {
-            printf("  individual %d/%d accuracy: %.3f%%\n",
-                   i + 1,
-                   population_size,
-                   fitness[i] * 100.0);
+        if (output_mode >= OUTPUT_BASIC) {
+            for (int i = 0; i < population_size; i++) {
+                printf("  individual %d/%d accuracy: %.3f%%\n",
+                       i + 1,
+                       population_size,
+                       fitness[i] * 100.0);
+            }
         }
-#endif
 
         double gen_best = -1.0;
         int gen_best_index = 0;
@@ -588,9 +588,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         }
 
         if (params->log_every > 0 && (gen % params->log_every == 0)) {
-#if OUTPUT_MODE >= OUTPUT_BASIC
-            printf("GA generation %d best accuracy: %.3f%%\n", gen, best_fitness * 100.0);
-#endif
+            if (output_mode >= OUTPUT_BASIC) {
+                printf("GA generation %d best accuracy: %.3f%%\n", gen, best_fitness * 100.0);
+            }
         }
 
         if (gen == params->generations - 1) {

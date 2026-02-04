@@ -98,9 +98,7 @@
  * - `OUTPUT_DEBUG`: Print all debugging information.
  */
 #define OUTPUT_MODE OUTPUT_DEBUG
-
-
-
+extern int output_mode;
 
 //*************DONT CHANGE ANYTHING below this line */
 #define OUTPUT_NONE 0        // No printing

@@ -22,6 +22,7 @@
 #define BIPOLAR_MODE 1
 
 
+extern int output_mode;
 
 //*************DONT CHANGE ANYTHING below this line */
 #define OUTPUT_NONE 0        // No printing

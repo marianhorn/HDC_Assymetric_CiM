@@ -29,9 +29,9 @@
  * @param assoc_mem A pointer to the `associative_memory` structure to initialize.
  */
 void init_assoc_mem(struct associative_memory *assoc_mem) {
-    #if OUTPUT_MODE>=OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing associative memory for %d classes.\n",NUM_CLASSES);
-    #endif
+    }
     assoc_mem->num_classes = NUM_CLASSES;
     assoc_mem->class_vectors = (Vector **)malloc(NUM_CLASSES *sizeof(Vector*));
     assoc_mem->counts = (int*)malloc(NUM_CLASSES*sizeof(int));
@@ -209,9 +209,9 @@ void print_class_vectors(struct associative_memory *assoc_mem) {
  * @note Can be activated/deactivated by NORMALIZE in config.h
  */
 void normalize(struct associative_memory *assoc_mem) {
-    #if OUTPUT_MODE >= OUTPUT_DETAILED
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Normalizing associative memory\n");
-    #endif
+    }
     for (int i = 0; i < assoc_mem->num_classes; i++) {
         int count = assoc_mem->counts[i];
         if (count > 0) {

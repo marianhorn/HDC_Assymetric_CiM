@@ -26,10 +26,12 @@
  * 
  * @return Returns 1 on successful execution.
  */
+int output_mode = OUTPUT_MODE;
+
 int main(){
-    #if OUTPUT_MODE>=OUTPUT_BASIC
+    if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
-    #endif
+    }
 
     struct item_memory features;
     struct item_memory values;
