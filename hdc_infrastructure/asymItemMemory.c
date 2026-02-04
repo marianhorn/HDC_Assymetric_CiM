@@ -14,10 +14,10 @@
 #include <omp.h>
 #endif
 
-#define GA_DEFAULT_POPULATION_SIZE 8 //Default: 12
-#define GA_DEFAULT_GENERATIONS 8 //Default: 10
-#define GA_DEFAULT_CROSSOVER_RATE 0.7 //Default 0.7
-#define GA_DEFAULT_MUTATION_RATE 0.05 //Default 0.02
+#define GA_DEFAULT_POPULATION_SIZE 32 //Default: 12
+#define GA_DEFAULT_GENERATIONS 32 //Default: 10
+#define GA_DEFAULT_CROSSOVER_RATE 0.1 //Default 0.7
+#define GA_DEFAULT_MUTATION_RATE 0.1 //Default 0.02
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 //Default 3
 #define GA_DEFAULT_LOG_EVERY 0 //Default 0
 #define GA_DEFAULT_SEED 1u
@@ -60,12 +60,82 @@ static int rng_range(uint32_t *state, int max) {
     return (int)(xorshift32(state) % (uint32_t)max);
 }
 
+static void generate_permutation(int *perm, int length, uint32_t *rng_state) {
+    if (!perm || length <= 0 || !rng_state) {
+        return;
+    }
+    for (int i = 0; i < length; i++) {
+        perm[i] = i;
+    }
+    for (int i = length - 1; i > 0; i--) {
+        int j = rng_range(rng_state, i + 1);
+        int tmp = perm[i];
+        perm[i] = perm[j];
+        perm[j] = tmp;
+    }
+}
+
+static void init_individual(uint16_t *individual,
+                            int transitions,
+                            uint16_t max_flip,
+                            int max_total,
+                            uint32_t *rng_state,
+                            const int *permutation,
+                            int permutation_length) {
+    if (!individual || transitions <= 0) {
+        return;
+    }
+    if (max_total < 0) {
+        max_total = 0;
+    }
+
+    for (int i = 0; i < transitions; i++) {
+        individual[i] = 0;
+    }
+
+    int *order = NULL;
+    if (permutation && permutation_length >= transitions) {
+        order = (int *)malloc((size_t)transitions * sizeof(int));
+        if (order) {
+            int count = 0;
+            for (int i = 0; i < permutation_length && count < transitions; i++) {
+                int value = permutation[i];
+                if (value >= 0 && value < transitions) {
+                    order[count++] = value;
+                }
+            }
+            if (count < transitions) {
+                free(order);
+                order = NULL;
+            }
+        }
+    }
+
+    int remaining = max_total;
+    for (int i = 0; i < transitions; i++) {
+        int level = order ? order[i] : i;
+        int limit = (int)max_flip;
+        if (limit > remaining) {
+            limit = remaining;
+        }
+        int value = limit > 0 ? rng_range(rng_state, limit + 1) : 0;
+        individual[level] = (uint16_t)value;
+        remaining -= value;
+        if (remaining <= 0) {
+            break;
+        }
+    }
+
+    free(order);
+}
+
 
 struct ga_eval_context {
     int num_features;
     int num_levels;
     int vector_dimension;
     unsigned int seed;
+    const int *permutations;
     struct item_memory *channel_memory;
     double **training_data;
     int *training_labels;
@@ -110,13 +180,25 @@ static double evaluate_candidate(const uint16_t *B,
         }
     }
 
+    if (!ctx->permutations) {
+        free(b_matrix);
+        if (out_accuracy) {
+            *out_accuracy = 0.0;
+        }
+        if (out_similarity) {
+            *out_similarity = 0.0;
+        }
+        return 0.0;
+    }
+
     struct associative_memory assoc_mem;
     init_assoc_mem(&assoc_mem);
     struct item_memory item_mem;
     init_precomp_item_memory_with_B(&item_mem,
                                     ctx->num_levels,
                                     ctx->num_features,
-                                    b_matrix);
+                                    b_matrix,
+                                    ctx->permutations);
     struct encoder enc;
     init_encoder(&enc, &item_mem);
     train_model_timeseries(ctx->training_data,
@@ -168,7 +250,7 @@ static double evaluate_candidate(const uint16_t *B,
         }
     }
 
-    if (!ctx->channel_memory) {
+    if (!ctx->channel_memory || !ctx->permutations) {
         free(b_levels);
         if (out_accuracy) {
             *out_accuracy = 0.0;
@@ -184,7 +266,8 @@ static double evaluate_candidate(const uint16_t *B,
     struct item_memory signal_mem;
     init_continuous_item_memory_with_B(&signal_mem,
                                        ctx->num_levels,
-                                       b_levels);
+                                       b_levels,
+                                       ctx->permutations);
     init_encoder(&enc, ctx->channel_memory, &signal_mem);
     train_model_timeseries(ctx->training_data,
                            ctx->training_labels,
@@ -203,21 +286,19 @@ static double evaluate_candidate(const uint16_t *B,
 
     struct timeseries_eval_result eval_result =
         evaluate_model_timeseries_direct(&enc, &assoc_mem, eval_data, eval_labels, eval_samples);
-    double accuracy = 0.0;
-    if (eval_result.total > 0) {
-        accuracy = (double)eval_result.correct / (double)eval_result.total;
-    }
+    double accuracy = eval_result.class_average_accuracy;
+    double similarity = eval_result.class_vector_similarity;
     if (out_accuracy) {
         *out_accuracy = accuracy;
     }
     if (out_similarity) {
-        *out_similarity = 0.0;
+        *out_similarity = similarity;
     }
 
     free(b_levels);
     free_assoc_mem(&assoc_mem);
     free_item_memory(&signal_mem);
-    return accuracy;
+    return accuracy - similarity;
 #endif
 }
 
@@ -358,21 +439,29 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         exit(EXIT_FAILURE);
     }
 
-    int init_value = 0;
-    if (ctx.num_levels > 1) {
-        double avg = (double)dimension / (double)(ctx.num_levels - 1);
-        init_value = (int)(avg + 0.5);
-        if (init_value < 0) {
-            init_value = 0;
-        } else if (init_value > (int)UINT16_MAX) {
-            init_value = (int)UINT16_MAX;
-        }
-    }
+    int transitions = ctx.num_levels - 1;
+    int max_total = dimension / 2;
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
-        for (int level = 0; level < genome_length; level++) {
-            individual[level] = (uint16_t)init_value;
+#if PRECOMPUTED_ITEM_MEMORY
+        for (int feature = 0; feature < ctx.num_features; feature++) {
+            init_individual(individual + feature * transitions,
+                            transitions,
+                            params->max_flip,
+                            max_total,
+                            &ga_state,
+                            ctx.permutations + (size_t)feature * VECTOR_DIMENSION,
+                            VECTOR_DIMENSION);
         }
+#else
+        init_individual(individual,
+                        transitions,
+                        params->max_flip,
+                        max_total,
+                        &ga_state,
+                        ctx.permutations,
+                        VECTOR_DIMENSION);
+#endif
     }
 
     double best_fitness = -1.0;
@@ -495,11 +584,34 @@ void optimize_item_memory(struct item_memory *item_mem,
     struct ga_params params;
     init_ga_params(&params);
 
+    if (params.seed == 0) {
+        params.seed = (unsigned int)time(NULL);
+        if (params.seed == 0) {
+            params.seed = 1;
+        }
+    }
+
+    int *permutations = (int *)malloc((size_t)num_features * VECTOR_DIMENSION * sizeof(int));
+    if (!permutations) {
+        fprintf(stderr, "Failed to allocate permutations.\n");
+        exit(EXIT_FAILURE);
+    }
+    uint32_t perm_state = params.seed ^ 0x9E3779B9u;
+    if (perm_state == 0u) {
+        perm_state = 1u;
+    }
+    for (int feature = 0; feature < num_features; feature++) {
+        generate_permutation(permutations + (size_t)feature * VECTOR_DIMENSION,
+                             VECTOR_DIMENSION,
+                             &perm_state);
+    }
+
     struct ga_eval_context ctx;
     ctx.num_features = num_features;
     ctx.num_levels = num_levels;
     ctx.vector_dimension = VECTOR_DIMENSION;
     ctx.seed = params.seed;
+    ctx.permutations = permutations;
     ctx.channel_memory = NULL;
     ctx.training_data = training_data;
     ctx.training_labels = training_labels;
@@ -529,6 +641,7 @@ void optimize_item_memory(struct item_memory *item_mem,
         if (!b_matrix) {
             fprintf(stderr, "Failed to allocate flip matrix.\n");
             free(flip_counts);
+            free(permutations);
             return;
         }
         for (int i = 0; i < genome_length; i++) {
@@ -538,9 +651,11 @@ void optimize_item_memory(struct item_memory *item_mem,
     init_precomp_item_memory_with_B(item_mem,
                                     num_levels,
                                     num_features,
-                                    b_matrix);
+                                    b_matrix,
+                                    permutations);
     free(b_matrix);
     free(flip_counts);
+    free(permutations);
 }
 #else
 void optimize_item_memory(struct item_memory *signal_mem,
@@ -569,11 +684,30 @@ void optimize_item_memory(struct item_memory *signal_mem,
     struct ga_params params;
     init_ga_params(&params);
 
+    if (params.seed == 0) {
+        params.seed = (unsigned int)time(NULL);
+        if (params.seed == 0) {
+            params.seed = 1;
+        }
+    }
+
+    int *permutation = (int *)malloc((size_t)VECTOR_DIMENSION * sizeof(int));
+    if (!permutation) {
+        fprintf(stderr, "Failed to allocate permutation.\n");
+        exit(EXIT_FAILURE);
+    }
+    uint32_t perm_state = params.seed ^ 0x9E3779B9u;
+    if (perm_state == 0u) {
+        perm_state = 1u;
+    }
+    generate_permutation(permutation, VECTOR_DIMENSION, &perm_state);
+
     struct ga_eval_context ctx;
     ctx.num_features = 1;
     ctx.num_levels = num_levels;
     ctx.vector_dimension = VECTOR_DIMENSION;
     ctx.seed = params.seed;
+    ctx.permutations = permutation;
     ctx.channel_memory = channel_mem;
     ctx.training_data = training_data;
     ctx.training_labels = training_labels;
@@ -604,6 +738,7 @@ void optimize_item_memory(struct item_memory *signal_mem,
         if (!b_levels) {
             fprintf(stderr, "Failed to allocate flip vector.\n");
             free(flip_counts);
+            free(permutation);
             return;
         }
         for (int level = 0; level < transitions; level++) {
@@ -613,9 +748,11 @@ void optimize_item_memory(struct item_memory *signal_mem,
 
     init_continuous_item_memory_with_B(signal_mem,
                                        num_levels,
-                                       b_levels);
+                                       b_levels,
+                                       permutation);
 
     free(b_levels);
     free(flip_counts);
+    free(permutation);
 }
 #endif

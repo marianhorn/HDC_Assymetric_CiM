@@ -19,6 +19,50 @@
 #include "vector.h"
 
 void generate_random_hv(vector_element *data, int dimension);
+
+static uint32_t item_mem_xorshift32(uint32_t *state) {
+    uint32_t x = *state;
+    if (x == 0u) {
+        x = 0x6d2b79f5u;
+    }
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    *state = x;
+    return x;
+}
+
+static int item_mem_rand_range(uint32_t *state, int max) {
+    if (max <= 0) {
+        return 0;
+    }
+    return (int)(item_mem_xorshift32(state) % (uint32_t)max);
+}
+
+static uint32_t item_mem_seed_from_permutation(const int *perm, int length) {
+    uint32_t hash = 2166136261u;
+    if (!perm || length <= 0) {
+        return 1u;
+    }
+    for (int i = 0; i < length; i++) {
+        hash ^= (uint32_t)perm[i];
+        hash *= 16777619u;
+    }
+    if (hash == 0u) {
+        hash = 1u;
+    }
+    return hash;
+}
+
+static void generate_random_hv_with_rng(vector_element *data, int dimension, uint32_t *state) {
+    for (int i = 0; i < dimension; i++) {
+#if BIPOLAR_MODE
+        data[i] = (item_mem_rand_range(state, 2) * 2) - 1;
+#else
+        data[i] = item_mem_rand_range(state, 2);
+#endif
+    }
+}
 /**
  * @brief Initializes item memory for discrete items, eg. features.
  * 
@@ -192,16 +236,18 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
  *
  * @details
  * This function generates a set of vectors representing continuous signal levels.
- * It creates a random minimum vector, applies a random permutation of indices,
+ * It creates a deterministic minimum vector, applies the provided permutation of indices,
  * and flips bits cumulatively based on the provided flip counts B.
  *
  * @param item_mem A pointer to the item memory structure to be initialized.
  * @param num_levels The number of continuous signal levels.
  * @param B Array of size (num_levels-1) specifying flips from level i to i+1.
+ * @param permutation Array of size VECTOR_DIMENSION specifying flip order.
  */
 void init_continuous_item_memory_with_B(struct item_memory *item_mem,
                                         int num_levels,
-                                        const int *B) {
+                                        const int *B,
+                                        const int *permutation) {
     if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing continuous item memory (B-driven) with %d levels.\n", num_levels);
     }
@@ -211,9 +257,9 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
         item_mem->base_vectors = NULL;
         return;
     }
-    if (num_levels > 1 && !B) {
+    if (num_levels > 1 && (!B || !permutation)) {
         if (output_mode >= OUTPUT_BASIC) {
-            fprintf(stderr, "init_continuous_item_memory_with_B: B is NULL.\n");
+            fprintf(stderr, "init_continuous_item_memory_with_B: B or permutation is NULL.\n");
         }
         item_mem->num_vectors = 0;
         item_mem->base_vectors = NULL;
@@ -226,22 +272,9 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
 
-    // Seed for reproducible randomness
-    srand(1);
-
     Vector *min_vector = create_uninitialized_vector();
-    generate_random_hv(min_vector->data, VECTOR_DIMENSION);
-
-    int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        perm[i] = i;
-    }
-    for (int i = VECTOR_DIMENSION - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
-        int tmp = perm[i];
-        perm[i] = perm[j];
-        perm[j] = tmp;
-    }
+    uint32_t rng_state = item_mem_seed_from_permutation(permutation, VECTOR_DIMENSION);
+    generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
     memcpy(item_mem->base_vectors[0]->data,
            min_vector->data,
@@ -264,7 +297,7 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
             memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
 
             for (int k = prev_target; k < target; k++) {
-                int idx = perm[k];
+                int idx = permutation[k];
 #if BIPOLAR_MODE
                 curr->data[idx] = -curr->data[idx];
 #else
@@ -276,7 +309,6 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
         }
     }
 
-    free(perm);
     free_vector(min_vector);
 
     if (output_mode >= OUTPUT_DEBUG) {
@@ -317,8 +349,7 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
     for (int i = 0; i < num_levels*num_features; i++) {
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
-    // Seed for reproducible randomness
-    srand(1);
+    uint32_t rng_state = 1u;
     // Total flip budget K (use D for exact complement, D/2 for common case).
     int total_flips = VECTOR_DIMENSION ;// / 2;
     if (total_flips < 0) {
@@ -331,7 +362,7 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
         Vector *min_vector = create_uninitialized_vector();
 
         // Generate min randomly.
-        generate_random_hv(min_vector->data, VECTOR_DIMENSION);
+        generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
         // Prepare a random permutation of indices [0..D-1].
         int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
@@ -339,7 +370,7 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
             perm[i] = i;
         }
         for (int i = VECTOR_DIMENSION - 1; i > 0; i--) {
-            int j = rand() % (i + 1);
+            int j = item_mem_rand_range(&rng_state, i + 1);
             int tmp = perm[i];
             perm[i] = perm[j];
             perm[j] = tmp;
@@ -396,25 +427,27 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
  * feature has its own continuous sequence of levels. The integer matrix B is
  * treated as row-major [num_features][num_levels-1] and specifies how many
  * bits to flip from level i to level i+1 for each feature. Flips are applied
- * along a per-feature random permutation to ensure consistent ordering.
+ * along a provided per-feature permutation to ensure consistent ordering.
  *
  * @param item_mem A pointer to the item memory structure to be initialized.
  * @param num_levels The number of signal levels.
  * @param num_features The number of features to encode.
  * @param B Row-major matrix of size num_features x (num_levels-1) with flip counts.
+ * @param permutations Row-major matrix of size num_features x VECTOR_DIMENSION with permutations.
  */
 void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                                      int num_levels,
                                      int num_features,
-                                     const int *B) {
+                                     const int *B,
+                                     const int *permutations) {
     if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing precomputed item memory (B-driven) with %d levels for %d features.\n",
                num_levels, num_features);
     }
 
-    if (!B) {
+    if (!B || !permutations) {
         if (output_mode >= OUTPUT_BASIC) {
-            fprintf(stderr, "init_precomp_item_memory_with_B: B is NULL.\n");
+            fprintf(stderr, "init_precomp_item_memory_with_B: B or permutations is NULL.\n");
         }
         return;
     }
@@ -426,28 +459,15 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
 
-    // Seed for reproducible randomness
-    srand(1);
-
     int max_flips = VECTOR_DIMENSION;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();
+        const int *perm = permutations + (size_t)feature * VECTOR_DIMENSION;
 
         // Generate min randomly.
-        generate_random_hv(min_vector->data, VECTOR_DIMENSION);
-
-        // Prepare a random permutation of indices [0..D-1].
-        int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            perm[i] = i;
-        }
-        for (int i = VECTOR_DIMENSION - 1; i > 0; i--) {
-            int j = rand() % (i + 1);
-            int tmp = perm[i];
-            perm[i] = perm[j];
-            perm[j] = tmp;
-        }
+        uint32_t rng_state = item_mem_seed_from_permutation(perm, VECTOR_DIMENSION);
+        generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
         // Level 0 is the min vector.
         memcpy(item_mem->base_vectors[feature]->data,
@@ -483,7 +503,6 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
             }
         }
 
-        free(perm);
         free_vector(min_vector);
     }
 
