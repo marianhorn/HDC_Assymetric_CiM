@@ -30,7 +30,17 @@ struct ga_params {
 // Initializes GA parameters with module defaults.
 void init_ga_params(struct ga_params *params);
 
-// Optimizes the signal-level item memory using GA with caller-provided data.
+// Optimizes the item memory using GA with caller-provided data.
+#if PRECOMPUTED_ITEM_MEMORY
+void optimize_item_memory(
+    struct item_memory *item_mem,
+    double **training_data,
+    int *training_labels,
+    int training_samples,
+    double **testing_data,
+    int *testing_labels,
+    int testing_samples);
+#else
 void optimize_item_memory(
     struct item_memory *signal_mem,
     struct item_memory *channel_mem,
@@ -40,5 +50,6 @@ void optimize_item_memory(
     double **testing_data,
     int *testing_labels,
     int testing_samples);
+#endif
 
 #endif

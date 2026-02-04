@@ -53,14 +53,24 @@ int main(){
         getData(dataset,&trainingData,&testingData,&trainingLabels,&testingLabels,&trainingSamples,&testingSamples);
 
         #if USE_GENETIC_ITEM_MEMORY
-                optimize_item_memory(&intensityLevels,
-                                    &electrodes,
-                                     trainingData,
-                                     trainingLabels,
-                                     trainingSamples,
-                                     testingData,
-                                     testingLabels,
-                                     testingSamples);
+        #if PRECOMPUTED_ITEM_MEMORY
+        optimize_item_memory(&itemMem,
+                             trainingData,
+                             trainingLabels,
+                             trainingSamples,
+                             testingData,
+                             testingLabels,
+                             testingSamples);
+        #else
+        optimize_item_memory(&intensityLevels,
+                             &electrodes,
+                             trainingData,
+                             trainingLabels,
+                             trainingSamples,
+                             testingData,
+                             testingLabels,
+                             testingSamples);
+        #endif
         #endif
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);

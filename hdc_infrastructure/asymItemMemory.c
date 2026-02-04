@@ -62,6 +62,7 @@ static int rng_range(uint32_t *state, int max) {
 
 
 struct ga_eval_context {
+    int num_features;
     int num_levels;
     int vector_dimension;
     unsigned int seed;
@@ -75,17 +76,91 @@ struct ga_eval_context {
 };
 
 static double evaluate_candidate(const uint16_t *B,
-                                 const struct ga_eval_context *ctx) {
+                                 const struct ga_eval_context *ctx,
+                                 double *out_accuracy,
+                                 double *out_similarity) {
     if (!ctx || !ctx->training_data || !ctx->training_labels || ctx->training_samples <= N_GRAM_SIZE) {
+        if (out_accuracy) {
+            *out_accuracy = 0.0;
+        }
+        if (out_similarity) {
+            *out_similarity = 0.0;
+        }
         return 0.0;
     }
 
+#if PRECOMPUTED_ITEM_MEMORY
+    int transitions = ctx->num_levels - 1;
+    int genes = transitions * ctx->num_features;
+    int *b_matrix = NULL;
+    if (genes > 0) {
+        b_matrix = (int *)malloc((size_t)genes * sizeof(int));
+        if (!b_matrix) {
+            fprintf(stderr, "Failed to allocate flip matrix.\n");
+            if (out_accuracy) {
+                *out_accuracy = 0.0;
+            }
+            if (out_similarity) {
+                *out_similarity = 0.0;
+            }
+            return 0.0;
+        }
+        for (int i = 0; i < genes; i++) {
+            b_matrix[i] = (int)B[i];
+        }
+    }
+
+    struct associative_memory assoc_mem;
+    init_assoc_mem(&assoc_mem);
+    struct item_memory item_mem;
+    init_precomp_item_memory_with_B(&item_mem,
+                                    ctx->num_levels,
+                                    ctx->num_features,
+                                    b_matrix);
+    struct encoder enc;
+    init_encoder(&enc, &item_mem);
+    train_model_timeseries(ctx->training_data,
+                           ctx->training_labels,
+                           ctx->training_samples,
+                           &assoc_mem,
+                           &enc);
+
+    double **eval_data = ctx->training_data;
+    int *eval_labels = ctx->training_labels;
+    int eval_samples = ctx->training_samples;
+    if (ctx->testing_data && ctx->testing_labels && ctx->testing_samples > 0) {
+        eval_data = ctx->testing_data;
+        eval_labels = ctx->testing_labels;
+        eval_samples = ctx->testing_samples;
+    }
+
+    struct timeseries_eval_result eval_result =
+        evaluate_model_timeseries_direct(&enc, &assoc_mem, eval_data, eval_labels, eval_samples);
+    if (out_accuracy) {
+        *out_accuracy = eval_result.class_average_accuracy;
+    }
+    if (out_similarity) {
+        *out_similarity = eval_result.class_vector_similarity;
+    }
+    double fitness = eval_result.class_average_accuracy - eval_result.class_vector_similarity;
+
+    free_item_memory(&item_mem);
+    free_assoc_mem(&assoc_mem);
+    free(b_matrix);
+    return fitness;
+#else
     int transitions = ctx->num_levels - 1;
     int *b_levels = NULL;
     if (transitions > 0) {
         b_levels = (int *)malloc((size_t)transitions * sizeof(int));
         if (!b_levels) {
             fprintf(stderr, "Failed to allocate flip vector.\n");
+            if (out_accuracy) {
+                *out_accuracy = 0.0;
+            }
+            if (out_similarity) {
+                *out_similarity = 0.0;
+            }
             return 0.0;
         }
         for (int level = 0; level < transitions; level++) {
@@ -93,15 +168,14 @@ static double evaluate_candidate(const uint16_t *B,
         }
     }
 
-#if PRECOMPUTED_ITEM_MEMORY
-    if (output_mode >= OUTPUT_BASIC) {
-        fprintf(stderr, "GA evaluation for precomputed item memory is not implemented yet.\n");
-    }
-    free(b_levels);
-    return 0.0;
-#else
     if (!ctx->channel_memory) {
         free(b_levels);
+        if (out_accuracy) {
+            *out_accuracy = 0.0;
+        }
+        if (out_similarity) {
+            *out_similarity = 0.0;
+        }
         return 0.0;
     }
     struct associative_memory assoc_mem;
@@ -133,6 +207,12 @@ static double evaluate_candidate(const uint16_t *B,
     if (eval_result.total > 0) {
         accuracy = (double)eval_result.correct / (double)eval_result.total;
     }
+    if (out_accuracy) {
+        *out_accuracy = accuracy;
+    }
+    if (out_similarity) {
+        *out_similarity = 0.0;
+    }
 
     free(b_levels);
     free_assoc_mem(&assoc_mem);
@@ -142,12 +222,11 @@ static double evaluate_candidate(const uint16_t *B,
 }
 
 static void mutate_individual(uint16_t *individual,
-                              int num_levels,
+                              int gene_count,
                               uint16_t max_flip,
                               double mutation_rate,
                               uint32_t *rng_state) {
-    int transitions = num_levels - 1;
-    for (int level = 0; level < transitions; level++) {
+    for (int level = 0; level < gene_count; level++) {
         if (rng_uniform(rng_state) < mutation_rate) {
             int delta = rng_range(rng_state, 2) == 0 ? -1 : 1;
             int value = (int)individual[level] + delta;
@@ -206,6 +285,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     struct ga_eval_context ctx = *ctx_in;
     int ga_output_mode = output_mode;
     int genome_length = ctx.num_levels - 1;
+#if PRECOMPUTED_ITEM_MEMORY
+    genome_length *= ctx.num_features;
+#endif
     memset(B_out, 0, (size_t)genome_length * sizeof(uint16_t));
 
     if (!ctx.training_data || !ctx.training_labels || ctx.training_samples <= N_GRAM_SIZE) {
@@ -267,9 +349,11 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     uint16_t *population = (uint16_t *)malloc((size_t)population_size * genome_length * sizeof(uint16_t));
     uint16_t *offspring = (uint16_t *)malloc((size_t)population_size * genome_length * sizeof(uint16_t));
     double *fitness = (double *)malloc((size_t)population_size * sizeof(double));
+    double *accuracies = (double *)malloc((size_t)population_size * sizeof(double));
+    double *similarities = (double *)malloc((size_t)population_size * sizeof(double));
     uint16_t *best_individual = (uint16_t *)malloc((size_t)genome_length * sizeof(uint16_t));
 
-    if (!population || !offspring || !fitness || !best_individual) {
+    if (!population || !offspring || !fitness || !best_individual || !accuracies || !similarities) {
         fprintf(stderr, "Failed to allocate GA buffers.\n");
         exit(EXIT_FAILURE);
     }
@@ -295,16 +379,17 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     int best_gen = -1;
     int best_gen_index = -1;
 
+    if (ga_output_mode >= OUTPUT_DETAILED) {
+#ifdef _OPENMP
+        printf("GA evaluating with %d threads\n", omp_get_max_threads());
+#else
+        printf("GA evaluating with 1 thread\n");
+#endif
+    }
+
     for (int gen = 0; gen < params->generations; gen++) {
         if (ga_output_mode >= OUTPUT_BASIC) {
             printf("GA generation %d/%d\n", gen + 1, params->generations);
-        }
-        if (ga_output_mode >= OUTPUT_DETAILED) {
-#ifdef _OPENMP
-            printf("GA evaluating with %d threads\n", omp_get_max_threads());
-#else
-            printf("GA evaluating with 1 thread\n");
-#endif
         }
 
         output_mode = OUTPUT_NONE;
@@ -312,15 +397,21 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #pragma omp parallel for schedule(dynamic)
 #endif
         for (int i = 0; i < population_size; i++) {
-            fitness[i] = evaluate_candidate(&population[i * genome_length], &ctx);
+            fitness[i] = evaluate_candidate(&population[i * genome_length],
+                                            &ctx,
+                                            &accuracies[i],
+                                            &similarities[i]
+            );
         }
         output_mode = ga_output_mode;
         if (ga_output_mode >= OUTPUT_BASIC) {
             for (int i = 0; i < population_size; i++) {
-                printf("  individual %d/%d accuracy: %.3f%%\n",
+                printf("  individual %d/%d accuracy: %.3f%%, similarity: %.3f, fitness: %.3f\n",
                        i + 1,
                        population_size,
-                       fitness[i] * 100.0);
+                       accuracies[i] * 100.0,
+                       similarities[i],
+                       fitness[i]);
             }
         }
 
@@ -355,7 +446,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                  params->crossover_rate,
                                  &ga_state);
             mutate_individual(&offspring[i * genome_length],
-                              ctx.num_levels,
+                              genome_length,
                               params->max_flip,
                               params->mutation_rate,
                               &ga_state);
@@ -372,12 +463,86 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         printf("GA winner: generation %d, individual %d\n", best_gen + 1, best_gen_index + 1);
     }
 
+    free(similarities);
+    free(accuracies);
     free(best_individual);
     free(fitness);
     free(offspring);
     free(population);
 }
 
+#if PRECOMPUTED_ITEM_MEMORY
+void optimize_item_memory(struct item_memory *item_mem,
+                          double **training_data,
+                          int *training_labels,
+                          int training_samples,
+                          double **testing_data,
+                          int *testing_labels,
+                          int testing_samples) {
+    if (!item_mem || !training_data || !training_labels || training_samples <= N_GRAM_SIZE) {
+        return;
+    }
+
+    int num_features = NUM_FEATURES;
+    int num_levels = 0;
+    if (item_mem->num_vectors > 0 && num_features > 0) {
+        num_levels = item_mem->num_vectors / num_features;
+    }
+    if (num_levels <= 1) {
+        return;
+    }
+
+    struct ga_params params;
+    init_ga_params(&params);
+
+    struct ga_eval_context ctx;
+    ctx.num_features = num_features;
+    ctx.num_levels = num_levels;
+    ctx.vector_dimension = VECTOR_DIMENSION;
+    ctx.seed = params.seed;
+    ctx.channel_memory = NULL;
+    ctx.training_data = training_data;
+    ctx.training_labels = training_labels;
+    ctx.training_samples = training_samples;
+    ctx.testing_data = testing_data;
+    ctx.testing_labels = testing_labels;
+    ctx.testing_samples = testing_samples;
+
+    int genome_length = (num_levels - 1) * num_features;
+    uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));
+    if (!flip_counts) {
+        fprintf(stderr, "Failed to allocate GA flip matrix.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    run_ga(&ctx, &params, flip_counts);
+
+    if (item_mem->base_vectors && item_mem->num_vectors > 0) {
+        free_item_memory(item_mem);
+        item_mem->base_vectors = NULL;
+        item_mem->num_vectors = 0;
+    }
+
+    int *b_matrix = NULL;
+    if (genome_length > 0) {
+        b_matrix = (int *)malloc((size_t)genome_length * sizeof(int));
+        if (!b_matrix) {
+            fprintf(stderr, "Failed to allocate flip matrix.\n");
+            free(flip_counts);
+            return;
+        }
+        for (int i = 0; i < genome_length; i++) {
+            b_matrix[i] = (int)flip_counts[i];
+        }
+    }
+    init_precomp_item_memory_with_B(item_mem,
+                                    num_levels,
+                                    num_features,
+                                    b_matrix);
+    free(b_matrix);
+    free(flip_counts);
+}
+#else
 void optimize_item_memory(struct item_memory *signal_mem,
                           struct item_memory *channel_mem,
                           double **training_data,
@@ -391,19 +556,12 @@ void optimize_item_memory(struct item_memory *signal_mem,
     }
 
     int num_levels = 0;
-#if PRECOMPUTED_ITEM_MEMORY
-    if (output_mode >= OUTPUT_BASIC) {
-        fprintf(stderr, "GA optimization for precomputed item memory is not implemented yet.\n");
-    }
-    return;
-#else
     if (!channel_mem) {
         return;
     }
     if (signal_mem->num_vectors > 0) {
         num_levels = signal_mem->num_vectors;
     }
-#endif
     if (num_levels <= 1) {
         return;
     }
@@ -412,6 +570,7 @@ void optimize_item_memory(struct item_memory *signal_mem,
     init_ga_params(&params);
 
     struct ga_eval_context ctx;
+    ctx.num_features = 1;
     ctx.num_levels = num_levels;
     ctx.vector_dimension = VECTOR_DIMENSION;
     ctx.seed = params.seed;
@@ -457,6 +616,6 @@ void optimize_item_memory(struct item_memory *signal_mem,
                                        b_levels);
 
     free(b_levels);
-
     free(flip_counts);
 }
+#endif

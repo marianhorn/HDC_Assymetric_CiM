@@ -61,6 +61,32 @@ static double compute_class_average_accuracy(const int confusion_matrix[NUM_CLAS
     }
     return sum / (double)classes_with_samples;
 }
+
+static double compute_class_vector_similarity(const struct associative_memory *assoc_mem) {
+    if (!assoc_mem || assoc_mem->num_classes <= 1) {
+        return 0.0;
+    }
+
+    double sum = 0.0;
+    int pairs = 0;
+    for (int i = 0; i < assoc_mem->num_classes; i++) {
+        for (int j = i + 1; j < assoc_mem->num_classes; j++) {
+            double sim = similarity_check(assoc_mem->class_vectors[i],
+                                          assoc_mem->class_vectors[j]);
+            if (sim == -2) {
+                fprintf(stderr, "Got invalid cosine similarity\nTerminating...");
+                exit(EXIT_FAILURE);
+            }
+            sum += sim;
+            pairs++;
+        }
+    }
+
+    if (pairs == 0) {
+        return 0.0;
+    }
+    return sum / (double)pairs;
+}
 /**
  * @brief Evaluates the HDC model using a sliding window over time-series data.
  * 
@@ -91,6 +117,7 @@ struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encod
     result.total = 0;
     result.overall_accuracy = 0.0;
     result.class_average_accuracy = 0.0;
+    result.class_vector_similarity = 0.0;
     memset(result.confusion_matrix, 0, sizeof(result.confusion_matrix));
 
     for (int j = 0; j < testing_samples-WINDOW; j+=WINDOW) {
@@ -126,11 +153,17 @@ struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encod
             result.correct++;
         }else{result.not_correct++;}
     }
+    result.total = result.correct + result.not_correct;
+    result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
+    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
+    result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
     if (output_mode >= OUTPUT_BASIC) {
-        int number_total_tests = (int)(result.correct + result.not_correct);
+        int number_total_tests = (int)result.total;
         float accuracy = number_total_tests > 0 ? (float)result.correct / (number_total_tests) : 0.0f;
 
         printf("Testing accuracy: %.3f%%\n", accuracy * 100);
+        printf("Class-average accuracy: %.3f%%\n", result.class_average_accuracy * 100.0);
+        printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
 
         printf("Total: %ld of %d ngrams correctly classified\n",result.correct,number_total_tests);
         if (output_mode >= OUTPUT_DETAILED) {
@@ -149,9 +182,6 @@ struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encod
             }
         }
     }
-    result.total = result.correct + result.not_correct;
-    result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
-    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     return result;
 }
 /**
@@ -184,6 +214,7 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     result.total = 0;
     result.overall_accuracy = 0.0;
     result.class_average_accuracy = 0.0;
+    result.class_vector_similarity = 0.0;
     memset(result.confusion_matrix, 0, sizeof(result.confusion_matrix));
 
 
@@ -218,8 +249,12 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
         } else{result.not_correct++;}
     }
 
+    result.total = result.correct + result.not_correct + result.transition_error;
+    result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
+    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
+    result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
     if (output_mode >= OUTPUT_BASIC) {
-        int number_total_tests = (int)(result.correct + result.not_correct + result.transition_error);
+        int number_total_tests = (int)result.total;
         float accuracy = number_total_tests > 0 ? (float)result.correct / (number_total_tests) : 0.0f;
         float accuracyTranz = number_total_tests > 0
             ? ((float)result.correct + (float)result.transition_error) / (number_total_tests)
@@ -227,6 +262,8 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
         printf("Testing accuracy: %.3f%%\n", accuracy * 100);
 
         printf("Accuracy excluding gesture transitions: %.3f%%\n",accuracyTranz*100);
+        printf("Class-average accuracy: %.3f%%\n", result.class_average_accuracy * 100.0);
+        printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
         printf("Total: %ld of %d ngrams correctly classified\n",result.correct,number_total_tests);
         printf("Transition error: %ld\n",result.transition_error);
         if (output_mode >= OUTPUT_DETAILED) {
@@ -245,9 +282,6 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
             }
         }
     }
-    result.total = result.correct + result.not_correct + result.transition_error;
-    result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
-    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     return result;
 }
 /**
@@ -279,6 +313,7 @@ struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
     result.total = 0;
     result.overall_accuracy = 0.0;
     result.class_average_accuracy = 0.0;
+    result.class_vector_similarity = 0.0;
     memset(result.confusion_matrix, 0, sizeof(result.confusion_matrix));
 
 
@@ -308,10 +343,16 @@ struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
         }else{result.not_correct++;}
     }
 
+    result.total = result.correct + result.not_correct;
+    result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
+    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
+    result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
     if (output_mode >= OUTPUT_BASIC) {
-        int number_total_tests = (int)(result.correct + result.not_correct);
+        int number_total_tests = (int)result.total;
         float accuracy = number_total_tests > 0 ? (float)result.correct / (number_total_tests) : 0.0f;
         printf("Testing accuracy: %.3f%%\n", accuracy * 100);
+        printf("Class-average accuracy: %.3f%%\n", result.class_average_accuracy * 100.0);
+        printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
 
         printf("Total: %ld of %d ngrams correctly classified\n",result.correct,number_total_tests);
         if (output_mode >= OUTPUT_DETAILED) {
@@ -330,9 +371,6 @@ struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
             }
         }
     }
-    result.total = result.correct + result.not_correct;
-    result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
-    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     return result;
 }
 

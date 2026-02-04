@@ -23,6 +23,7 @@ struct timeseries_eval_result {
     size_t total;
     double overall_accuracy;
     double class_average_accuracy;
+    double class_vector_similarity;
     int confusion_matrix[NUM_CLASSES][NUM_CLASSES];
 };
 
