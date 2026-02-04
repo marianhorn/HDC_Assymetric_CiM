@@ -185,6 +185,104 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
     }
 }
 
+/**
+ * @brief Initializes continuous item memory using per-level flip counts.
+ *
+ * @details
+ * This function generates a set of vectors representing continuous signal levels.
+ * It creates a random minimum vector, applies a random permutation of indices,
+ * and flips bits cumulatively based on the provided flip counts B.
+ *
+ * @param item_mem A pointer to the item memory structure to be initialized.
+ * @param num_levels The number of continuous signal levels.
+ * @param B Array of size (num_levels-1) specifying flips from level i to i+1.
+ */
+void init_continuous_item_memory_with_B(struct item_memory *item_mem,
+                                        int num_levels,
+                                        const int *B) {
+    if (output_mode >= OUTPUT_DETAILED) {
+        printf("Initializing continuous item memory (B-driven) with %d levels.\n", num_levels);
+    }
+
+    if (num_levels <= 0) {
+        item_mem->num_vectors = 0;
+        item_mem->base_vectors = NULL;
+        return;
+    }
+    if (num_levels > 1 && !B) {
+        if (output_mode >= OUTPUT_BASIC) {
+            fprintf(stderr, "init_continuous_item_memory_with_B: B is NULL.\n");
+        }
+        item_mem->num_vectors = 0;
+        item_mem->base_vectors = NULL;
+        return;
+    }
+
+    item_mem->num_vectors = num_levels;
+    item_mem->base_vectors = (Vector **)malloc(num_levels * sizeof(Vector *));
+    for (int i = 0; i < num_levels; i++) {
+        item_mem->base_vectors[i] = create_uninitialized_vector();
+    }
+
+    // Seed for reproducible randomness
+    srand(1);
+
+    Vector *min_vector = create_uninitialized_vector();
+    generate_random_hv(min_vector->data, VECTOR_DIMENSION);
+
+    int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
+    for (int i = 0; i < VECTOR_DIMENSION; i++) {
+        perm[i] = i;
+    }
+    for (int i = VECTOR_DIMENSION - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        int tmp = perm[i];
+        perm[i] = perm[j];
+        perm[j] = tmp;
+    }
+
+    memcpy(item_mem->base_vectors[0]->data,
+           min_vector->data,
+           VECTOR_DIMENSION * sizeof(vector_element));
+
+    if (num_levels > 1) {
+        int prev_target = 0;
+        for (int level = 1; level < num_levels; level++) {
+            int flips = B[level - 1];
+            if (flips < 0) {
+                flips = 0;
+            }
+            int target = prev_target + flips;
+            if (target > VECTOR_DIMENSION) {
+                target = VECTOR_DIMENSION;
+            }
+
+            Vector *prev = item_mem->base_vectors[level - 1];
+            Vector *curr = item_mem->base_vectors[level];
+            memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
+
+            for (int k = prev_target; k < target; k++) {
+                int idx = perm[k];
+#if BIPOLAR_MODE
+                curr->data[idx] = -curr->data[idx];
+#else
+                curr->data[idx] = !curr->data[idx];
+#endif
+            }
+
+            prev_target = target;
+        }
+    }
+
+    free(perm);
+    free_vector(min_vector);
+
+    if (output_mode >= OUTPUT_DEBUG) {
+        print_item_memory(item_mem);
+        printf("\n");
+    }
+}
+
 void generate_random_hv(vector_element *data, int dimension) {
     for (int i = 0; i < dimension; i++) {
         #if BIPOLAR_MODE

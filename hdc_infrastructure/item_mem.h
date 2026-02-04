@@ -28,6 +28,9 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                                      const int *B);
 // Initialize continuous item memory for signal intensities
 void init_continuous_item_memory(struct item_memory *item_mem, int num_levels);
+void init_continuous_item_memory_with_B(struct item_memory *item_mem,
+                                        int num_levels,
+                                        const int *B);
 
 // Free item memory
 void free_item_memory(struct item_memory *item_mem);

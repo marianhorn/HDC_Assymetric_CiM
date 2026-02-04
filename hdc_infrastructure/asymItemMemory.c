@@ -3,6 +3,7 @@
 #include "encoder.h"
 #include "item_mem.h"
 #include "operations.h"
+#include "trainer.h"
 #include "vector.h"
 #include <stdlib.h>
 #include <string.h>
@@ -58,89 +59,6 @@ static int rng_range(uint32_t *state, int max) {
     return (int)(xorshift32(state) % (uint32_t)max);
 }
 
-static void fill_random_vector(vector_element *data, int dimension, uint32_t *state) {
-    for (int i = 0; i < dimension; i++) {
-#if BIPOLAR_MODE
-        data[i] = (xorshift32(state) & 1u) ? 1 : -1;
-#else
-        data[i] = (vector_element)((xorshift32(state) & 1u) ? 1 : 0);
-#endif
-    }
-}
-
-static void flip_vector_element(vector_element *value) {
-#if BIPOLAR_MODE
-    *value = -(*value);
-#else
-    *value = !(*value);
-#endif
-}
-
-static void build_asym_item_memory_from_B(
-    struct item_memory *item_mem,
-    const uint16_t *B,
-    int num_levels,
-    int num_features,
-    int vector_dimension,
-    unsigned int seed) {
-    if (!item_mem || !B || num_levels <= 0 || num_features <= 0) {
-        return;
-    }
-
-    int dimension = vector_dimension > 0 ? vector_dimension : VECTOR_DIMENSION;
-    if (dimension != VECTOR_DIMENSION) {
-        if (output_mode >= OUTPUT_BASIC) {
-            fprintf(stderr,
-                    "Warning: vector_dimension (%d) != VECTOR_DIMENSION (%d). Using VECTOR_DIMENSION.\n",
-                    vector_dimension,
-                    VECTOR_DIMENSION);
-        }
-        dimension = VECTOR_DIMENSION;
-    }
-
-    int total_vectors = num_levels * num_features;
-    item_mem->num_vectors = total_vectors;
-    item_mem->base_vectors = (Vector **)malloc(total_vectors * sizeof(Vector *));
-    if (!item_mem->base_vectors) {
-        fprintf(stderr, "Failed to allocate asymmetric item memory pointers.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    for (int i = 0; i < total_vectors; i++) {
-        item_mem->base_vectors[i] = create_uninitialized_vector();
-        if (!item_mem->base_vectors[i]) {
-            fprintf(stderr, "Failed to allocate asymmetric item memory vector.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    uint32_t base_state = seed ? seed : 1u;
-
-    for (int feature = 0; feature < num_features; feature++) {
-        Vector *level0 = item_mem->base_vectors[feature];
-        fill_random_vector(level0->data, dimension, &base_state);
-
-        for (int level = 1; level < num_levels; level++) {
-            Vector *prev = item_mem->base_vectors[(level - 1) * num_features + feature];
-            Vector *curr = item_mem->base_vectors[level * num_features + feature];
-            memcpy(curr->data, prev->data, dimension * sizeof(vector_element));
-
-            uint16_t flips = B[feature * num_levels + level];
-            if (flips > (uint16_t)dimension) {
-                flips = (uint16_t)dimension;
-            }
-
-            uint32_t flip_state = seed ? seed : 1u;
-            flip_state ^= (uint32_t)(feature + 1) * 0x9e3779b9u;
-            flip_state ^= (uint32_t)(level + 1) * 0x85ebca6bu;
-
-            for (uint16_t k = 0; k < flips; k++) {
-                int idx = rng_range(&flip_state, dimension);
-                flip_vector_element(&curr->data[idx]);
-            }
-        }
-    }
-}
 
 static int mode_value(const int *array, int size) {
     int max_value = 0;
@@ -165,94 +83,6 @@ static int mode_value(const int *array, int size) {
     return max_value;
 }
 
-static void init_assoc_mem_silent(struct associative_memory *assoc_mem) {
-    assoc_mem->num_classes = NUM_CLASSES;
-    assoc_mem->class_vectors = (Vector **)malloc(NUM_CLASSES * sizeof(Vector *));
-    assoc_mem->counts = (int *)malloc(NUM_CLASSES * sizeof(int));
-    if (!assoc_mem->class_vectors || !assoc_mem->counts) {
-        fprintf(stderr, "Failed to allocate associative memory.\n");
-        exit(EXIT_FAILURE);
-    }
-    for (int i = 0; i < NUM_CLASSES; i++) {
-        assoc_mem->class_vectors[i] = create_vector();
-        memset(assoc_mem->class_vectors[i]->data, 0, VECTOR_DIMENSION * sizeof(vector_element));
-        assoc_mem->counts[i] = 0;
-    }
-}
-
-static void normalize_silent(struct associative_memory *assoc_mem) {
-    for (int i = 0; i < assoc_mem->num_classes; i++) {
-        int count = assoc_mem->counts[i];
-        if (count > 0) {
-            for (int j = 0; j < VECTOR_DIMENSION; j++) {
-                assoc_mem->class_vectors[i]->data[j] /= count;
-            }
-        }
-    }
-}
-
-static void train_timeseries_silent(double **training_data,
-                                    int *training_labels,
-                                    int training_samples,
-                                    struct associative_memory *assoc_mem,
-                                    struct encoder *enc) {
-#if BIPOLAR_MODE
-    for (int j = 0; j < training_samples - N_GRAM_SIZE; j++) {
-        Vector *sample_hv = create_vector();
-        if (is_window_stable(&training_labels[j])) {
-            encode_timeseries(enc, &training_data[j], sample_hv);
-            add_to_assoc_mem(assoc_mem, sample_hv, training_labels[j]);
-        }
-        free_vector(sample_hv);
-    }
-    if (NORMALIZE) {
-        normalize_silent(assoc_mem);
-    }
-#else
-    int max_samples = training_samples - N_GRAM_SIZE;
-    Vector ***encoded_vectors = (Vector ***)malloc(NUM_CLASSES * sizeof(Vector **));
-    int *vector_counts = (int *)calloc(NUM_CLASSES, sizeof(int));
-    if (!encoded_vectors || !vector_counts) {
-        fprintf(stderr, "Failed to allocate binary training buffers.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {
-        encoded_vectors[class_id] = (Vector **)malloc(max_samples * sizeof(Vector *));
-        for (int i = 0; i < max_samples; i++) {
-            encoded_vectors[class_id][i] = create_vector();
-        }
-    }
-
-    for (int j = 0; j < training_samples - N_GRAM_SIZE; j++) {
-        if (is_window_stable(&training_labels[j])) {
-            encode_timeseries(enc,
-                              &training_data[j],
-                              encoded_vectors[training_labels[j]][vector_counts[training_labels[j]]]);
-            vector_counts[training_labels[j]]++;
-        } else {
-            j += (N_GRAM_SIZE - 1);
-        }
-    }
-
-    for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {
-        Vector *bundled_hv = create_vector();
-        bundle_multi(encoded_vectors[class_id], vector_counts[class_id], bundled_hv);
-        add_to_assoc_mem(assoc_mem, bundled_hv, class_id);
-        assoc_mem->counts[class_id] = vector_counts[class_id];
-
-        free_vector(bundled_hv);
-
-        for (int i = 0; i < max_samples; i++) {
-            free_vector(encoded_vectors[class_id][i]);
-        }
-        free(encoded_vectors[class_id]);
-    }
-
-    free(encoded_vectors);
-    free(vector_counts);
-#endif
-}
 
 static double evaluate_timeseries_direct_accuracy(struct encoder *enc,
                                                   struct associative_memory *assoc_mem,
@@ -316,43 +146,51 @@ static double evaluate_candidate(const uint16_t *B,
         return 0.0;
     }
 
-    struct encoder enc;
     struct associative_memory assoc_mem;
-    init_assoc_mem_silent(&assoc_mem);
+    init_assoc_mem(&assoc_mem);
 
-#if PRECOMPUTED_ITEM_MEMORY
-    struct item_memory tmp_im;
-    build_asym_item_memory_from_B(&tmp_im,
-                                  B,
-                                  ctx->num_levels,
-                                  ctx->num_features,
-                                  ctx->vector_dimension,
-                                  ctx->seed);
-    init_encoder(&enc, &tmp_im);
-    train_timeseries_silent(ctx->training_data,
-                            ctx->training_labels,
-                            ctx->training_samples,
-                            &assoc_mem,
-                            &enc);
-#else
-    if (!ctx->channel_memory) {
+    int transitions = ctx->num_levels - 1;
+    int b_columns = transitions > 0 ? transitions : 1;
+    int *b_reduced = (int *)calloc((size_t)ctx->num_features * b_columns, sizeof(int));
+    if (!b_reduced) {
+        fprintf(stderr, "Failed to allocate reduced flip matrix.\n");
         free_assoc_mem(&assoc_mem);
         return 0.0;
     }
+
+    if (transitions > 0) {
+        for (int feature = 0; feature < ctx->num_features; feature++) {
+            for (int level = 1; level < ctx->num_levels; level++) {
+                b_reduced[feature * transitions + (level - 1)] =
+                    (int)B[feature * ctx->num_levels + level];
+            }
+        }
+    }
+
+#if PRECOMPUTED_ITEM_MEMORY
+    if (output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "GA evaluation for precomputed item memory is not implemented yet.\n");
+    }
+    free(b_reduced);
+    free_assoc_mem(&assoc_mem);
+    return 0.0;
+#else
+    if (!ctx->channel_memory) {
+        free(b_reduced);
+        free_assoc_mem(&assoc_mem);
+        return 0.0;
+    }
+    struct encoder enc;
     struct item_memory signal_mem;
-    build_asym_item_memory_from_B(&signal_mem,
-                                  B,
-                                  ctx->num_levels,
-                                  ctx->num_features,
-                                  ctx->vector_dimension,
-                                  ctx->seed);
+    init_continuous_item_memory_with_B(&signal_mem,
+                                       ctx->num_levels,
+                                       b_reduced);
     init_encoder(&enc, ctx->channel_memory, &signal_mem);
-    train_timeseries_silent(ctx->training_data,
-                            ctx->training_labels,
-                            ctx->training_samples,
-                            &assoc_mem,
-                            &enc);
-#endif
+    train_model_timeseries(ctx->training_data,
+                           ctx->training_labels,
+                           ctx->training_samples,
+                           &assoc_mem,
+                           &enc);
 
     double **eval_data = ctx->training_data;
     int *eval_labels = ctx->training_labels;
@@ -365,13 +203,11 @@ static double evaluate_candidate(const uint16_t *B,
 
     double accuracy = evaluate_timeseries_direct_accuracy(&enc, &assoc_mem, eval_data, eval_labels, eval_samples);
 
+    free(b_reduced);
     free_assoc_mem(&assoc_mem);
-#if PRECOMPUTED_ITEM_MEMORY
-    free_item_memory(&tmp_im);
-#else
     free_item_memory(&signal_mem);
-#endif
     return accuracy;
+#endif
 }
 
 static double evaluate_fitness(const uint16_t *B, const struct ga_eval_context *ctx) {
@@ -644,10 +480,10 @@ void optimize_item_memory(struct item_memory *signal_mem,
     int num_features = 1;
     int num_levels = 0;
 #if PRECOMPUTED_ITEM_MEMORY
-    num_features = NUM_FEATURES;
-    if (signal_mem->num_vectors > 0 && num_features > 0) {
-        num_levels = signal_mem->num_vectors / num_features;
+    if (output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "GA optimization for precomputed item memory is not implemented yet.\n");
     }
+    return;
 #else
     if (!channel_mem) {
         return;
@@ -691,12 +527,29 @@ void optimize_item_memory(struct item_memory *signal_mem,
         signal_mem->num_vectors = 0;
     }
 
-    build_asym_item_memory_from_B(signal_mem,
-                                  flip_counts,
-                                  num_levels,
-                                  num_features,
-                                  VECTOR_DIMENSION,
-                                  params.seed);
+    int transitions = num_levels - 1;
+    int b_columns = transitions > 0 ? transitions : 1;
+    int *b_reduced = (int *)calloc((size_t)num_features * b_columns, sizeof(int));
+    if (!b_reduced) {
+        fprintf(stderr, "Failed to allocate reduced flip matrix.\n");
+        free(flip_counts);
+        return;
+    }
+
+    if (transitions > 0) {
+        for (int feature = 0; feature < num_features; feature++) {
+            for (int level = 1; level < num_levels; level++) {
+                b_reduced[feature * transitions + (level - 1)] =
+                    (int)flip_counts[feature * num_levels + level];
+            }
+        }
+    }
+
+    init_continuous_item_memory_with_B(signal_mem,
+                                       num_levels,
+                                       b_reduced);
+
+    free(b_reduced);
 
     free(flip_counts);
 }
