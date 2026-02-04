@@ -77,7 +77,6 @@ static void generate_permutation(int *perm, int length, uint32_t *rng_state) {
 
 static void init_individual(uint16_t *individual,
                             int transitions,
-                            uint16_t max_flip,
                             int max_total,
                             uint32_t *rng_state,
                             const int *permutation,
@@ -111,20 +110,53 @@ static void init_individual(uint16_t *individual,
         }
     }
 
-    int remaining = max_total;
+    int total = rng_range(rng_state, max_total + 1);
+    if (total <= 0) {
+        free(order);
+        return;
+    }
+
+    double *weights = (double *)malloc((size_t)transitions * sizeof(double));
+    int *values = (int *)malloc((size_t)transitions * sizeof(int));
+    if (!weights || !values) {
+        free(weights);
+        free(values);
+        free(order);
+        return;
+    }
+
+    double sum_weights = 0.0;
+    for (int i = 0; i < transitions; i++) {
+        weights[i] = rng_uniform(rng_state);
+        sum_weights += weights[i];
+    }
+    if (sum_weights <= 0.0) {
+        weights[0] = 1.0;
+        sum_weights = 1.0;
+    }
+
+    int assigned = 0;
+    for (int i = 0; i < transitions; i++) {
+        double scaled = (weights[i] / sum_weights) * (double)total;
+        int value = (int)scaled;
+        values[i] = value;
+        assigned += value;
+    }
+
+    int remaining = total - assigned;
+    while (remaining > 0) {
+        int idx = rng_range(rng_state, transitions);
+        values[idx] += 1;
+        remaining--;
+    }
+
     for (int i = 0; i < transitions; i++) {
         int level = order ? order[i] : i;
-        int limit = (int)max_flip;
-        if (limit > remaining) {
-            limit = remaining;
-        }
-        int value = limit > 0 ? rng_range(rng_state, limit + 1) : 0;
-        individual[level] = (uint16_t)value;
-        remaining -= value;
-        if (remaining <= 0) {
-            break;
-        }
+        individual[level] = (uint16_t)values[i];
     }
+
+    free(values);
+    free(weights);
 
     free(order);
 }
@@ -304,7 +336,6 @@ static double evaluate_candidate(const uint16_t *B,
 
 static void mutate_individual(uint16_t *individual,
                               int gene_count,
-                              uint16_t max_flip,
                               double mutation_rate,
                               uint32_t *rng_state) {
     for (int level = 0; level < gene_count; level++) {
@@ -313,8 +344,6 @@ static void mutate_individual(uint16_t *individual,
             int value = (int)individual[level] + delta;
             if (value < 0) {
                 value = 0;
-            } else if (value > (int)max_flip) {
-                value = (int)max_flip;
             }
             individual[level] = (uint16_t)value;
         }
@@ -447,7 +476,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         for (int feature = 0; feature < ctx.num_features; feature++) {
             init_individual(individual + feature * transitions,
                             transitions,
-                            params->max_flip,
                             max_total,
                             &ga_state,
                             ctx.permutations + (size_t)feature * VECTOR_DIMENSION,
@@ -456,7 +484,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #else
         init_individual(individual,
                         transitions,
-                        params->max_flip,
                         max_total,
                         &ga_state,
                         ctx.permutations,
@@ -536,7 +563,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                  &ga_state);
             mutate_individual(&offspring[i * genome_length],
                               genome_length,
-                              params->max_flip,
                               params->mutation_rate,
                               &ga_state);
         }
