@@ -80,16 +80,12 @@ static double evaluate_candidate(const uint16_t *B,
         return 0.0;
     }
 
-    struct associative_memory assoc_mem;
-    init_assoc_mem(&assoc_mem);
-
     int transitions = ctx->num_levels - 1;
     int *b_levels = NULL;
     if (transitions > 0) {
         b_levels = (int *)malloc((size_t)transitions * sizeof(int));
         if (!b_levels) {
             fprintf(stderr, "Failed to allocate flip vector.\n");
-            free_assoc_mem(&assoc_mem);
             return 0.0;
         }
         for (int level = 0; level < transitions; level++) {
@@ -102,14 +98,14 @@ static double evaluate_candidate(const uint16_t *B,
         fprintf(stderr, "GA evaluation for precomputed item memory is not implemented yet.\n");
     }
     free(b_levels);
-    free_assoc_mem(&assoc_mem);
     return 0.0;
 #else
     if (!ctx->channel_memory) {
         free(b_levels);
-        free_assoc_mem(&assoc_mem);
         return 0.0;
     }
+    struct associative_memory assoc_mem;
+    init_assoc_mem(&assoc_mem);
     struct encoder enc;
     struct item_memory signal_mem;
     init_continuous_item_memory_with_B(&signal_mem,
@@ -226,6 +222,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
 
     struct ga_eval_context ctx = *ctx_in;
+    int ga_output_mode = output_mode;
     int genome_length = ctx.num_levels - 1;
     memset(B_out, 0, (size_t)genome_length * sizeof(uint16_t));
 
@@ -305,10 +302,10 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     double best_fitness = -1.0;
 
     for (int gen = 0; gen < params->generations; gen++) {
-        if (output_mode >= OUTPUT_BASIC) {
+        if (ga_output_mode >= OUTPUT_BASIC) {
             printf("GA generation %d/%d\n", gen + 1, params->generations);
         }
-        if (output_mode >= OUTPUT_DETAILED) {
+        if (ga_output_mode >= OUTPUT_DETAILED) {
 #ifdef _OPENMP
             printf("GA evaluating with %d threads\n", omp_get_max_threads());
 #else
@@ -316,13 +313,15 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #endif
         }
 
+        output_mode = OUTPUT_NONE;
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
 #endif
         for (int i = 0; i < population_size; i++) {
             fitness[i] = evaluate_fitness(&population[i * genome_length], &ctx);
         }
-        if (output_mode >= OUTPUT_BASIC) {
+        output_mode = ga_output_mode;
+        if (ga_output_mode >= OUTPUT_BASIC) {
             for (int i = 0; i < population_size; i++) {
                 printf("  individual %d/%d accuracy: %.3f%%\n",
                        i + 1,
@@ -347,7 +346,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         }
 
         if (params->log_every > 0 && (gen % params->log_every == 0)) {
-            if (output_mode >= OUTPUT_BASIC) {
+            if (ga_output_mode >= OUTPUT_BASIC) {
                 printf("GA generation %d best accuracy: %.3f%%\n", gen, best_fitness * 100.0);
             }
         }
