@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 #include "vector.h"
 
 void generate_random_hv(vector_element *data, int dimension);
@@ -615,6 +616,64 @@ void store_item_mem_to_csv(struct item_memory *item_mem, const char *filepath) {
         perror("Failed to open file for writing item memory CSV");
         exit(EXIT_FAILURE);
     }
+    fprintf(file, "#item_mem,num_vectors=%d,dimension=%d\n",
+            item_mem ? item_mem->num_vectors : 0,
+            VECTOR_DIMENSION);
+    for (int i = 0; i < item_mem->num_vectors; i++) {
+        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+            fprintf(file, "%d", (int)item_mem->base_vectors[i]->data[j]);
+            if (j < VECTOR_DIMENSION - 1) {
+                fputc(',', file);
+            }
+        }
+        fputc('\n', file);
+    }
+
+    fclose(file);
+    printf("Item memory successfully stored to %s\n", filepath);
+}
+
+void store_precomp_item_mem_to_bin(struct item_memory *item_mem,
+                                   const char *filepath,
+                                   int num_levels,
+                                   int num_features) {
+    if (num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "store_precomp_item_mem_to_bin: invalid dimensions.\n");
+        return;
+    }
+    int expected = num_levels * num_features;
+    if (item_mem && item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "store_precomp_item_mem_to_bin: expected %d vectors, got %d.\n",
+                expected, item_mem ? item_mem->num_vectors : 0);
+    }
+    store_item_mem_to_bin(item_mem, filepath);
+}
+
+void store_precomp_item_mem_to_csv(struct item_memory *item_mem,
+                                   const char *filepath,
+                                   int num_levels,
+                                   int num_features) {
+    if (num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "store_precomp_item_mem_to_csv: invalid dimensions.\n");
+        return;
+    }
+    int expected = num_levels * num_features;
+    if (item_mem && item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "store_precomp_item_mem_to_csv: expected %d vectors, got %d.\n",
+                expected, item_mem ? item_mem->num_vectors : 0);
+    }
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        perror("Failed to open file for writing precomp item memory CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(file,
+            "#precomp_item_mem,num_levels=%d,num_features=%d,num_vectors=%d,dimension=%d\n",
+            num_levels,
+            num_features,
+            expected,
+            VECTOR_DIMENSION);
 
     for (int i = 0; i < item_mem->num_vectors; i++) {
         for (int j = 0; j < VECTOR_DIMENSION; j++) {
@@ -687,13 +746,63 @@ void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, 
  * @param filepath The path to the CSV file containing the item memory vectors.
  * @param num_items The number of vectors to load into the item memory.
  */
-void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, int num_items) {
-    FILE *file = fopen(filepath, "r");
-    if (!file) {
-        perror("Failed to open file for reading item memory CSV");
-        exit(EXIT_FAILURE);
+static char *trim_in_place(char *s) {
+    while (*s && isspace((unsigned char)*s)) {
+        s++;
+    }
+    if (*s == '\0') {
+        return s;
+    }
+    char *end = s + strlen(s) - 1;
+    while (end > s && isspace((unsigned char)*end)) {
+        *end-- = '\0';
+    }
+    return s;
+}
+
+static int parse_csv_header(FILE *file,
+                            int *num_vectors,
+                            int *num_levels,
+                            int *num_features,
+                            int *dimension) {
+    long pos = ftell(file);
+    char line[512];
+    if (!fgets(line, sizeof(line), file)) {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+    if (line[0] != '#') {
+        fseek(file, pos, SEEK_SET);
+        return 0;
     }
 
+    char *cursor = line + 1;
+    char *token = strtok(cursor, ",");
+    while (token) {
+        char *entry = trim_in_place(token);
+        char *eq = strchr(entry, '=');
+        if (eq) {
+            *eq = '\0';
+            char *key = trim_in_place(entry);
+            char *value = trim_in_place(eq + 1);
+            int parsed = atoi(value);
+            if (strcmp(key, "num_vectors") == 0 && num_vectors) {
+                *num_vectors = parsed;
+            } else if (strcmp(key, "num_levels") == 0 && num_levels) {
+                *num_levels = parsed;
+            } else if (strcmp(key, "num_features") == 0 && num_features) {
+                *num_features = parsed;
+            } else if (strcmp(key, "dimension") == 0 && dimension) {
+                *dimension = parsed;
+            }
+        }
+        token = strtok(NULL, ",");
+    }
+
+    return 1;
+}
+
+static void load_item_mem_from_csv_stream(struct item_memory *item_mem, FILE *file, int num_items) {
     init_item_memory(item_mem, num_items);
 
     for (int i = 0; i < num_items; i++) {
@@ -718,7 +827,87 @@ void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, 
             exit(EXIT_FAILURE);
         }
     }
+}
 
+void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, int num_items) {
+    FILE *file = fopen(filepath, "r");
+    if (!file) {
+        perror("Failed to open file for reading item memory CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    int header_vectors = 0;
+    int header_levels = 0;
+    int header_features = 0;
+    int header_dim = 0;
+    int has_header = parse_csv_header(file, &header_vectors, &header_levels, &header_features, &header_dim);
+    if (has_header && header_vectors > 0) {
+        if (num_items > 0 && num_items != header_vectors && output_mode >= OUTPUT_BASIC) {
+            fprintf(stderr, "load_item_mem_from_csv: header vectors %d override requested %d.\n",
+                    header_vectors, num_items);
+        }
+        num_items = header_vectors;
+    }
+    if (num_items <= 0) {
+        fprintf(stderr, "load_item_mem_from_csv: invalid num_items.\n");
+        fclose(file);
+        return;
+    }
+    load_item_mem_from_csv_stream(item_mem, file, num_items);
+    fclose(file);
+    printf("Item memory successfully loaded from %s\n", filepath);
+}
+
+void load_precomp_item_mem_from_bin(struct item_memory *item_mem,
+                                    const char *filepath,
+                                    int num_levels,
+                                    int num_features) {
+    if (num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "load_precomp_item_mem_from_bin: invalid dimensions.\n");
+        return;
+    }
+    int total = num_levels * num_features;
+    load_item_mem_from_bin(item_mem, filepath, total);
+}
+
+void load_precomp_item_mem_from_csv(struct item_memory *item_mem,
+                                    const char *filepath,
+                                    int num_levels,
+                                    int num_features) {
+    FILE *file = fopen(filepath, "r");
+    if (!file) {
+        perror("Failed to open file for reading precomp item memory CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    int header_vectors = 0;
+    int header_levels = 0;
+    int header_features = 0;
+    int header_dim = 0;
+    int has_header = parse_csv_header(file, &header_vectors, &header_levels, &header_features, &header_dim);
+    if (has_header) {
+        if (header_levels > 0) {
+            num_levels = header_levels;
+        }
+        if (header_features > 0) {
+            num_features = header_features;
+        }
+    }
+
+    if (num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "load_precomp_item_mem_from_csv: invalid dimensions.\n");
+        fclose(file);
+        return;
+    }
+
+    int total = num_levels * num_features;
+    if (header_vectors > 0 && header_vectors != total && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "load_precomp_item_mem_from_csv: header vectors %d override derived %d.\n",
+                header_vectors, total);
+        total = header_vectors;
+    }
+
+    load_item_mem_from_csv_stream(item_mem, file, total);
     fclose(file);
     printf("Item memory successfully loaded from %s\n", filepath);
 }

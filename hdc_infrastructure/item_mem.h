@@ -46,4 +46,21 @@ void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, 
 void store_item_mem_to_csv(struct item_memory *item_mem, const char *filepath);
 void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, int num_items);
 
+void store_precomp_item_mem_to_bin(struct item_memory *item_mem,
+                                   const char *filepath,
+                                   int num_levels,
+                                   int num_features);
+void load_precomp_item_mem_from_bin(struct item_memory *item_mem,
+                                    const char *filepath,
+                                    int num_levels,
+                                    int num_features);
+void store_precomp_item_mem_to_csv(struct item_memory *item_mem,
+                                   const char *filepath,
+                                   int num_levels,
+                                   int num_features);
+void load_precomp_item_mem_from_csv(struct item_memory *item_mem,
+                                    const char *filepath,
+                                    int num_levels,
+                                    int num_features);
+
 #endif // ITEM_MEMORY_H
