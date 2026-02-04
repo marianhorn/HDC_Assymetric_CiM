@@ -119,17 +119,66 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
     }
 
     Vector *min_vector = create_uninitialized_vector();
-    Vector *max_vector = create_uninitialized_vector();
 
-    generate_orthogonal_vectors(min_vector, max_vector, VECTOR_DIMENSION);
+    // Generate min randomly.
+    generate_random_hv(min_vector->data, VECTOR_DIMENSION);
 
-    for (int i = 0; i < num_levels; i++) {
-        double ratio = (double)i / (num_levels - 1);
-        interpolate_vectors(min_vector, max_vector, item_mem->base_vectors[i], VECTOR_DIMENSION, ratio);
+    // Prepare a random permutation of indices [0..D-1].
+    int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
+    for (int i = 0; i < VECTOR_DIMENSION; i++) {
+        perm[i] = i;
+    }
+    for (int i = VECTOR_DIMENSION - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        int tmp = perm[i];
+        perm[i] = perm[j];
+        perm[j] = tmp;
     }
 
+    // Total flip budget K (use D for exact complement, D/2 for common case).
+    int total_flips = VECTOR_DIMENSION ;// / 2;
+    if (total_flips < 0) {
+        total_flips = 0;
+    } else if (total_flips > VECTOR_DIMENSION) {
+        total_flips = VECTOR_DIMENSION;
+    }
+
+    // Level 0 is the min vector.
+    memcpy(item_mem->base_vectors[0]->data,
+           min_vector->data,
+           VECTOR_DIMENSION * sizeof(vector_element));
+
+    if (num_levels > 1) {
+        int steps = num_levels - 1;
+        int prev_target = 0;
+        for (int level = 1; level < num_levels; level++) {
+            double exact = ((double)level * (double)total_flips) / (double)steps;
+            int target = (int)(exact + 0.5); // balanced rounding
+            if (target < 0) {
+                target = 0;
+            } else if (target > total_flips) {
+                target = total_flips;
+            }
+
+            Vector *prev = item_mem->base_vectors[level - 1];
+            Vector *curr = item_mem->base_vectors[level];
+            memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
+
+            for (int k = prev_target; k < target; k++) {
+                int idx = perm[k];
+#if BIPOLAR_MODE
+                curr->data[idx] = -curr->data[idx];
+#else
+                curr->data[idx] = !curr->data[idx];
+#endif
+            }
+
+            prev_target = target;
+        }
+    }
+
+    free(perm);
     free_vector(min_vector);
-    free_vector(max_vector);
     #if OUTPUT_MODE>=OUTPUT_DEBUG
         print_item_memory(item_mem);
         printf("\n");
