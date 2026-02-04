@@ -79,7 +79,13 @@ def classical_mds_from_distance(D, out_dim=2):
     eigvals = np.clip(eigvals[:out_dim], a_min=0.0, a_max=None)
     Y = eigvecs[:, :out_dim] * np.sqrt(eigvals + 1e-12)
     return Y
-
+def cosine_distance(u, v):
+    """
+    Returns cosine distance: 1 - cos(u, v)
+    """
+    num = np.dot(u, v)
+    den = (np.linalg.norm(u) * np.linalg.norm(v)) + 1e-12
+    return 1.0 - (num / den)
 
 # =============================
 # ANALYSIS
@@ -138,7 +144,13 @@ def main():
 
     d_naive = analyze_cim("Naive CiM", V_naive)
     d_ga    = analyze_cim("GA CiM", V_ga)
+    # Distance between min and max level
+    dist_naive_min_max = cosine_distance(V_naive[0], V_naive[NUM_LEVELS - 1])
+    dist_ga_min_max    = cosine_distance(V_ga[0],    V_ga[NUM_LEVELS - 1])
 
+    print("Cosine distance between min and max level:")
+    print(f"  Naive CiM: {dist_naive_min_max:.6f}")
+    print(f"  GA CiM:    {dist_ga_min_max:.6f}")
     # Comparison plot
     plt.figure()
     plt.plot(np.arange(NUM_LEVELS - 1), d_naive, label="Naive")
