@@ -14,10 +14,10 @@
 #include <omp.h>
 #endif
 
-#define GA_DEFAULT_POPULATION_SIZE 16 //Default: 12
-#define GA_DEFAULT_GENERATIONS 16 //Default: 10
+#define GA_DEFAULT_POPULATION_SIZE 8 //Default: 12
+#define GA_DEFAULT_GENERATIONS 8 //Default: 10
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 //Default 0.7
-#define GA_DEFAULT_MUTATION_RATE 0.5 //Default 0.02
+#define GA_DEFAULT_MUTATION_RATE 0.05 //Default 0.02
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 //Default 3
 #define GA_DEFAULT_LOG_EVERY 0 //Default 0
 #define GA_DEFAULT_SEED 1u
@@ -139,24 +139,6 @@ static double evaluate_candidate(const uint16_t *B,
     free_item_memory(&signal_mem);
     return accuracy;
 #endif
-}
-
-static double evaluate_fitness(const uint16_t *B, const struct ga_eval_context *ctx) {
-    if (!ctx) {
-        return 0.0;
-    }
-    return evaluate_candidate(B, ctx);
-}
-
-static void init_individual(uint16_t *individual,
-                            int num_levels,
-                            uint16_t max_flip,
-                            uint32_t *rng_state) {
-    int transitions = num_levels - 1;
-    for (int level = 0; level < transitions; level++) {
-        int value = max_flip > 0 ? rng_range(rng_state, (int)max_flip + 1) : 0;
-        individual[level] = (uint16_t)value;
-    }
 }
 
 static void mutate_individual(uint16_t *individual,
@@ -292,14 +274,26 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         exit(EXIT_FAILURE);
     }
 
+    int init_value = 0;
+    if (ctx.num_levels > 1) {
+        double avg = (double)dimension / (double)(ctx.num_levels - 1);
+        init_value = (int)(avg + 0.5);
+        if (init_value < 0) {
+            init_value = 0;
+        } else if (init_value > (int)UINT16_MAX) {
+            init_value = (int)UINT16_MAX;
+        }
+    }
     for (int i = 0; i < population_size; i++) {
-        init_individual(&population[i * genome_length],
-                        ctx.num_levels,
-                        params->max_flip,
-                        &ga_state);
+        uint16_t *individual = &population[i * genome_length];
+        for (int level = 0; level < genome_length; level++) {
+            individual[level] = (uint16_t)init_value;
+        }
     }
 
     double best_fitness = -1.0;
+    int best_gen = -1;
+    int best_gen_index = -1;
 
     for (int gen = 0; gen < params->generations; gen++) {
         if (ga_output_mode >= OUTPUT_BASIC) {
@@ -318,7 +312,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #pragma omp parallel for schedule(dynamic)
 #endif
         for (int i = 0; i < population_size; i++) {
-            fitness[i] = evaluate_fitness(&population[i * genome_length], &ctx);
+            fitness[i] = evaluate_candidate(&population[i * genome_length], &ctx);
         }
         output_mode = ga_output_mode;
         if (ga_output_mode >= OUTPUT_BASIC) {
@@ -340,15 +334,11 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         }
         if (gen_best > best_fitness) {
             best_fitness = gen_best;
+            best_gen = gen;
+            best_gen_index = gen_best_index;
             memcpy(best_individual,
                    &population[gen_best_index * genome_length],
                    (size_t)genome_length * sizeof(uint16_t));
-        }
-
-        if (params->log_every > 0 && (gen % params->log_every == 0)) {
-            if (ga_output_mode >= OUTPUT_BASIC) {
-                printf("GA generation %d best accuracy: %.3f%%\n", gen, best_fitness * 100.0);
-            }
         }
 
         if (gen == params->generations - 1) {
@@ -377,6 +367,10 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
 
     memcpy(B_out, best_individual, (size_t)genome_length * sizeof(uint16_t));
+
+    if (ga_output_mode >= OUTPUT_DETAILED && best_gen >= 0 && best_gen_index >= 0) {
+        printf("GA winner: generation %d, individual %d\n", best_gen + 1, best_gen_index + 1);
+    }
 
     free(best_individual);
     free(fitness);

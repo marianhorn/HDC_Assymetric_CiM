@@ -1,7 +1,7 @@
 #ifndef CONFIGFOOT_H
 #define CONFIGFOOT_H
 
-#define VECTOR_DIMENSION 10000
+#define VECTOR_DIMENSION 1000
 #define NUM_LEVELS 31
 #define MIN_LEVEL -1
 #define MAX_LEVEL 1
