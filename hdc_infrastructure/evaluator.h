@@ -14,9 +14,32 @@
 
 #include "assoc_mem.h"
 #include "encoder.h"
+#include <stddef.h>
 
-void evaluate_model_timeseries_with_window(struct encoder *enc, struct associative_memory *assMem, double **testingData, int *testingLabels, int testingSamples);
-void evaluate_model_timeseries_direct(struct encoder *enc, struct associative_memory *assMem, double **testingData, int *testingLabels, int testingSamples);
-void evaluate_model_general_direct(struct encoder *enc, struct associative_memory *assoc_mem, double **testing_data, int *testing_labels, int testing_samples);
+struct timeseries_eval_result {
+    size_t correct;
+    size_t not_correct;
+    size_t transition_error;
+    size_t total;
+    double overall_accuracy;
+    double class_average_accuracy;
+    int confusion_matrix[NUM_CLASSES][NUM_CLASSES];
+};
+
+struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encoder *enc,
+                                                                    struct associative_memory *assMem,
+                                                                    double **testingData,
+                                                                    int *testingLabels,
+                                                                    int testingSamples);
+struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *enc,
+                                                               struct associative_memory *assMem,
+                                                               double **testingData,
+                                                               int *testingLabels,
+                                                               int testingSamples);
+struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
+                                                            struct associative_memory *assoc_mem,
+                                                            double **testing_data,
+                                                            int *testing_labels,
+                                                            int testing_samples);
 
 #endif

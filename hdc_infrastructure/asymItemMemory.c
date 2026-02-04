@@ -1,6 +1,7 @@
 #include "asymItemMemory.h"
 #include "assoc_mem.h"
 #include "encoder.h"
+#include "evaluator.h"
 #include "item_mem.h"
 #include "operations.h"
 #include "trainer.h"
@@ -60,74 +61,7 @@ static int rng_range(uint32_t *state, int max) {
 }
 
 
-static int mode_value(const int *array, int size) {
-    int max_value = 0;
-    int max_count = 0;
-
-    for (int i = 0; i < size; i++) {
-        int count = 0;
-        for (int j = 0; j < size; j++) {
-            if (array[j] == array[i]) {
-                ++count;
-            }
-        }
-        if (count > max_count) {
-            max_count = count;
-            max_value = array[i];
-        } else if (count == max_count) {
-            if (array[i] < max_value) {
-                max_value = array[i];
-            }
-        }
-    }
-    return max_value;
-}
-
-
-static double evaluate_timeseries_direct_accuracy(struct encoder *enc,
-                                                  struct associative_memory *assoc_mem,
-                                                  double **testing_data,
-                                                  int *testing_labels,
-                                                  int testing_samples) {
-    size_t correct = 0;
-    size_t not_correct = 0;
-    size_t transition_error = 0;
-
-    for (int j = 0; j < testing_samples - N_GRAM_SIZE + 1; j += N_GRAM_SIZE) {
-        int actual_label = mode_value(testing_labels + j, N_GRAM_SIZE);
-        Vector *sample_hv = create_vector();
-        int encoding_result = encode_timeseries(enc, &(testing_data[j]), sample_hv);
-        int predicted_label = classify(assoc_mem, sample_hv);
-        if (predicted_label == -1) {
-            fprintf(stderr, "GA evaluation: invalid label (encoding=%d).\n", encoding_result);
-            exit(EXIT_FAILURE);
-        }
-        double confidence = similarity_check(sample_hv, get_class_vector(assoc_mem, predicted_label));
-        if (confidence == -2) {
-            fprintf(stderr, "GA evaluation: invalid similarity.\n");
-            exit(EXIT_FAILURE);
-        }
-
-        free_vector(sample_hv);
-
-        if (predicted_label == actual_label) {
-            correct++;
-        } else if (testing_labels[j] != testing_labels[j + N_GRAM_SIZE - 1]) {
-            transition_error++;
-        } else {
-            not_correct++;
-        }
-    }
-
-    size_t total = correct + not_correct + transition_error;
-    if (total == 0) {
-        return 0.0;
-    }
-    return (double)correct / (double)total;
-}
-
 struct ga_eval_context {
-    int num_features;
     int num_levels;
     int vector_dimension;
     unsigned int seed;
@@ -150,20 +84,16 @@ static double evaluate_candidate(const uint16_t *B,
     init_assoc_mem(&assoc_mem);
 
     int transitions = ctx->num_levels - 1;
-    int b_columns = transitions > 0 ? transitions : 1;
-    int *b_reduced = (int *)calloc((size_t)ctx->num_features * b_columns, sizeof(int));
-    if (!b_reduced) {
-        fprintf(stderr, "Failed to allocate reduced flip matrix.\n");
-        free_assoc_mem(&assoc_mem);
-        return 0.0;
-    }
-
+    int *b_levels = NULL;
     if (transitions > 0) {
-        for (int feature = 0; feature < ctx->num_features; feature++) {
-            for (int level = 1; level < ctx->num_levels; level++) {
-                b_reduced[feature * transitions + (level - 1)] =
-                    (int)B[feature * ctx->num_levels + level];
-            }
+        b_levels = (int *)malloc((size_t)transitions * sizeof(int));
+        if (!b_levels) {
+            fprintf(stderr, "Failed to allocate flip vector.\n");
+            free_assoc_mem(&assoc_mem);
+            return 0.0;
+        }
+        for (int level = 0; level < transitions; level++) {
+            b_levels[level] = (int)B[level];
         }
     }
 
@@ -171,12 +101,12 @@ static double evaluate_candidate(const uint16_t *B,
     if (output_mode >= OUTPUT_BASIC) {
         fprintf(stderr, "GA evaluation for precomputed item memory is not implemented yet.\n");
     }
-    free(b_reduced);
+    free(b_levels);
     free_assoc_mem(&assoc_mem);
     return 0.0;
 #else
     if (!ctx->channel_memory) {
-        free(b_reduced);
+        free(b_levels);
         free_assoc_mem(&assoc_mem);
         return 0.0;
     }
@@ -184,7 +114,7 @@ static double evaluate_candidate(const uint16_t *B,
     struct item_memory signal_mem;
     init_continuous_item_memory_with_B(&signal_mem,
                                        ctx->num_levels,
-                                       b_reduced);
+                                       b_levels);
     init_encoder(&enc, ctx->channel_memory, &signal_mem);
     train_model_timeseries(ctx->training_data,
                            ctx->training_labels,
@@ -201,9 +131,14 @@ static double evaluate_candidate(const uint16_t *B,
         eval_samples = ctx->testing_samples;
     }
 
-    double accuracy = evaluate_timeseries_direct_accuracy(&enc, &assoc_mem, eval_data, eval_labels, eval_samples);
+    struct timeseries_eval_result eval_result =
+        evaluate_model_timeseries_direct(&enc, &assoc_mem, eval_data, eval_labels, eval_samples);
+    double accuracy = 0.0;
+    if (eval_result.total > 0) {
+        accuracy = (double)eval_result.correct / (double)eval_result.total;
+    }
 
-    free(b_reduced);
+    free(b_levels);
     free_assoc_mem(&assoc_mem);
     free_item_memory(&signal_mem);
     return accuracy;
@@ -218,37 +153,32 @@ static double evaluate_fitness(const uint16_t *B, const struct ga_eval_context *
 }
 
 static void init_individual(uint16_t *individual,
-                            int num_features,
                             int num_levels,
                             uint16_t max_flip,
                             uint32_t *rng_state) {
-    for (int feature = 0; feature < num_features; feature++) {
-        individual[feature * num_levels] = 0;
-        for (int level = 1; level < num_levels; level++) {
-            int value = max_flip > 0 ? rng_range(rng_state, (int)max_flip + 1) : 0;
-            individual[feature * num_levels + level] = (uint16_t)value;
-        }
+    int transitions = num_levels - 1;
+    for (int level = 0; level < transitions; level++) {
+        int value = max_flip > 0 ? rng_range(rng_state, (int)max_flip + 1) : 0;
+        individual[level] = (uint16_t)value;
     }
 }
 
 static void mutate_individual(uint16_t *individual,
-                              int num_features,
                               int num_levels,
                               uint16_t max_flip,
                               double mutation_rate,
                               uint32_t *rng_state) {
-    for (int feature = 0; feature < num_features; feature++) {
-        for (int level = 1; level < num_levels; level++) {
-            if (rng_uniform(rng_state) < mutation_rate) {
-                int delta = rng_range(rng_state, 2) == 0 ? -1 : 1;
-                int value = (int)individual[feature * num_levels + level] + delta;
-                if (value < 0) {
-                    value = 0;
-                } else if (value > (int)max_flip) {
-                    value = (int)max_flip;
-                }
-                individual[feature * num_levels + level] = (uint16_t)value;
+    int transitions = num_levels - 1;
+    for (int level = 0; level < transitions; level++) {
+        if (rng_uniform(rng_state) < mutation_rate) {
+            int delta = rng_range(rng_state, 2) == 0 ? -1 : 1;
+            int value = (int)individual[level] + delta;
+            if (value < 0) {
+                value = 0;
+            } else if (value > (int)max_flip) {
+                value = (int)max_flip;
             }
+            individual[level] = (uint16_t)value;
         }
     }
 }
@@ -257,8 +187,6 @@ static void crossover_individual(const uint16_t *parent_a,
                                  const uint16_t *parent_b,
                                  uint16_t *child,
                                  int genome_length,
-                                 int num_features,
-                                 int num_levels,
                                  double crossover_rate,
                                  uint32_t *rng_state) {
     if (rng_uniform(rng_state) < crossover_rate) {
@@ -267,10 +195,6 @@ static void crossover_individual(const uint16_t *parent_a,
         }
     } else {
         memcpy(child, parent_a, genome_length * sizeof(uint16_t));
-    }
-
-    for (int feature = 0; feature < num_features; feature++) {
-        child[feature * num_levels] = 0;
     }
 }
 
@@ -297,12 +221,12 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     if (!ctx_in || !params || !B_out) {
         return;
     }
-    if (ctx_in->num_features <= 0 || ctx_in->num_levels <= 0) {
+    if (ctx_in->num_levels <= 1) {
         return;
     }
 
     struct ga_eval_context ctx = *ctx_in;
-    int genome_length = ctx.num_features * ctx.num_levels;
+    int genome_length = ctx.num_levels - 1;
     memset(B_out, 0, (size_t)genome_length * sizeof(uint16_t));
 
     if (!ctx.training_data || !ctx.training_labels || ctx.training_samples <= N_GRAM_SIZE) {
@@ -373,7 +297,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     for (int i = 0; i < population_size; i++) {
         init_individual(&population[i * genome_length],
-                        ctx.num_features,
                         ctx.num_levels,
                         params->max_flip,
                         &ga_state);
@@ -440,12 +363,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                  &population[parent_b * genome_length],
                                  &offspring[i * genome_length],
                                  genome_length,
-                                 ctx.num_features,
-                                 ctx.num_levels,
                                  params->crossover_rate,
                                  &ga_state);
             mutate_individual(&offspring[i * genome_length],
-                              ctx.num_features,
                               ctx.num_levels,
                               params->max_flip,
                               params->mutation_rate,
@@ -477,7 +397,6 @@ void optimize_item_memory(struct item_memory *signal_mem,
         return;
     }
 
-    int num_features = 1;
     int num_levels = 0;
 #if PRECOMPUTED_ITEM_MEMORY
     if (output_mode >= OUTPUT_BASIC) {
@@ -492,7 +411,7 @@ void optimize_item_memory(struct item_memory *signal_mem,
         num_levels = signal_mem->num_vectors;
     }
 #endif
-    if (num_levels <= 0) {
+    if (num_levels <= 1) {
         return;
     }
 
@@ -500,7 +419,6 @@ void optimize_item_memory(struct item_memory *signal_mem,
     init_ga_params(&params);
 
     struct ga_eval_context ctx;
-    ctx.num_features = num_features;
     ctx.num_levels = num_levels;
     ctx.vector_dimension = VECTOR_DIMENSION;
     ctx.seed = params.seed;
@@ -512,7 +430,7 @@ void optimize_item_memory(struct item_memory *signal_mem,
     ctx.testing_labels = testing_labels;
     ctx.testing_samples = testing_samples;
 
-    int genome_length = num_features * num_levels;
+    int genome_length = num_levels - 1;
     uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));
     if (!flip_counts) {
         fprintf(stderr, "Failed to allocate GA flip matrix.\n");
@@ -528,28 +446,24 @@ void optimize_item_memory(struct item_memory *signal_mem,
     }
 
     int transitions = num_levels - 1;
-    int b_columns = transitions > 0 ? transitions : 1;
-    int *b_reduced = (int *)calloc((size_t)num_features * b_columns, sizeof(int));
-    if (!b_reduced) {
-        fprintf(stderr, "Failed to allocate reduced flip matrix.\n");
-        free(flip_counts);
-        return;
-    }
-
+    int *b_levels = NULL;
     if (transitions > 0) {
-        for (int feature = 0; feature < num_features; feature++) {
-            for (int level = 1; level < num_levels; level++) {
-                b_reduced[feature * transitions + (level - 1)] =
-                    (int)flip_counts[feature * num_levels + level];
-            }
+        b_levels = (int *)malloc((size_t)transitions * sizeof(int));
+        if (!b_levels) {
+            fprintf(stderr, "Failed to allocate flip vector.\n");
+            free(flip_counts);
+            return;
+        }
+        for (int level = 0; level < transitions; level++) {
+            b_levels[level] = (int)flip_counts[level];
         }
     }
 
     init_continuous_item_memory_with_B(signal_mem,
                                        num_levels,
-                                       b_reduced);
+                                       b_levels);
 
-    free(b_reduced);
+    free(b_levels);
 
     free(flip_counts);
 }

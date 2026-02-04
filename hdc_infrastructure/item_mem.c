@@ -17,6 +17,8 @@
 #include <string.h>
 #include <stdio.h>
 #include "vector.h"
+
+void generate_random_hv(vector_element *data, int dimension);
 /**
  * @brief Initializes item memory for discrete items, eg. features.
  * 

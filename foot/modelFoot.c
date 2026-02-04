@@ -65,7 +65,7 @@ int main(){
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
             
-        evaluate_model_timeseries_direct(&enc,&assMem,testingData,testingLabels,testingSamples);
+        (void)evaluate_model_timeseries_direct(&enc,&assMem,testingData,testingLabels,testingSamples);
 
         // Free allocated memory
         freeData(trainingData, trainingSamples);
