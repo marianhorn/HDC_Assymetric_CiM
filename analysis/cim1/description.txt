@@ -1,0 +1,10 @@
+This run was generated using 
+VECTOR_DIMENSION = 1000
+Cim-Level = 32
+Popoulation Size = 64
+Generations = 256
+CrossoverRate = 0
+MutationRate = 0.8
+N_GRAM_SIZE = 3
+
+BIPOLAR 
