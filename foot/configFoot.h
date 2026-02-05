@@ -52,10 +52,10 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 64 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 16 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 256 // GA generations
+#define GA_DEFAULT_GENERATIONS 32 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.0 // GA crossover rate
@@ -73,7 +73,7 @@
 #define GA_DEFAULT_SEED 1u // GA RNG seed
 #endif
 #ifndef GA_MAX_FLIPS_CIM
-#define GA_MAX_FLIPS_CIM 0 // CiM max flips budget
+#define GA_MAX_FLIPS_CIM VECTOR_DIMENSION // CiM max flips budget
 #endif
 #ifndef GA_INIT_UNIFORM
 #define GA_INIT_UNIFORM 0 // GA init uniform vs equal

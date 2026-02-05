@@ -180,6 +180,13 @@ void getData(int dataset,double*** trainingData, double*** testingData, int** tr
         fprintf(stderr, "Error: Downsampling training data failed. Data is NULL.\n");
         exit(EXIT_FAILURE);
     }
+    if (output_mode >= OUTPUT_DETAILED) {
+        printf("Loaded data: training %d x %d, testing %d x %d\n",
+               *trainingSamples,
+               NUM_FEATURES,
+               *testingSamples,
+               NUM_FEATURES);
+    }
 
     // Free raw data
     freeData(rawTrainingData, trainingRows);
