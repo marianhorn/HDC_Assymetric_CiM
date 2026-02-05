@@ -14,14 +14,16 @@
 #include <omp.h>
 #endif
 
-#define GA_DEFAULT_POPULATION_SIZE 32 //Default: 12
-#define GA_DEFAULT_GENERATIONS 32 //Default: 10
+#define GA_DEFAULT_POPULATION_SIZE 64 //Default: 12
+#define GA_DEFAULT_GENERATIONS 256 //Default: 10
 #define GA_DEFAULT_CROSSOVER_RATE 0.0 //Default 0.7
-#define GA_DEFAULT_MUTATION_RATE 0.2 //Default 0.02
+#define GA_DEFAULT_MUTATION_RATE 0.8 //Default 0.02
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 //Default 3
 #define GA_DEFAULT_LOG_EVERY 0 //Default 0
 #define GA_DEFAULT_SEED 1u
 #define GA_DEFAULT_MAX_FLIP 0u
+#define GA_MAX_TOTAL 0 // 0 uses VECTOR_DIMENSION/2
+#define GA_INIT_UNIFORM 0 // 0 = equal values, 1 = uniform distribution
 
 void init_ga_params(struct ga_params *params) {
     if (!params) {
@@ -84,10 +86,12 @@ static void init_individual(uint16_t *individual,
     if (!individual || transitions <= 0) {
         return;
     }
+
     if (max_total < 0) {
         max_total = 0;
     }
 
+#if GA_INIT_UNIFORM
     for (int i = 0; i < transitions; i++) {
         individual[i] = 0;
     }
@@ -157,8 +161,23 @@ static void init_individual(uint16_t *individual,
 
     free(values);
     free(weights);
-
     free(order);
+#else
+    (void)rng_state;
+    (void)permutation;
+    (void)permutation_length;
+
+    int value = transitions > 0 ? (max_total / transitions) : 0;
+    if (value < 0) {
+        value = 0;
+    } else if (value > (int)UINT16_MAX) {
+        value = (int)UINT16_MAX;
+    }
+
+    for (int i = 0; i < transitions; i++) {
+        individual[i] = (uint16_t)value;
+    }
+#endif
 }
 
 static int dominates(double acc_a, double sim_a, double acc_b, double sim_b) {
@@ -690,7 +709,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
 
     int transitions = ctx.num_levels - 1;
-    int max_total = dimension / 2;
+    int max_total = (GA_MAX_TOTAL > 0) ? GA_MAX_TOTAL : (dimension / 2);
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
 #if PRECOMPUTED_ITEM_MEMORY
