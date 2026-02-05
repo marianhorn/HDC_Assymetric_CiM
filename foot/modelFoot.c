@@ -42,15 +42,28 @@ int main(){
         #endif
 
         double** trainingData;
+        double** validationData;
         double** testingData;
         int* trainingLabels;
+        int* validationLabels;
         int* testingLabels;
-        int trainingSamples, testingSamples;
+        int trainingSamples, validationSamples, testingSamples;
 
         struct associative_memory assMem;
         init_assoc_mem(&assMem);
 
-        getData(dataset,&trainingData,&testingData,&trainingLabels,&testingLabels,&trainingSamples,&testingSamples);
+        double validationRatio = 0.2;
+        getDataWithValSet(dataset,
+                          &trainingData,
+                          &validationData,
+                          &testingData,
+                          &trainingLabels,
+                          &validationLabels,
+                          &testingLabels,
+                          &trainingSamples,
+                          &validationSamples,
+                          &testingSamples,
+                          validationRatio);
 
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
@@ -58,18 +71,18 @@ int main(){
                              trainingData,
                              trainingLabels,
                              trainingSamples,
-                             testingData,
-                             testingLabels,
-                             testingSamples);
+                             validationData,
+                             validationLabels,
+                             validationSamples);
         #else
         optimize_item_memory(&intensityLevels,
                              &electrodes,
                              trainingData,
                              trainingLabels,
                              trainingSamples,
-                             testingData,
-                             testingLabels,
-                             testingSamples);
+                             validationData,
+                             validationLabels,
+                             validationSamples);
         #endif
         #endif
 
@@ -79,8 +92,12 @@ int main(){
         store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
         // Free allocated memory
         freeData(trainingData, trainingSamples);
+        if (validationData && validationSamples > 0) {
+            freeData(validationData, validationSamples);
+        }
         freeData(testingData, testingSamples);
         free(trainingLabels);
+        free(validationLabels);
         free(testingLabels);
         free_assoc_mem(&assMem);
 
