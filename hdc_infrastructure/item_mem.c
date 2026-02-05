@@ -182,13 +182,8 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
         perm[j] = tmp;
     }
 
-    // Total flip budget K (use D for exact complement, D/2 for common case).
-    int total_flips = VECTOR_DIMENSION ;// / 2;
-    if (total_flips < 0) {
-        total_flips = 0;
-    } else if (total_flips > VECTOR_DIMENSION) {
-        total_flips = VECTOR_DIMENSION;
-    }
+    // Total flip budget K.
+    int total_flips = GA_MAX_FLIPS_CIM;
 
     // Level 0 is the min vector.
     memcpy(item_mem->base_vectors[0]->data,
@@ -281,6 +276,8 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
            min_vector->data,
            VECTOR_DIMENSION * sizeof(vector_element));
 
+    int max_flips = GA_MAX_FLIPS_CIM;
+
     if (num_levels > 1) {
         int prev_target = 0;
         for (int level = 1; level < num_levels; level++) {
@@ -289,8 +286,8 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
                 flips = 0;
             }
             int target = prev_target + flips;
-            if (target > VECTOR_DIMENSION) {
-                target = VECTOR_DIMENSION;
+            if (target > max_flips) {
+                target = max_flips;
             }
 
             Vector *prev = item_mem->base_vectors[level - 1];
@@ -351,13 +348,8 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
     uint32_t rng_state = 1u;
-    // Total flip budget K (use D for exact complement, D/2 for common case).
-    int total_flips = VECTOR_DIMENSION ;// / 2;
-    if (total_flips < 0) {
-        total_flips = 0;
-    } else if (total_flips > VECTOR_DIMENSION) {
-        total_flips = VECTOR_DIMENSION;
-    }
+    // Total flip budget K.
+    int total_flips = GA_MAX_FLIPS_CIM;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();
@@ -460,7 +452,7 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
 
-    int max_flips = VECTOR_DIMENSION;
+    int max_flips = GA_MAX_FLIPS_CIM;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();

@@ -14,17 +14,6 @@
 #include <omp.h>
 #endif
 
-#define GA_DEFAULT_POPULATION_SIZE 64 //Default: 12
-#define GA_DEFAULT_GENERATIONS 256 //Default: 10
-#define GA_DEFAULT_CROSSOVER_RATE 0.0 //Default 0.7
-#define GA_DEFAULT_MUTATION_RATE 0.8 //Default 0.02
-#define GA_DEFAULT_TOURNAMENT_SIZE 3 //Default 3
-#define GA_DEFAULT_LOG_EVERY 0 //Default 0
-#define GA_DEFAULT_SEED 1u
-#define GA_DEFAULT_MAX_FLIP 0u
-#define GA_MAX_TOTAL 0 // 0 uses VECTOR_DIMENSION/2
-#define GA_INIT_UNIFORM 0 // 0 = equal values, 1 = uniform distribution
-
 void init_ga_params(struct ga_params *params) {
     if (!params) {
         return;
@@ -36,7 +25,6 @@ void init_ga_params(struct ga_params *params) {
     params->tournament_size = GA_DEFAULT_TOURNAMENT_SIZE;
     params->log_every = GA_DEFAULT_LOG_EVERY;
     params->seed = GA_DEFAULT_SEED;
-    params->max_flip = GA_DEFAULT_MAX_FLIP;
 }
 
 static uint32_t xorshift32(uint32_t *state) {
@@ -663,23 +651,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
     ctx.seed = params->seed;
 
-    if (params->max_flip == 0) {
-        if (ctx.num_levels > 1) {
-            int default_max = dimension / (2 * (ctx.num_levels - 1));
-            if (default_max < 1) {
-                default_max = 1;
-            } else if (default_max > dimension) {
-                default_max = dimension;
-            }
-            if (default_max > (int)UINT16_MAX) {
-                default_max = (int)UINT16_MAX;
-            }
-            params->max_flip = (uint16_t)default_max;
-        } else {
-            params->max_flip = 0;
-        }
-    }
-
     uint32_t ga_state = params->seed ^ 0xA3C59AC3u;
     if (ga_state == 0u) {
         ga_state = 1u;
@@ -709,7 +680,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
 
     int transitions = ctx.num_levels - 1;
-    int max_total = (GA_MAX_TOTAL > 0) ? GA_MAX_TOTAL : (dimension / 2);
+    int max_total = GA_MAX_FLIPS_CIM;
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
 #if PRECOMPUTED_ITEM_MEMORY

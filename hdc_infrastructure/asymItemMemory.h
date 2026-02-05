@@ -23,7 +23,6 @@ struct ga_params {
     int tournament_size;
     int log_every;
     unsigned int seed;
-    uint16_t max_flip;
 };
 
 
