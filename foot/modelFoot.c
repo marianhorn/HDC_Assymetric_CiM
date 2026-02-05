@@ -76,7 +76,7 @@ int main(){
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
             
         (void)evaluate_model_timeseries_direct(&enc,&assMem,testingData,testingLabels,testingSamples);
-        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
+        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
         // Free allocated memory
         freeData(trainingData, trainingSamples);
         freeData(testingData, testingSamples);

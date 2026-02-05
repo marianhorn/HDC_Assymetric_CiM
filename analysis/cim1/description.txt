@@ -6,5 +6,5 @@ Generations = 256
 CrossoverRate = 0
 MutationRate = 0.8
 N_GRAM_SIZE = 3
-
+MaxFLIPS = VECTOR_DIMENSION
 BIPOLAR 

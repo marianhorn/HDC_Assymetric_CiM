@@ -1,0 +1,16 @@
+This run was generated using 
+VECTOR_DIMENSION = 1000
+Cim-Level = 32
+Popoulation Size = 64
+Generations = 256
+CrossoverRate = 0
+MutationRate = 1.0
+N_GRAM_SIZE = 3
+MaxFLIPS = VECTOR_DIMENSION/2
+BIPOLAR 
+
+naive: Class-average accuracy: 66.207%
+Class vector similarity: 0.857
+
+
+optimized: GA winner: generation 215, individual 8 (acc 82.069%, sim 0.792)

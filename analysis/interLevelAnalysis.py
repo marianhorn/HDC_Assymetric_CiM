@@ -10,8 +10,8 @@ DEFAULT_NUM_LEVELS = 31
 DEFAULT_NUM_FEATURES = 32
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CIM_NAIVE_FILE = os.path.join(BASE_DIR, ".\cim1\item_mem_naive.csv")
-CIM_OPT_FILE   = os.path.join(BASE_DIR, "\cim1\item_mem_optimized.csv")
+CIM_NAIVE_FILE = os.path.join(BASE_DIR, "./cim2/item_mem_naive.csv")
+CIM_OPT_FILE   = os.path.join(BASE_DIR, "./cim2/item_mem_optimized.csv")
 
 # Comparison plot mode:
 #   "single" -> plot one feature only (recommended)
