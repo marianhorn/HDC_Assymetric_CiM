@@ -5,7 +5,7 @@
 #define VECTOR_DIMENSION 1000 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 31 // number of quantization levels
+#define NUM_LEVELS 33 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -18,7 +18,7 @@
 #define WINDOW 100 // sliding window length
 #endif
 #ifndef N_GRAM_SIZE
-#define N_GRAM_SIZE 3 // n-gram size
+#define N_GRAM_SIZE 2 // n-gram size
 #endif
 #ifndef DOWNSAMPLE
 #define DOWNSAMPLE 1 // downsample factor
@@ -48,14 +48,14 @@
 #endif
 
 #ifndef BIPOLAR_MODE
-#define BIPOLAR_MODE 1 // use bipolar vectors
+#define BIPOLAR_MODE 0 // use bipolar vectors
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 16 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 32 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 32 // GA generations
+#define GA_DEFAULT_GENERATIONS 5 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.0 // GA crossover rate
@@ -76,7 +76,12 @@
 #define GA_MAX_FLIPS_CIM VECTOR_DIMENSION // CiM max flips budget
 #endif
 #ifndef GA_INIT_UNIFORM
-#define GA_INIT_UNIFORM 0 // GA init uniform vs equal
+#define GA_INIT_UNIFORM 1 // GA init uniform vs equal
+#endif
+
+#endif
+#ifndef GA_SELECTION_MODE
+#define GA_SELECTION_MODE GA_SELECTION_ACCURACY // GA selection mode
 #endif
 
 
@@ -90,5 +95,10 @@ extern int output_mode;
 
 #define OUTPUT_DEBUG 3         // Print everything
 
-#endif
+
+#define GA_SELECTION_PARETO 0 // GA selection: NSGA-II Pareto
+#define GA_SELECTION_MULTI 1 // GA selection: accuracy minus similarity
+#define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
+
+
 

@@ -156,6 +156,18 @@
 #ifndef GA_INIT_UNIFORM
 #define GA_INIT_UNIFORM 0 // GA init uniform vs equal
 #endif
+#ifndef GA_SELECTION_PARETO
+#define GA_SELECTION_PARETO 0 // GA selection: NSGA-II Pareto
+#endif
+#ifndef GA_SELECTION_MULTI
+#define GA_SELECTION_MULTI 1 // GA selection: accuracy minus similarity
+#endif
+#ifndef GA_SELECTION_ACCURACY
+#define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
+#endif
+#ifndef GA_SELECTION_MODE
+#define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
+#endif
 extern int output_mode;
 
 //*************DONT CHANGE ANYTHING below this line */

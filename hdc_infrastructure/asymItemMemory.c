@@ -380,6 +380,179 @@ static int nsga2_tournament(const int *rank,
     return best;
 }
 
+static double compute_scalar_fitness(int selection_mode, double accuracy, double similarity) {
+    if (selection_mode == GA_SELECTION_MULTI) {
+        return accuracy - similarity;
+    }
+    return accuracy;
+}
+
+static int fitness_better(int a, int b, const double *fitness, uint32_t *rng_state) {
+    if (fitness[a] > fitness[b]) {
+        return a;
+    }
+    if (fitness[a] < fitness[b]) {
+        return b;
+    }
+    return rng_range(rng_state, 2) == 0 ? a : b;
+}
+
+static int fitness_tournament(const double *fitness,
+                              int population_size,
+                              int tournament_size,
+                              uint32_t *rng_state) {
+    if (population_size <= 0) {
+        return 0;
+    }
+    if (tournament_size <= 1) {
+        tournament_size = 2;
+    }
+    int best = rng_range(rng_state, population_size);
+    for (int i = 1; i < tournament_size; i++) {
+        int challenger = rng_range(rng_state, population_size);
+        best = fitness_better(best, challenger, fitness, rng_state);
+    }
+    return best;
+}
+
+static void select_next_population_pareto(const uint16_t *population,
+                                          const uint16_t *offspring,
+                                          int population_size,
+                                          int genome_length,
+                                          const double *accP,
+                                          const double *simP,
+                                          const double *accQ,
+                                          const double *simQ,
+                                          uint16_t *next_population,
+                                          double *next_acc,
+                                          double *next_sim,
+                                          uint16_t *combined,
+                                          double *accR,
+                                          double *simR,
+                                          int *rankR,
+                                          double *crowdR,
+                                          int *fronts,
+                                          int *front_offsets) {
+    int combined_count = population_size * 2;
+
+    memcpy(combined,
+           population,
+           (size_t)population_size * (size_t)genome_length * sizeof(uint16_t));
+    memcpy(combined + (size_t)population_size * (size_t)genome_length,
+           offspring,
+           (size_t)population_size * (size_t)genome_length * sizeof(uint16_t));
+    for (int i = 0; i < population_size; i++) {
+        accR[i] = accP[i];
+        simR[i] = simP[i];
+        accR[population_size + i] = accQ[i];
+        simR[population_size + i] = simQ[i];
+    }
+
+    int num_fronts = 0;
+    non_dominated_sort(accR, simR, combined_count, rankR, fronts, front_offsets, &num_fronts);
+    for (int f = 0; f < num_fronts; f++) {
+        compute_crowding(accR, simR, fronts, front_offsets[f], front_offsets[f + 1], crowdR);
+    }
+
+    int filled = 0;
+    for (int f = 0; f < num_fronts && filled < population_size; f++) {
+        int start = front_offsets[f];
+        int end = front_offsets[f + 1];
+        int front_size = end - start;
+        if (filled + front_size <= population_size) {
+            for (int i = start; i < end; i++) {
+                int idx = fronts[i];
+                memcpy(&next_population[(size_t)filled * genome_length],
+                       &combined[(size_t)idx * genome_length],
+                       (size_t)genome_length * sizeof(uint16_t));
+                next_acc[filled] = accR[idx];
+                next_sim[filled] = simR[idx];
+                filled++;
+            }
+        } else {
+            int remaining = population_size - filled;
+            int *front_indices = (int *)malloc((size_t)front_size * sizeof(int));
+            if (!front_indices) {
+                for (int i = 0; i < remaining && (start + i) < end; i++) {
+                    int idx = fronts[start + i];
+                    memcpy(&next_population[(size_t)filled * genome_length],
+                           &combined[(size_t)idx * genome_length],
+                           (size_t)genome_length * sizeof(uint16_t));
+                    next_acc[filled] = accR[idx];
+                    next_sim[filled] = simR[idx];
+                    filled++;
+                }
+                break;
+            }
+            for (int i = 0; i < front_size; i++) {
+                front_indices[i] = fronts[start + i];
+            }
+            sort_indices_by_value_desc(front_indices, front_size, crowdR);
+            for (int i = 0; i < remaining; i++) {
+                int idx = front_indices[i];
+                memcpy(&next_population[(size_t)filled * genome_length],
+                       &combined[(size_t)idx * genome_length],
+                       (size_t)genome_length * sizeof(uint16_t));
+                next_acc[filled] = accR[idx];
+                next_sim[filled] = simR[idx];
+                filled++;
+            }
+            free(front_indices);
+        }
+    }
+}
+
+static void select_next_population_scalar(const uint16_t *population,
+                                          const uint16_t *offspring,
+                                          int population_size,
+                                          int genome_length,
+                                          const double *accP,
+                                          const double *simP,
+                                          const double *fitP,
+                                          const double *accQ,
+                                          const double *simQ,
+                                          const double *fitQ,
+                                          uint16_t *next_population,
+                                          double *next_acc,
+                                          double *next_sim,
+                                          double *next_fit,
+                                          uint16_t *combined,
+                                          double *accR,
+                                          double *simR,
+                                          double *fitR,
+                                          int *indices) {
+    int combined_count = population_size * 2;
+
+    memcpy(combined,
+           population,
+           (size_t)population_size * (size_t)genome_length * sizeof(uint16_t));
+    memcpy(combined + (size_t)population_size * (size_t)genome_length,
+           offspring,
+           (size_t)population_size * (size_t)genome_length * sizeof(uint16_t));
+    for (int i = 0; i < population_size; i++) {
+        accR[i] = accP[i];
+        simR[i] = simP[i];
+        fitR[i] = fitP[i];
+        accR[population_size + i] = accQ[i];
+        simR[population_size + i] = simQ[i];
+        fitR[population_size + i] = fitQ[i];
+    }
+
+    for (int i = 0; i < combined_count; i++) {
+        indices[i] = i;
+    }
+    sort_indices_by_value_desc(indices, combined_count, fitR);
+    for (int i = 0; i < population_size; i++) {
+        int idx = indices[i];
+        memcpy(&next_population[(size_t)i * genome_length],
+               &combined[(size_t)idx * genome_length],
+               (size_t)genome_length * sizeof(uint16_t));
+        next_acc[i] = accR[idx];
+        next_sim[i] = simR[idx];
+        next_fit[i] = fitR[idx];
+    }
+}
+
 
 struct ga_eval_context {
     int num_features;
@@ -614,6 +787,12 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     struct ga_eval_context ctx = *ctx_in;
     int ga_output_mode = output_mode;
+    int selection_mode = GA_SELECTION_MODE;
+    if (selection_mode != GA_SELECTION_PARETO &&
+        selection_mode != GA_SELECTION_MULTI &&
+        selection_mode != GA_SELECTION_ACCURACY) {
+        selection_mode = GA_SELECTION_PARETO;
+    }
     int genome_length = ctx.num_levels - 1;
 #if PRECOMPUTED_ITEM_MEMORY
     genome_length *= ctx.num_features;
@@ -662,19 +841,22 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     uint16_t *combined = (uint16_t *)malloc((size_t)(population_size * 2) * genome_length * sizeof(uint16_t));
     double *accP = (double *)malloc((size_t)population_size * sizeof(double));
     double *simP = (double *)malloc((size_t)population_size * sizeof(double));
+    double *fitP = (double *)malloc((size_t)population_size * sizeof(double));
     int *rankP = (int *)malloc((size_t)population_size * sizeof(int));
     double *crowdP = (double *)malloc((size_t)population_size * sizeof(double));
     double *accQ = (double *)malloc((size_t)population_size * sizeof(double));
     double *simQ = (double *)malloc((size_t)population_size * sizeof(double));
+    double *fitQ = (double *)malloc((size_t)population_size * sizeof(double));
     double *accR = (double *)malloc((size_t)(population_size * 2) * sizeof(double));
     double *simR = (double *)malloc((size_t)(population_size * 2) * sizeof(double));
+    double *fitR = (double *)malloc((size_t)(population_size * 2) * sizeof(double));
     int *rankR = (int *)malloc((size_t)(population_size * 2) * sizeof(int));
     double *crowdR = (double *)malloc((size_t)(population_size * 2) * sizeof(double));
     int *fronts = (int *)malloc((size_t)(population_size * 2) * sizeof(int));
     int *front_offsets = (int *)malloc((size_t)(population_size * 2 + 1) * sizeof(int));
 
-    if (!population || !offspring || !combined || !accP || !simP || !rankP || !crowdP ||
-        !accQ || !simQ || !accR || !simR || !rankR || !crowdR || !fronts || !front_offsets) {
+    if (!population || !offspring || !combined || !accP || !simP || !fitP || !rankP || !crowdP ||
+        !accQ || !simQ || !fitQ || !accR || !simR || !fitR || !rankR || !crowdR || !fronts || !front_offsets) {
         fprintf(stderr, "Failed to allocate GA buffers.\n");
         exit(EXIT_FAILURE);
     }
@@ -704,6 +886,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     double best_acc = -1.0;
     double best_sim = 0.0;
+    double best_score = -1e9;
     int best_gen = -1;
     int best_gen_index = -1;
 
@@ -741,29 +924,49 @@ static void run_ga(const struct ga_eval_context *ctx_in,
             }
         }
 
-        int num_fronts = 0;
-        non_dominated_sort(accP, simP, population_size, rankP, fronts, front_offsets, &num_fronts);
-        for (int f = 0; f < num_fronts; f++) {
-            compute_crowding(accP, simP, fronts, front_offsets[f], front_offsets[f + 1], crowdP);
-        }
+        if (selection_mode == GA_SELECTION_PARETO) {
+            int num_fronts = 0;
+            non_dominated_sort(accP, simP, population_size, rankP, fronts, front_offsets, &num_fronts);
+            for (int f = 0; f < num_fronts; f++) {
+                compute_crowding(accP, simP, fronts, front_offsets[f], front_offsets[f + 1], crowdP);
+            }
 
-        if (num_fronts > 0) {
-            int start = front_offsets[0];
-            int end = front_offsets[1];
-            for (int i = start; i < end; i++) {
-                int idx = fronts[i];
-                if (accP[idx] > best_acc) {
-                    best_acc = accP[idx];
-                    best_sim = simP[idx];
+            if (num_fronts > 0) {
+                int start = front_offsets[0];
+                int end = front_offsets[1];
+                for (int i = start; i < end; i++) {
+                    int idx = fronts[i];
+                    if (accP[idx] > best_acc) {
+                        best_acc = accP[idx];
+                        best_sim = simP[idx];
+                        best_gen = gen;
+                        best_gen_index = idx;
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < population_size; i++) {
+                fitP[i] = compute_scalar_fitness(selection_mode, accP[i], simP[i]);
+                if (fitP[i] > best_score) {
+                    best_score = fitP[i];
+                    best_acc = accP[i];
+                    best_sim = simP[i];
                     best_gen = gen;
-                    best_gen_index = idx;
+                    best_gen_index = i;
                 }
             }
         }
 
         for (int i = 0; i < population_size; i++) {
-            int parent_a = nsga2_tournament(rankP, crowdP, population_size, params->tournament_size, &ga_state);
-            int parent_b = nsga2_tournament(rankP, crowdP, population_size, params->tournament_size, &ga_state);
+            int parent_a = 0;
+            int parent_b = 0;
+            if (selection_mode == GA_SELECTION_PARETO) {
+                parent_a = nsga2_tournament(rankP, crowdP, population_size, params->tournament_size, &ga_state);
+                parent_b = nsga2_tournament(rankP, crowdP, population_size, params->tournament_size, &ga_state);
+            } else {
+                parent_a = fitness_tournament(fitP, population_size, params->tournament_size, &ga_state);
+                parent_b = fitness_tournament(fitP, population_size, params->tournament_size, &ga_state);
+            }
             crossover_individual(&population[parent_a * genome_length],
                                  &population[parent_b * genome_length],
                                  &offspring[i * genome_length],
@@ -788,79 +991,77 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         }
         output_mode = ga_output_mode;
 
-        memcpy(combined, population, (size_t)population_size * (size_t)genome_length * sizeof(uint16_t));
-        memcpy(combined + (size_t)population_size * (size_t)genome_length,
-               offspring,
-               (size_t)population_size * (size_t)genome_length * sizeof(uint16_t));
-        for (int i = 0; i < population_size; i++) {
-            accR[i] = accP[i];
-            simR[i] = simP[i];
-            accR[population_size + i] = accQ[i];
-            simR[population_size + i] = simQ[i];
-        }
-
-        int combined_count = population_size * 2;
-        non_dominated_sort(accR, simR, combined_count, rankR, fronts, front_offsets, &num_fronts);
-        for (int f = 0; f < num_fronts; f++) {
-            compute_crowding(accR, simR, fronts, front_offsets[f], front_offsets[f + 1], crowdR);
-        }
-
-        int filled = 0;
-        for (int f = 0; f < num_fronts && filled < population_size; f++) {
-            int start = front_offsets[f];
-            int end = front_offsets[f + 1];
-            int front_size = end - start;
-            if (filled + front_size <= population_size) {
-                for (int i = start; i < end; i++) {
-                    int idx = fronts[i];
-                    memcpy(&population[(size_t)filled * genome_length],
-                           &combined[(size_t)idx * genome_length],
-                           (size_t)genome_length * sizeof(uint16_t));
-                    accP[filled] = accR[idx];
-                    simP[filled] = simR[idx];
-                    filled++;
-                }
-            } else {
-                int remaining = population_size - filled;
-                int *front_indices = (int *)malloc((size_t)front_size * sizeof(int));
-                if (!front_indices) {
-                    for (int i = 0; i < remaining && (start + i) < end; i++) {
-                        int idx = fronts[start + i];
-                        memcpy(&population[(size_t)filled * genome_length],
-                               &combined[(size_t)idx * genome_length],
-                               (size_t)genome_length * sizeof(uint16_t));
-                        accP[filled] = accR[idx];
-                        simP[filled] = simR[idx];
-                        filled++;
-                    }
-                    break;
-                }
-                for (int i = 0; i < front_size; i++) {
-                    front_indices[i] = fronts[start + i];
-                }
-                sort_indices_by_value_desc(front_indices, front_size, crowdR);
-                for (int i = 0; i < remaining; i++) {
-                    int idx = front_indices[i];
-                    memcpy(&population[(size_t)filled * genome_length],
-                           &combined[(size_t)idx * genome_length],
-                           (size_t)genome_length * sizeof(uint16_t));
-                    accP[filled] = accR[idx];
-                    simP[filled] = simR[idx];
-                    filled++;
-                }
-                free(front_indices);
+        if (selection_mode == GA_SELECTION_PARETO) {
+            select_next_population_pareto(population,
+                                          offspring,
+                                          population_size,
+                                          genome_length,
+                                          accP,
+                                          simP,
+                                          accQ,
+                                          simQ,
+                                          population,
+                                          accP,
+                                          simP,
+                                          combined,
+                                          accR,
+                                          simR,
+                                          rankR,
+                                          crowdR,
+                                          fronts,
+                                          front_offsets);
+        } else {
+            for (int i = 0; i < population_size; i++) {
+                fitQ[i] = compute_scalar_fitness(selection_mode, accQ[i], simQ[i]);
             }
+            select_next_population_scalar(population,
+                                          offspring,
+                                          population_size,
+                                          genome_length,
+                                          accP,
+                                          simP,
+                                          fitP,
+                                          accQ,
+                                          simQ,
+                                          fitQ,
+                                          population,
+                                          accP,
+                                          simP,
+                                          fitP,
+                                          combined,
+                                          accR,
+                                          simR,
+                                          fitR,
+                                          fronts);
         }
     }
 
-    int num_fronts = 0;
-    non_dominated_sort(accP, simP, population_size, rankP, fronts, front_offsets, &num_fronts);
     int best_idx = 0;
-    double best_final_acc = -1.0;
-    for (int i = 0; i < population_size; i++) {
-        if (rankP[i] == 0 && accP[i] > best_final_acc) {
-            best_final_acc = accP[i];
-            best_idx = i;
+    if (selection_mode == GA_SELECTION_PARETO) {
+        int num_fronts = 0;
+        non_dominated_sort(accP, simP, population_size, rankP, fronts, front_offsets, &num_fronts);
+        double best_final_acc = -1.0;
+        for (int i = 0; i < population_size; i++) {
+            if (rankP[i] == 0 && accP[i] > best_final_acc) {
+                best_final_acc = accP[i];
+                best_idx = i;
+            }
+        }
+    } else if (selection_mode == GA_SELECTION_MULTI) {
+        double best_final_score = -1e9;
+        for (int i = 0; i < population_size; i++) {
+            if (fitP[i] > best_final_score) {
+                best_final_score = fitP[i];
+                best_idx = i;
+            }
+        }
+    } else {
+        double best_final_acc = -1.0;
+        for (int i = 0; i < population_size; i++) {
+            if (accP[i] > best_final_acc) {
+                best_final_acc = accP[i];
+                best_idx = i;
+            }
         }
     }
     memcpy(B_out,
@@ -868,11 +1069,20 @@ static void run_ga(const struct ga_eval_context *ctx_in,
            (size_t)genome_length * sizeof(uint16_t));
 
     if (ga_output_mode >= OUTPUT_DETAILED && best_gen >= 0 && best_gen_index >= 0) {
-        printf("GA winner: generation %d, individual %d (acc %.3f%%, sim %.3f)\n",
-               best_gen + 1,
-               best_gen_index + 1,
-               best_acc * 100.0,
-               best_sim);
+        if (selection_mode == GA_SELECTION_PARETO) {
+            printf("GA winner: generation %d, individual %d (acc %.3f%%, sim %.3f)\n",
+                   best_gen + 1,
+                   best_gen_index + 1,
+                   best_acc * 100.0,
+                   best_sim);
+        } else {
+            printf("GA winner: generation %d, individual %d (acc %.3f%%, sim %.3f, score %.3f)\n",
+                   best_gen + 1,
+                   best_gen_index + 1,
+                   best_acc * 100.0,
+                   best_sim,
+                   best_score);
+        }
     }
 
     free(front_offsets);
@@ -885,6 +1095,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     free(accQ);
     free(crowdP);
     free(rankP);
+    free(fitR);
+    free(fitQ);
+    free(fitP);
     free(simP);
     free(accP);
     free(combined);
