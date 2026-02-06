@@ -102,7 +102,7 @@ static void init_individual(uint16_t *individual,
         }
     }
 
-    int total = rng_range(rng_state, max_total + 1);
+    int total = max_total;
     if (total <= 0) {
         free(order);
         return;
@@ -155,15 +155,24 @@ static void init_individual(uint16_t *individual,
     (void)permutation;
     (void)permutation_length;
 
-    int value = transitions > 0 ? (max_total / transitions) : 0;
-    if (value < 0) {
-        value = 0;
-    } else if (value > (int)UINT16_MAX) {
-        value = (int)UINT16_MAX;
-    }
+    int prev_target = 0;
+    for (int level = 0; level < transitions; level++) {
+        double exact = ((double)(level + 1) * (double)max_total) / (double)transitions;
+        int target = (int)(exact + 0.5);
+        if (target < 0) {
+            target = 0;
+        } else if (target > max_total) {
+            target = max_total;
+        }
 
-    for (int i = 0; i < transitions; i++) {
-        individual[i] = (uint16_t)value;
+        int flips = target - prev_target;
+        if (flips < 0) {
+            flips = 0;
+        } else if (flips > (int)UINT16_MAX) {
+            flips = (int)UINT16_MAX;
+        }
+        individual[level] = (uint16_t)flips;
+        prev_target = target;
     }
 #endif
 }
