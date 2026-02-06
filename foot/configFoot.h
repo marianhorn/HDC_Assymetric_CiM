@@ -50,7 +50,7 @@
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
 #endif
 #ifndef VALIDATION_RATIO
-#define VALIDATION_RATIO 0.5 // validation split ratio
+#define VALIDATION_RATIO 0.4 // validation split ratio
 #endif
 
 #ifndef BIPOLAR_MODE
@@ -61,7 +61,7 @@
 #define GA_DEFAULT_POPULATION_SIZE 32 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 5 // GA generations
+#define GA_DEFAULT_GENERATIONS 64 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.0 // GA crossover rate
@@ -87,7 +87,7 @@
 
 #endif
 #ifndef GA_SELECTION_MODE
-#define GA_SELECTION_MODE GA_SELECTION_ACCURACY // GA selection mode
+#define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
 #endif
 
 
