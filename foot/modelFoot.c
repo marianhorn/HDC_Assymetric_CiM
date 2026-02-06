@@ -11,16 +11,18 @@
 #include "dataReaderFootEMG.h"
 #include "configFoot.h"
 #include "../hdc_infrastructure/evaluator.h"
+#include "../hdc_infrastructure/ResultManager.h"
 #include "../hdc_infrastructure/vector.h"
 #include "../hdc_infrastructure/trainer.h"
 
 int output_mode = OUTPUT_MODE;
 
 int main(){
+    result_manager_init();
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
     }
-    for(int dataset = 2; dataset<3;dataset++){
+    for(int dataset = 1; dataset<2;dataset++){
 
         if (output_mode >= OUTPUT_BASIC) {
             printf("\n\nModel for dataset #%d\n",dataset);
@@ -52,7 +54,7 @@ int main(){
         struct associative_memory assMem;
         init_assoc_mem(&assMem);
 
-        double validationRatio = 0.2;
+        double validationRatio = VALIDATION_RATIO;
         getDataWithValSet(dataset,
                           &trainingData,
                           &validationData,
@@ -64,6 +66,22 @@ int main(){
                           &validationSamples,
                           &testingSamples,
                           validationRatio);
+
+        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
+        struct timeseries_eval_result eval_val =
+            evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
+        char result_info[128];
+        snprintf(result_info, sizeof(result_info), "dataset=%d,validation=%.3f,phase=preopt-val", dataset, validationRatio);
+        addResult(&eval_val, result_info);
+
+        struct timeseries_eval_result eval_test =
+            evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
+        snprintf(result_info, sizeof(result_info), "dataset=%d,validation=%.3f,phase=preopt-test", dataset, validationRatio);
+        addResult(&eval_test, result_info);
+        free_assoc_mem(&assMem);
+        init_assoc_mem(&assMem);
+
 
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
@@ -87,9 +105,12 @@ int main(){
         #endif
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-            
-        (void)evaluate_model_timeseries_direct(&enc,&assMem,testingData,testingLabels,testingSamples);
-        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
+
+        struct timeseries_eval_result eval_post =
+            evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
+        snprintf(result_info, sizeof(result_info), "dataset=%d,validation=%.3f,phase=postopt-test", dataset, validationRatio);
+        addResult(&eval_post, result_info);
+        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
         // Free allocated memory
         freeData(trainingData, trainingSamples);
         if (validationData && validationSamples > 0) {
@@ -108,5 +129,6 @@ int main(){
         free_item_memory(&intensityLevels);
         #endif
     }
+    result_manager_close();
     return 1;
 }

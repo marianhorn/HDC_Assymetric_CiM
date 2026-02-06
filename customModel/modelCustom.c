@@ -19,6 +19,7 @@
 #include "../hdc_infrastructure/encoder.h"
 #include "../hdc_infrastructure/operations.h"
 #include "../hdc_infrastructure/evaluator.h"
+#include "../hdc_infrastructure/ResultManager.h"
 #include "../hdc_infrastructure/vector.h"
 #include "../hdc_infrastructure/trainer.h"
 /**
@@ -29,6 +30,7 @@
 int output_mode = OUTPUT_MODE;
 
 int main(){
+    result_manager_init();
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
     }
@@ -54,7 +56,9 @@ int main(){
 
     train_model_general_data(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
 
-    (void)evaluate_model_general_direct(&enc,&assMem,testingData,testingLabels,testingSamples);
+    struct timeseries_eval_result eval_result =
+        evaluate_model_general_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
+    addResult(&eval_result, "custom");
 
     // Free allocated memory
     freeData(trainingData, trainingSamples);
@@ -65,4 +69,5 @@ int main(){
 
     free_item_memory(&features);
     free_item_memory(&values);
+    result_manager_close();
 }

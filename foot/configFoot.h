@@ -46,6 +46,12 @@
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_DETAILED // output verbosity level
 #endif
+#ifndef RESULT_CSV_PATH
+#define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
+#endif
+#ifndef VALIDATION_RATIO
+#define VALIDATION_RATIO 0.5 // validation split ratio
+#endif
 
 #ifndef BIPOLAR_MODE
 #define BIPOLAR_MODE 0 // use bipolar vectors

@@ -9,6 +9,12 @@ ifeq ($(USE_OPENMP),1)
 	LDFLAGS += -fopenmp
 endif
 
+# Optional results CSV path (set RESULT_CSV_PATH=path/to/file.csv)
+RESULT_CSV_PATH ?=
+ifneq ($(strip $(RESULT_CSV_PATH)),)
+	CFLAGS += -DRESULT_CSV_PATH=\"$(RESULT_CSV_PATH)\"
+endif
+
 # Directories
 SRCDIR_FOOT = foot
 SRCDIR_CUSTOM = customModel
