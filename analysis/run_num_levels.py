@@ -2,9 +2,9 @@ import os
 import subprocess
 import sys
 
-NUM_LEVELS_LIST = [21, 51, 81, 111, 141]
-VECTOR_DIMENSIONS = [512, 1024, 2048, 4096, 8192, 16384]
-N_GRAM_SIZES = [1, 2, 3, 4]
+NUM_LEVELS_LIST = [21, 41, 61, 81, 101, 121]
+VECTOR_DIMENSIONS = [512, 1024, 2048, 3072, 4096]
+N_GRAM_SIZES = [None]
 VALIDATION_RATIOS = [None]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -42,8 +42,7 @@ def main():
                 for val_ratio in VALIDATION_RATIOS:
                     print(
                         f"NUM_LEVELS={num_levels} "
-                        f"VECTOR_DIMENSION={vector_dim} "
-                        f"N_GRAM_SIZE={n_gram}"
+                        f"VECTOR_DIMENSION={vector_dim}"
                     )
 
                     make_cmd = [
@@ -52,23 +51,25 @@ def main():
                         "USE_OPENMP=1",
                         f"NUM_LEVELS={num_levels}",
                         f"VECTOR_DIMENSION={vector_dim}",
-                        f"N_GRAM_SIZE={n_gram}",
                     ]
+                    if n_gram is not None:
+                        make_cmd.append(f"N_GRAM_SIZE={n_gram}")
                     if val_ratio is not None:
                         make_cmd.append(f"VALIDATION_RATIO={val_ratio}")
 
-                    run_cmd(make_cmd, REPO_ROOT, echo=False)
-
-                    if model_path is None:
-                        model_path = find_model_binary()
-                    if not model_path:
-                        raise FileNotFoundError("modelFoot binary not found after build")
-
                     with open(output_path, "a", encoding="utf-8") as log_file:
                         log_file.write(
-                            f"\n=== NUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dim} "
-                            f"N_GRAM_SIZE={n_gram} ===\n"
+                            f"\nNUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dim}\n"
                         )
+                        log_file.flush()
+
+                        run_cmd(make_cmd, REPO_ROOT, stdout=log_file, stderr=log_file, echo=False)
+
+                        if model_path is None:
+                            model_path = find_model_binary()
+                        if not model_path:
+                            raise FileNotFoundError("modelFoot binary not found after build")
+
                         rc = run_cmd([model_path], REPO_ROOT, ok_codes=(0,), stdout=log_file, stderr=log_file, echo=False)
                         if rc != 0:
                             log_file.write(f"Model exited with code {rc}\n")
