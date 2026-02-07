@@ -13,3 +13,13 @@ modelCustom
 changelog.md
 INSTRUCTIONS.md
 meinTodo.md
+analysis/big_test/intermed_results.csv
+analysis/big_test/results.csv
+analysis/convergence_test/output.txt
+analysis/convergence_test/results.csv
+analysis/dimension_test/output.txt
+analysis/dimension_test/results.csv
+analysis/levels_test/output.txt
+analysis/levels_test/results.csv
+analysis/ngram_test/output.txt
+analysis/ngram_test/results.csv
