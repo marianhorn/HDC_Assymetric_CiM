@@ -23,3 +23,14 @@ analysis/levels_test/output.txt
 analysis/levels_test/results.csv
 analysis/ngram_test/output.txt
 analysis/ngram_test/results.csv
+assocMemPreopt.csv
+analysis/item_mem_naive.csv
+analysis/item_mem_optimized.csv
+analysis/results.csv
+analysis/levels_test/results_old.csv
+analysis/levels_test/output_old.txt
+analysis/vector_analysis/assocMemPostopt.csv
+analysis/vector_analysis/item_mem_naive.csv
+analysis/vector_analysis/item_mem_optimized.csv
+analysis/testConfigs.txt
+analysis/output.txt
