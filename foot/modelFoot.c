@@ -68,7 +68,7 @@ int main(){
                           validationRatio);
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        //store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
+        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
         struct timeseries_eval_result eval_val =
             evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
         char result_info[128];
@@ -79,6 +79,7 @@ int main(){
             evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
         snprintf(result_info, sizeof(result_info), "dataset=%d,phase=preopt-test", dataset);
         addResult(&eval_test, result_info);
+        store_assoc_mem_to_csv(&assMem, "./assocMemPreopt.csv");
         free_assoc_mem(&assMem);
         init_assoc_mem(&assMem);
 
@@ -115,7 +116,9 @@ int main(){
             evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
         snprintf(result_info, sizeof(result_info), "dataset=%d,phase=postopt-test", dataset);
         addResult(&eval_post, result_info);
-        //store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
+        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
+        store_assoc_mem_to_csv(&assMem, "./assocMemPostopt.csv");
+
         // Free allocated memory
         freeData(trainingData, trainingSamples);
         if (validationData && validationSamples > 0) {

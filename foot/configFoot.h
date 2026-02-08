@@ -2,10 +2,10 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 1000 // hypervector dimension
+#define VECTOR_DIMENSION 1024 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 33 // number of quantization levels
+#define NUM_LEVELS 61 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level

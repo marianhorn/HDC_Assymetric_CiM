@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <ctype.h>
 #include "operations.h"
 #include "vector.h"
 #include <stdio.h>
@@ -288,6 +289,174 @@ void load_assoc_mem_from_bin(struct associative_memory *assoc_mem, const char *f
     for (int i = 0; i < NUM_CLASSES; i++) {
         if (fread(assoc_mem->class_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file) != VECTOR_DIMENSION) {
             fprintf(stderr, "Error: Incomplete vector data for class %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    fclose(file);
+    printf("Associative memory successfully loaded from %s\n", filepath);
+}
+
+static char *trim_in_place(char *s) {
+    while (*s && isspace((unsigned char)*s)) {
+        s++;
+    }
+    if (*s == '\0') {
+        return s;
+    }
+    char *end = s + strlen(s) - 1;
+    while (end > s && isspace((unsigned char)*end)) {
+        *end-- = '\0';
+    }
+    return s;
+}
+
+static int parse_assoc_csv_header(FILE *file, int *num_classes, int *dimension) {
+    long pos = ftell(file);
+    char line[512];
+    if (!fgets(line, sizeof(line), file)) {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+    if (line[0] != '#') {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+
+    char *cursor = line + 1;
+    char *token = strtok(cursor, ",");
+    while (token) {
+        char *entry = trim_in_place(token);
+        char *eq = strchr(entry, '=');
+        if (eq) {
+            *eq = '\0';
+            char *key = trim_in_place(entry);
+            char *value = trim_in_place(eq + 1);
+            int parsed = atoi(value);
+            if (strcmp(key, "num_classes") == 0 && num_classes) {
+                *num_classes = parsed;
+            } else if (strcmp(key, "dimension") == 0 && dimension) {
+                *dimension = parsed;
+            }
+        }
+        token = strtok(NULL, ",");
+    }
+
+    return 1;
+}
+
+static int parse_assoc_counts_line(FILE *file, int *counts, int max_counts) {
+    long pos = ftell(file);
+    char line[2048];
+    if (!fgets(line, sizeof(line), file)) {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+    if (line[0] != '#') {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+
+    char *cursor = line + 1;
+    char *token = strtok(cursor, ",");
+    if (!token) {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+
+    char *label = trim_in_place(token);
+    if (strcmp(label, "counts") != 0) {
+        fseek(file, pos, SEEK_SET);
+        return 0;
+    }
+
+    int idx = 0;
+    while ((token = strtok(NULL, ",")) != NULL && idx < max_counts) {
+        char *value = trim_in_place(token);
+        counts[idx++] = atoi(value);
+    }
+    for (; idx < max_counts; idx++) {
+        counts[idx] = 0;
+    }
+    return 1;
+}
+
+void store_assoc_mem_to_csv(struct associative_memory *assoc_mem, const char *file_path) {
+    FILE *file = fopen(file_path, "w");
+    if (!file) {
+        perror("Failed to open associative memory file for writing CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(file, "#assoc_mem,num_classes=%d,dimension=%d\n",
+            assoc_mem ? assoc_mem->num_classes : 0,
+            VECTOR_DIMENSION);
+
+    if (assoc_mem && assoc_mem->counts) {
+        fprintf(file, "#counts");
+        for (int i = 0; i < assoc_mem->num_classes; i++) {
+            fprintf(file, ",%d", assoc_mem->counts[i]);
+        }
+        fputc('\n', file);
+    }
+
+    for (int i = 0; i < assoc_mem->num_classes; i++) {
+        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+            fprintf(file, "%d", (int)assoc_mem->class_vectors[i]->data[j]);
+            if (j < VECTOR_DIMENSION - 1) {
+                fputc(',', file);
+            }
+        }
+        fputc('\n', file);
+    }
+
+    fclose(file);
+    printf("Associative memory successfully stored to %s\n", file_path);
+}
+
+void load_assoc_mem_from_csv(struct associative_memory *assoc_mem, const char *filepath) {
+    FILE *file = fopen(filepath, "r");
+    if (!file) {
+        perror("Failed to open file for reading associative memory CSV");
+        exit(EXIT_FAILURE);
+    }
+
+    int header_classes = 0;
+    int header_dim = 0;
+    int has_header = parse_assoc_csv_header(file, &header_classes, &header_dim);
+    if (has_header && header_classes > 0 && header_classes != NUM_CLASSES && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "load_assoc_mem_from_csv: header classes %d != NUM_CLASSES %d\n",
+                header_classes, NUM_CLASSES);
+    }
+    if (has_header && header_dim > 0 && header_dim != VECTOR_DIMENSION && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "load_assoc_mem_from_csv: header dimension %d != VECTOR_DIMENSION %d\n",
+                header_dim, VECTOR_DIMENSION);
+    }
+
+    init_assoc_mem(assoc_mem);
+    if (assoc_mem->counts) {
+        parse_assoc_counts_line(file, assoc_mem->counts, assoc_mem->num_classes);
+    }
+
+    for (int i = 0; i < assoc_mem->num_classes; i++) {
+        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+            int value = 0;
+            if (fscanf(file, "%d", &value) != 1) {
+                fprintf(stderr, "Error: Incomplete vector data at row %d, col %d\n", i, j);
+                exit(EXIT_FAILURE);
+            }
+            assoc_mem->class_vectors[i]->data[j] = (vector_element)value;
+            if (j < VECTOR_DIMENSION - 1) {
+                int ch = fgetc(file);
+                if (ch != ',') {
+                    fprintf(stderr, "Error: Expected ',' at row %d, col %d\n", i, j);
+                    exit(EXIT_FAILURE);
+                }
+            }
+        }
+        int ch = fgetc(file);
+        if (ch != '\n' && ch != EOF) {
+            fprintf(stderr, "Error: Expected end of line at row %d\n", i);
             exit(EXIT_FAILURE);
         }
     }
