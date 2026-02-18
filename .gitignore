@@ -34,3 +34,7 @@ analysis/vector_analysis/item_mem_naive.csv
 analysis/vector_analysis/item_mem_optimized.csv
 analysis/testConfigs.txt
 analysis/output.txt
+krischans_model/memoryfiles/value_vectors.txt
+krischans_model/memoryfiles/position-vectors.txt
+krischans_model/hdc_model.exe
+krischans_model/hdc_model
