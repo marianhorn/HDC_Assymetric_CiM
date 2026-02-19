@@ -2,10 +2,10 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 1024 // hypervector dimension
+#define VECTOR_DIMENSION 10000 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 61 // number of quantization levels
+#define NUM_LEVELS 100 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -18,7 +18,7 @@
 #define WINDOW 100 // sliding window length
 #endif
 #ifndef N_GRAM_SIZE
-#define N_GRAM_SIZE 2 // n-gram size
+#define N_GRAM_SIZE 5 // n-gram size
 #endif
 #ifndef DOWNSAMPLE
 #define DOWNSAMPLE 1 // downsample factor
@@ -38,19 +38,19 @@
 #define CUTTING_ANGLE_THRESHOLD 0.9 // cutting angle threshold
 #endif
 #ifndef PRECOMPUTED_ITEM_MEMORY
-#define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
+#define PRECOMPUTED_ITEM_MEMORY 0 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
-#define OUTPUT_MODE OUTPUT_DETAILED // output verbosity level
+#define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
 #endif
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
 #endif
 #ifndef VALIDATION_RATIO
-#define VALIDATION_RATIO 0.4 // validation split ratio
+#define VALIDATION_RATIO 0 // validation split ratio
 #endif
 
 #ifndef BIPOLAR_MODE

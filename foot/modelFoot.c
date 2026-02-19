@@ -22,7 +22,7 @@ int main(){
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
     }
-    for(int dataset = 1; dataset<2;dataset++){
+    for(int dataset = 0; dataset<4;dataset++){
 
         if (output_mode >= OUTPUT_BASIC) {
             printf("\n\nModel for dataset #%d\n",dataset);
@@ -68,6 +68,7 @@ int main(){
                           validationRatio);
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        /*
         store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
         struct timeseries_eval_result eval_val =
             evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
@@ -82,7 +83,7 @@ int main(){
         store_assoc_mem_to_csv(&assMem, "./assocMemPreopt.csv");
         free_assoc_mem(&assMem);
         init_assoc_mem(&assMem);
-
+*/
 
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
@@ -104,20 +105,20 @@ int main(){
                              validationSamples);
         #endif
         #endif
-
+/*
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
 
         struct timeseries_eval_result eval_post_val =
             evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
         snprintf(result_info, sizeof(result_info), "dataset=%d,phase=postopt-val", dataset);
         addResult(&eval_post_val, result_info);
-
+*/
         struct timeseries_eval_result eval_post =
             evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-        snprintf(result_info, sizeof(result_info), "dataset=%d,phase=postopt-test", dataset);
-        addResult(&eval_post, result_info);
-        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
-        store_assoc_mem_to_csv(&assMem, "./assocMemPostopt.csv");
+        //snprintf(result_info, sizeof(result_info), "dataset=%d,phase=postopt-test", dataset);
+        //addResult(&eval_post, result_info);
+        //store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
+        //store_assoc_mem_to_csv(&assMem, "./assocMemPostopt.csv");
 
         // Free allocated memory
         freeData(trainingData, trainingSamples);
