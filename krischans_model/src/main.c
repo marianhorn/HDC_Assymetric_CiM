@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
         free(y_test);
     }
 
-    printf("Accuracy: %.2f%%\n", mean_accuracy / DATASET_COUNT);
+    printf("Accuracy: %.2f%%\n", mean_accuracy / 4);
 
     free_memory();
 
