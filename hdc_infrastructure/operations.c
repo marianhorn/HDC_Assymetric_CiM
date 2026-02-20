@@ -123,7 +123,7 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
     }
 
     for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        result->data[i] = (count_true[i] > num_vectors / 2) ? 1 : 0;
+        result->data[i] = (count_true[i] >= num_vectors / 2) ? 1 : 0;
     }
 
 #endif
