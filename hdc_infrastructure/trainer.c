@@ -28,6 +28,7 @@
 #include "operations.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 /**
  * @brief Trains the HDC model using timeseries data.
@@ -74,7 +75,96 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
         normalize(assoc_mem);
     }
     
-    #else
+#else
+#if ENCODER_ROLLING
+    int window_size = N_GRAM_SIZE;
+    Vector *rolling_acc = create_vector();
+    Vector **window_vectors = (Vector **)malloc((size_t)window_size * sizeof(Vector *));
+    int **class_bit_counts = (int **)malloc((size_t)NUM_CLASSES * sizeof(int *));
+    int *class_counts = (int *)calloc((size_t)NUM_CLASSES, sizeof(int));
+
+    if (!rolling_acc || !window_vectors || !class_bit_counts || !class_counts) {
+        fprintf(stderr, "Failed to allocate rolling training buffers.\n");
+        if (rolling_acc) {
+            free_vector(rolling_acc);
+        }
+        free(window_vectors);
+        free(class_bit_counts);
+        free(class_counts);
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < window_size; i++) {
+        window_vectors[i] = create_vector();
+    }
+    for (int c = 0; c < NUM_CLASSES; c++) {
+        class_bit_counts[c] = (int *)calloc((size_t)VECTOR_DIMENSION, sizeof(int));
+        if (!class_bit_counts[c]) {
+            fprintf(stderr, "Failed to allocate class bit counters.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    int window_filled = 0;
+    int window_pos = 0;
+    for (int i = 0; i < training_samples; i++) {
+        Vector *sample_hv = create_vector();
+        Vector *rotated_hv = create_vector();
+        encode_timestamp(enc, training_data[i], sample_hv);
+        permute(sample_hv, window_pos, rotated_hv);
+
+        if (window_filled < window_size) {
+            bind(rolling_acc, rotated_hv, rolling_acc);
+            memcpy(window_vectors[window_pos]->data,
+                   rotated_hv->data,
+                   VECTOR_DIMENSION * sizeof(vector_element));
+            window_filled++;
+        } else {
+            bind(rolling_acc, window_vectors[window_pos], rolling_acc);
+            bind(rolling_acc, rotated_hv, rolling_acc);
+            memcpy(window_vectors[window_pos]->data,
+                   rotated_hv->data,
+                   VECTOR_DIMENSION * sizeof(vector_element));
+        }
+
+        window_pos = (window_pos + 1) % window_size;
+
+        if (i >= window_size - 1) {
+            int label = training_labels[i];
+            if (label >= 0 && label < NUM_CLASSES) {
+                for (int d = 0; d < VECTOR_DIMENSION; d++) {
+                    class_bit_counts[label][d] += rolling_acc->data[d] ? 1 : 0;
+                }
+                class_counts[label]++;
+            }
+        }
+
+        free_vector(rotated_hv);
+        free_vector(sample_hv);
+    }
+
+    for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {
+        Vector *bundled_hv = create_vector();
+        int thr = class_counts[class_id] / 2;
+        for (int d = 0; d < VECTOR_DIMENSION; d++) {
+            bundled_hv->data[d] = (class_bit_counts[class_id][d] > thr) ? 1 : 0;
+        }
+        add_to_assoc_mem(assoc_mem, bundled_hv, class_id);
+        assoc_mem->counts[class_id] = class_counts[class_id];
+        free_vector(bundled_hv);
+    }
+
+    for (int c = 0; c < NUM_CLASSES; c++) {
+        free(class_bit_counts[c]);
+    }
+    for (int i = 0; i < window_size; i++) {
+        free_vector(window_vectors[i]);
+    }
+    free(class_counts);
+    free(class_bit_counts);
+    free(window_vectors);
+    free_vector(rolling_acc);
+#else
     Vector*** encoded_vectors = (Vector***)malloc((training_samples - N_GRAM_SIZE) * NUM_CLASSES * sizeof(Vector*));
     int* vector_counts = (int*)calloc(NUM_CLASSES, sizeof(int)); // Array to keep track of vector count for each class
     // Allocate memory for each class' vector array
@@ -118,7 +208,8 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
     }
     free(encoded_vectors);
     free(vector_counts);
-    #endif
+#endif
+#endif
 
     if (output_mode >= OUTPUT_DETAILED) {
         print_class_vectors(assoc_mem);

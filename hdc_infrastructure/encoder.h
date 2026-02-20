@@ -44,6 +44,7 @@ struct encoder {
 // Initialize the encoder
 void init_encoder(struct encoder *enc, struct item_memory *channel_memory, struct item_memory *signal_memory);
 #endif
+void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result);
 int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result);
 bool is_window_stable(int* labels);
 int encode_general_data(struct encoder *enc, double *emg_data, Vector *result);

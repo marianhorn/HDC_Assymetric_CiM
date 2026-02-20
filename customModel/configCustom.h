@@ -62,6 +62,9 @@
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 3 // n-gram size
 #endif
+#ifndef ENCODER_ROLLING
+#define ENCODER_ROLLING 0 // use rolling XOR temporal encoding path
+#endif
 /** 
  * @brief Downsampling rate for the data.
  * 

@@ -156,7 +156,7 @@ bool is_window_stable(int* labels){
  * @return 0 on success, -1 if any pointer is NULL.
  */
 int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
-        if (enc == NULL || emg_data == NULL || result == NULL) {
+    if (enc == NULL || emg_data == NULL || result == NULL) {
         fprintf(stdout, "Error: NULL pointer passed to encode_timeseries\n");
         return -1;
     }
@@ -191,6 +191,24 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         }
     }
     #else
+#if ENCODER_ROLLING
+    // Rolling-style temporal composition: XOR over slot-rotated timestamp HVs.
+    for (int d = 0; d < VECTOR_DIMENSION; d++) {
+        result->data[d] = 0;
+    }
+
+    for (size_t i = 0; i < N_GRAM_SIZE; i++) {
+        Vector* encoded = create_vector();
+        Vector* encoded_permuted = create_vector();
+        encode_timestamp(enc, emg_data[i], encoded);
+        permute(encoded, (int)i, encoded_permuted);
+        for (int d = 0; d < VECTOR_DIMENSION; d++) {
+            result->data[d] = result->data[d] ^ encoded_permuted->data[d];
+        }
+        free_vector(encoded);
+        free_vector(encoded_permuted);
+    }
+#else
     encode_timestamp(enc, emg_data[0], result);
 
     for (size_t i = 1; i < N_GRAM_SIZE; i++) {
@@ -203,6 +221,7 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         free_vector(encoded);
         free_vector(result_permuted);
     }
+#endif
     if (output_mode >= OUTPUT_DEBUG) {
         bool vectorContainsOnlyZeroEntries = true;
         for(int z = 0; z<VECTOR_DIMENSION; z++){
