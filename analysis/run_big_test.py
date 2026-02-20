@@ -1,14 +1,16 @@
 import os
+import shutil
 import subprocess
 import sys
 
-NUM_LEVELS_LIST = [21, 41, 61, 81, 101, 121]
-VECTOR_DIMENSIONS = [512, 1024, 2048, 3072, 4096]
-N_GRAM_SIZES = [None]
-VALIDATION_RATIOS = [None]
+NUM_LEVELS_LIST = list(range(21, 152, 10))
+VECTOR_DIMENSIONS = [512, 1024, 2048, 4096, 8192]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
+OUTPUT_PATH = os.path.join(BASE_DIR, "big_test", "output_model.txt")
+RESULTS_PATH = os.path.join(BASE_DIR, "big_test", "repeats_results_model.csv")
+RESULTS_PATH_REL = os.path.relpath(RESULTS_PATH, REPO_ROOT).replace(os.sep, "/")
 
 MODEL_CANDIDATES = [
     os.path.join(REPO_ROOT, "modelFoot"),
@@ -32,47 +34,57 @@ def find_model_binary():
     return None
 
 
+def choose_make_command():
+    if shutil.which("make"):
+        return "make"
+    if shutil.which("mingw32-make"):
+        return "mingw32-make"
+    raise RuntimeError("No make command found (tried make and mingw32-make).")
+
+
 def main():
-    output_path = os.path.join(BASE_DIR, "output.txt")
     model_path = None
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    make_cmd_name = choose_make_command()
 
-    for num_levels in NUM_LEVELS_LIST:
-        for vector_dim in VECTOR_DIMENSIONS:
-            for n_gram in N_GRAM_SIZES:
-                for val_ratio in VALIDATION_RATIOS:
-                    print(
-                        f"NUM_LEVELS={num_levels} "
-                        f"VECTOR_DIMENSION={vector_dim}"
-                    )
+    for vector_dim in VECTOR_DIMENSIONS:
+        for num_levels in NUM_LEVELS_LIST:
+            print(
+                f"NUM_LEVELS={num_levels} "
+                f"VECTOR_DIMENSION={vector_dim} "
+                "ENCODER_ROLLING=1"
+            )
 
-                    make_cmd = [
-                        "make",
-                        "foot",
-                        "USE_OPENMP=1",
-                        f"NUM_LEVELS={num_levels}",
-                        f"VECTOR_DIMENSION={vector_dim}",
-                    ]
-                    if n_gram is not None:
-                        make_cmd.append(f"N_GRAM_SIZE={n_gram}")
-                    if val_ratio is not None:
-                        make_cmd.append(f"VALIDATION_RATIO={val_ratio}")
+            make_cmd = [
+                make_cmd_name,
+                "foot",
+                "USE_OPENMP=1",
+                "ENCODER_ROLLING=1",
+                "PRECOMPUTED_ITEM_MEMORY=0",
+                "USE_GENETIC_ITEM_MEMORY=0",
+                "VALIDATION_RATIO=0",
+                "N_GRAM_SIZE=5",
+                f"NUM_LEVELS={num_levels}",
+                f"VECTOR_DIMENSION={vector_dim}",
+                f"RESULT_CSV_PATH={RESULTS_PATH_REL}",
+            ]
 
-                    with open(output_path, "a", encoding="utf-8") as log_file:
-                        log_file.write(
-                            f"\nNUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dim}\n"
-                        )
-                        log_file.flush()
+            with open(OUTPUT_PATH, "a", encoding="utf-8") as log_file:
+                log_file.write(
+                    f"\nNUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dim} ENCODER_ROLLING=1\n"
+                )
+                log_file.flush()
 
-                        run_cmd(make_cmd, REPO_ROOT, stdout=log_file, stderr=log_file, echo=False)
+                run_cmd(make_cmd, REPO_ROOT, stdout=log_file, stderr=log_file, echo=False)
 
-                        if model_path is None:
-                            model_path = find_model_binary()
-                        if not model_path:
-                            raise FileNotFoundError("modelFoot binary not found after build")
+                if model_path is None:
+                    model_path = find_model_binary()
+                if not model_path:
+                    raise FileNotFoundError("modelFoot binary not found after build")
 
-                        rc = run_cmd([model_path], REPO_ROOT, ok_codes=(0,), stdout=log_file, stderr=log_file, echo=False)
-                        if rc != 0:
-                            log_file.write(f"Model exited with code {rc}\n")
+                rc = run_cmd([model_path], REPO_ROOT, ok_codes=(0,), stdout=log_file, stderr=log_file, echo=False)
+                if rc != 0:
+                    log_file.write(f"Model exited with code {rc}\n")
 
 
 if __name__ == "__main__":

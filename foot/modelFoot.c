@@ -22,6 +22,15 @@ int main(){
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
     }
+
+    double mean_overall_accuracy = 0.0;
+    double mean_class_average_accuracy = 0.0;
+    double mean_class_vector_similarity = 0.0;
+    size_t sum_correct = 0;
+    size_t sum_not_correct = 0;
+    size_t sum_transition_error = 0;
+    size_t sum_total = 0;
+
     for(int dataset = 0; dataset<4;dataset++){
 
         if (output_mode >= OUTPUT_BASIC) {
@@ -68,22 +77,6 @@ int main(){
                           validationRatio);
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        /*
-        store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_naive.csv",NUM_LEVELS, NUM_FEATURES);
-        struct timeseries_eval_result eval_val =
-            evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
-        char result_info[128];
-        snprintf(result_info, sizeof(result_info), "dataset=%d,phase=preopt-val", dataset);
-        addResult(&eval_val, result_info);
-
-        struct timeseries_eval_result eval_test =
-            evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-        snprintf(result_info, sizeof(result_info), "dataset=%d,phase=preopt-test", dataset);
-        addResult(&eval_test, result_info);
-        store_assoc_mem_to_csv(&assMem, "./assocMemPreopt.csv");
-        free_assoc_mem(&assMem);
-        init_assoc_mem(&assMem);
-*/
 
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
@@ -104,21 +97,33 @@ int main(){
                              validationLabels,
                              validationSamples);
         #endif
-        #endif
-/*
+        free_assoc_mem(&assMem);
+        init_assoc_mem(&assMem);
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        #endif
 
-        struct timeseries_eval_result eval_post_val =
-            evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
-        snprintf(result_info, sizeof(result_info), "dataset=%d,phase=postopt-val", dataset);
-        addResult(&eval_post_val, result_info);
-*/
-        struct timeseries_eval_result eval_post =
+        struct timeseries_eval_result eval_test =
             evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-        //snprintf(result_info, sizeof(result_info), "dataset=%d,phase=postopt-test", dataset);
-        //addResult(&eval_post, result_info);
-        //store_precomp_item_mem_to_csv(&itemMem,"./analysis/item_mem_optimized.csv",NUM_LEVELS, NUM_FEATURES);
-        //store_assoc_mem_to_csv(&assMem, "./assocMemPostopt.csv");
+
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("Dataset %02d accuracy: %.2f%%\n", dataset, eval_test.overall_accuracy * 100.0);
+        }
+
+        mean_overall_accuracy += eval_test.overall_accuracy;
+        mean_class_average_accuracy += eval_test.class_average_accuracy;
+        mean_class_vector_similarity += eval_test.class_vector_similarity;
+        sum_correct += eval_test.correct;
+        sum_not_correct += eval_test.not_correct;
+        sum_transition_error += eval_test.transition_error;
+        sum_total += eval_test.total;
+
+        char result_info[128];
+        #if USE_GENETIC_ITEM_MEMORY
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-test", dataset);
+        #else
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=test", dataset);
+        #endif
+        addResult(&eval_test, result_info);
 
         // Free allocated memory
         freeData(trainingData, trainingSamples);
@@ -138,6 +143,26 @@ int main(){
         free_item_memory(&intensityLevels);
         #endif
     }
+
+    struct timeseries_eval_result overall_result = {0};
+    overall_result.correct = sum_correct;
+    overall_result.not_correct = sum_not_correct;
+    overall_result.transition_error = sum_transition_error;
+    overall_result.total = sum_total;
+    overall_result.overall_accuracy = mean_overall_accuracy / 4.0;
+    overall_result.class_average_accuracy = mean_class_average_accuracy / 4.0;
+    overall_result.class_vector_similarity = mean_class_vector_similarity / 4.0;
+
+    if (output_mode >= OUTPUT_BASIC) {
+        printf("Accuracy: %.2f%%\n", overall_result.overall_accuracy * 100.0);
+    }
+
+    #if USE_GENETIC_ITEM_MEMORY
+    addResult(&overall_result, "model=mine,scope=overall,phase=postopt-test");
+    #else
+    addResult(&overall_result, "model=mine,scope=overall,phase=test");
+    #endif
+
     result_manager_close();
     return 0;
 }
