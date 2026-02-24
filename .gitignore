@@ -60,3 +60,7 @@ analysis/big_test/output_krischan_now.txt
 analysis/big_test/output_mine_krischan_mem.txt
 analysis/big_test/output_ould7.txt
 analysis/big_test/results_mine_krischan_mem.csv
+analysis/validate_consistency/krischan_position_vectors.csv
+analysis/validate_consistency/krischan_value_vectors.csv
+analysis/validate_consistency/results_marian_consistency.csv
+analysis/validate_consistency/validate_consistency_output.txt
