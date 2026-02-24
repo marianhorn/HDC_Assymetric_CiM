@@ -54,3 +54,9 @@ analysis/big_test/repeats_results_model.csv
 analysis/big_test/comparison_model_vs_krischan.csv
 analysis/big_test/output_model.txt
 analysis/big_test/__pycache__/plot_krischan_run_comparison.cpython-310.pyc
+analysis/big_test/krischan_position_vectors.csv
+analysis/big_test/krischan_value_vectors.csv
+analysis/big_test/output_krischan_now.txt
+analysis/big_test/output_mine_krischan_mem.txt
+analysis/big_test/output_ould7.txt
+analysis/big_test/results_mine_krischan_mem.csv

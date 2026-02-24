@@ -70,7 +70,26 @@ void init_encoder(struct encoder *enc, struct item_memory *channel_memory, struc
  * @return The discrete signal level (integer) corresponding to the EMG value.
  */
 int get_signal_level(double emg_value) {
+#if ENCODER_ROLLING && !BIPOLAR_MODE
+    // Mirror Krischan quantization path for rolling-binary comparison.
+    float value = (float)emg_value;
+    int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
+    if (scaled < 0) {
+        scaled = 0;
+    }
+    if (scaled > 20000) {
+        scaled = 20000;
+    }
 
+    int level = (scaled * (NUM_LEVELS - 1) + 10000) / 20000;
+    if (level < 0) {
+        level = 0;
+    }
+    if (level >= NUM_LEVELS) {
+        level = NUM_LEVELS - 1;
+    }
+    return level;
+#else
     if (emg_value <= MIN_LEVEL) {
         return 0;
     }
@@ -83,6 +102,7 @@ int get_signal_level(double emg_value) {
     /*
     int64_t key = (int64_t)round(emg_value);
     return key;*/
+#endif
 }
 
 /**
