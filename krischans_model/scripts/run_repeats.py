@@ -1,9 +1,9 @@
 import argparse
 import csv
-import random
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -69,27 +69,21 @@ def append_result(path: Path, row):
     with path.open("a", encoding="utf-8", newline="") as handle:
         csv.writer(handle).writerow(row)
 
+def regenerate_memory(script_dir: Path, project_root: Path, dimension: int, num_levels: int):
+    randomvector_script = script_dir / "randomvector.py"
+    bitflip_script = script_dir / "bitflipvector.py"
+    python_bin = sys.executable
 
-def write_position_memory(path: Path, dimension: int, seed: int):
-    rng = random.Random(seed)
-    with path.open("w", encoding="ascii", newline="\n") as handle:
-        for _ in range(NUM_FEATURES):
-            bits = "".join("1" if rng.getrandbits(1) else "0" for _ in range(dimension))
-            handle.write(bits + "\n")
-
-
-def write_value_memory(path: Path, dimension: int, num_levels: int, seed: int):
-    rng = random.Random(seed)
-    flips_per_level = dimension // 40
-    current = ["1" if rng.getrandbits(1) else "0" for _ in range(dimension)]
-
-    with path.open("w", encoding="ascii", newline="\n") as handle:
-        handle.write("".join(current) + "\n")
-        for _ in range(1, num_levels):
-            for _ in range(flips_per_level):
-                index = rng.randrange(dimension)
-                current[index] = "0" if current[index] == "1" else "1"
-            handle.write("".join(current) + "\n")
+    subprocess.run(
+        [python_bin, str(randomvector_script), str(dimension), str(NUM_FEATURES)],
+        cwd=project_root,
+        check=True,
+    )
+    subprocess.run(
+        [python_bin, str(bitflip_script), str(dimension), str(num_levels)],
+        cwd=project_root,
+        check=True,
+    )
 
 
 def parse_accuracies(stdout_text: str):
@@ -148,7 +142,6 @@ def main():
         help="Comma or space separated num-level values.",
     )
     parser.add_argument("--repeats", type=int, default=1, help="Repetitions per (D, M) with mode fixed to 1.")
-    parser.add_argument("--seed", type=int, default=None, help="Optional base seed for deterministic runs.")
     parser.add_argument("--output", default="results/repeats_results.csv", help="CSV path relative to krischans_model.")
     parser.add_argument("--skip-build", action="store_true", help="Skip build step.")
     args = parser.parse_args()
@@ -163,9 +156,6 @@ def main():
     project_root = script_dir.parent
     output_path = project_root / args.output
 
-    position_memory_path = project_root / "memoryfiles" / "position-vectors.txt"
-    value_memory_path = project_root / "memoryfiles" / "value_vectors.txt"
-
     if not args.skip_build:
         make_cmd = choose_make_command()
         print(f"[build] {make_cmd} build")
@@ -174,22 +164,13 @@ def main():
     binary = find_binary(project_root)
     ensure_csv_header(output_path)
 
-    seed_rng = random.Random(args.seed) if args.seed is not None else random.Random()
-
     for dimension in d_values:
         for num_levels in m_values:
             for repeat in range(args.repeats):
-                seed_im = seed_rng.randrange(1, 2**31)
-                seed_cm = seed_rng.randrange(1, 2**31)
-
-                write_position_memory(position_memory_path, dimension, seed_im)
-                write_value_memory(value_memory_path, dimension, num_levels, seed_cm)
+                regenerate_memory(script_dir, project_root, dimension, num_levels)
 
                 for mode in modes:
-                    print(
-                        f"run: D={dimension} M={num_levels} mode={mode} repeat={repeat} "
-                        f"seed_im={seed_im} seed_cm={seed_cm}"
-                    )
+                    print(f"run: D={dimension} M={num_levels} mode={mode} repeat={repeat}")
                     completed = subprocess.run(
                         [str(binary), str(dimension), str(num_levels), str(mode)],
                         cwd=project_root,
@@ -205,16 +186,13 @@ def main():
                     for dataset_id in sorted(dataset_acc):
                         info = (
                             f"model=krischan,scope=dataset,mode={mode},dataset={dataset_id},"
-                            f"repeat={repeat},seed_im={seed_im},seed_cm={seed_cm}"
+                            f"repeat={repeat}"
                         )
                         row = make_row(num_levels, dimension, dataset_acc[dataset_id], info)
                         append_result(output_path, row)
 
                     if overall_acc is not None:
-                        info = (
-                            f"model=krischan,scope=overall,mode={mode},repeat={repeat},"
-                            f"seed_im={seed_im},seed_cm={seed_cm}"
-                        )
+                        info = f"model=krischan,scope=overall,mode={mode},repeat={repeat}"
                         row = make_row(num_levels, dimension, overall_acc, info)
                         append_result(output_path, row)
 
