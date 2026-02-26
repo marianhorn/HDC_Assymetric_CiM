@@ -41,7 +41,7 @@
 #define CUTTING_ANGLE_THRESHOLD 0.9 // cutting angle threshold
 #endif
 #ifndef PRECOMPUTED_ITEM_MEMORY
-#define PRECOMPUTED_ITEM_MEMORY 0 // use precomputed item memory
+#define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
 #define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory

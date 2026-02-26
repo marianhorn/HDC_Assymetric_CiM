@@ -17,9 +17,6 @@
 
 int output_mode = OUTPUT_MODE;
 
-#define TEMP_KRISCHAN_IM_CSV "analysis/big_test/krischan_position_vectors.csv"
-#define TEMP_KRISCHAN_CM_CSV "analysis/big_test/krischan_value_vectors.csv"
-
 int main(){
     result_manager_init();
     if (output_mode >= OUTPUT_BASIC) {
@@ -48,13 +45,8 @@ int main(){
         #else
         struct item_memory electrodes;
         struct item_memory intensityLevels;
-        if (output_mode >= OUTPUT_BASIC) {
-            printf("Loading Krischan IM/CM from CSV:\n");
-            printf("  IM: %s\n", TEMP_KRISCHAN_IM_CSV);
-            printf("  CM: %s\n", TEMP_KRISCHAN_CM_CSV);
-        }
-        load_item_mem_from_csv(&electrodes, TEMP_KRISCHAN_IM_CSV, NUM_FEATURES);
-        load_item_mem_from_csv(&intensityLevels, TEMP_KRISCHAN_CM_CSV, NUM_LEVELS);
+        init_item_memory(&electrodes, NUM_FEATURES);
+        init_continuous_item_memory(&intensityLevels, NUM_LEVELS);
 
         struct encoder enc;
         init_encoder(&enc,&electrodes,&intensityLevels);

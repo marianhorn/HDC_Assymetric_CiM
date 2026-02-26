@@ -1,0 +1,45 @@
+Baseline CSV: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/krischan/repeats_results.csv
+Candidate CSV: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/marianInKrischanMode/big_run_results.csv
+Candidate phase used: test
+
+Compared cases: 350
+Candidate better: 205
+Krischan better: 145
+Tie: 0
+Mean delta (candidate - krischan): +0.0092
+
+Per-scope delta summary:
+  dataset_0: mean=+0.0037, better=43, worse=27, total=70
+  dataset_1: mean=+0.0212, better=36, worse=34, total=70
+  dataset_2: mean=+0.0132, better=54, worse=16, total=70
+  dataset_3: mean=-0.0014, better=30, worse=40, total=70
+  overall: mean=+0.0092, better=42, worse=28, total=70
+
+By vector dimension (mean delta):
+  D=512: +0.0294
+  D=1024: +0.0069
+  D=2048: +0.0053
+  D=4096: +0.0034
+  D=8192: +0.0007
+
+By num levels (mean delta):
+  L=21: +0.0344
+  L=31: +0.0183
+  L=41: +0.0022
+  L=51: -0.0021
+  L=61: +0.0264
+  L=71: +0.0190
+  L=81: +0.0076
+  L=91: +0.0047
+  L=101: +0.0130
+  L=111: -0.0006
+  L=121: -0.0017
+  L=131: +0.0095
+  L=141: +0.0086
+  L=151: -0.0110
+
+Observed pattern hint: strongest average gains at D=512, strongest average losses at D=8192.
+Observed pattern hint: strongest average gains at L=21, strongest average losses at L=151.
+
+Saved detailed comparison CSV: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/marianInKrischanMode/comparison_against_krischan.csv
+Saved heatmap figure: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/marianInKrischanMode/comparison_against_krischan_heatmaps.png

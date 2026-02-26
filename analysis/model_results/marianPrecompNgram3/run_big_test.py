@@ -63,7 +63,7 @@ def main():
                 "PRECOMPUTED_ITEM_MEMORY=1",
                 "USE_GENETIC_ITEM_MEMORY=0",
                 "VALIDATION_RATIO=0",
-                "N_GRAM_SIZE=5",
+                "N_GRAM_SIZE=3",
                 f"NUM_LEVELS={num_levels}",
                 f"VECTOR_DIMENSION={vector_dim}",
                 f"RESULT_CSV_PATH={RESULTS_PATH_REL}",

@@ -60,7 +60,7 @@ def main():
                 "foot",
                 "USE_OPENMP=1",
                 "ENCODER_ROLLING=0",
-                "PRECOMPUTED_ITEM_MEMORY=1",
+                "PRECOMPUTED_ITEM_MEMORY=0",
                 "USE_GENETIC_ITEM_MEMORY=0",
                 "VALIDATION_RATIO=0",
                 "N_GRAM_SIZE=5",
