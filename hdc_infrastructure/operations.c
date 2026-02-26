@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include "vector.h"
 
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
 static void permute_like_krischan(Vector *vector, int offset, Vector *result) {
     int chunks = (VECTOR_DIMENSION + 31) / 32;
     uint32_t *in_words = (uint32_t *)calloc((size_t)chunks, sizeof(uint32_t));
@@ -69,6 +70,7 @@ static void permute_like_krischan(Vector *vector, int offset, Vector *result) {
     free(out_words);
     free(in_words);
 }
+#endif
 /**
  * @brief Combines two hypervectors element-wise.
  *
@@ -192,7 +194,7 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
  * @note The `result` vector is modified in-place and should be initialized before calling.
  */
 void permute(Vector* vector, int offset, Vector* result) {
-#if ENCODER_ROLLING && !BIPOLAR_MODE
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
     permute_like_krischan(vector, offset, result);
 #else
     if(offset>0){

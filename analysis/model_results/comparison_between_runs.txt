@@ -1,0 +1,49 @@
+Run A folder: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/fusedPrecompHalfCimRange
+Run B folder: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/fusedModelOriginal
+Run A CSV: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/fusedPrecompHalfCimRange/big_run_results.csv
+Run B CSV: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/fusedModelOriginal/big_run_results.csv
+Filtered out: dataset=1 rows
+Phase used: test
+Label A: fusedPrecompHalfCimRange
+Label B: fusedModelOriginal
+
+Compared cases: 280
+fusedModelOriginal better: 152
+fusedPrecompHalfCimRange better: 86
+Tie: 42
+Mean delta (fusedModelOriginal - fusedPrecompHalfCimRange): +0.0097
+
+Per-scope delta summary:
+  dataset_0: mean=+0.0061, better=46, worse=11, total=70
+  dataset_2: mean=+0.0122, better=28, worse=33, total=70
+  dataset_3: mean=-0.0026, better=26, worse=26, total=70
+  overall: mean=+0.0230, better=52, worse=16, total=70
+
+By vector dimension (mean delta):
+  D=512: +0.0354
+  D=1024: +0.0093
+  D=2048: +0.0004
+  D=4096: +0.0017
+  D=8192: +0.0015
+
+By num levels (mean delta):
+  L=21: +0.0075
+  L=31: +0.0091
+  L=41: -0.0060
+  L=51: +0.0072
+  L=61: +0.0146
+  L=71: +0.0166
+  L=81: +0.0147
+  L=91: +0.0074
+  L=101: +0.0138
+  L=111: +0.0122
+  L=121: +0.0062
+  L=131: +0.0166
+  L=141: +0.0117
+  L=151: +0.0037
+
+Observed pattern hint: strongest average gains at D=512, strongest average losses at D=2048.
+Observed pattern hint: strongest average gains at L=131, strongest average losses at L=41.
+
+Saved comparison CSV: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/comparison_between_runs.csv
+Saved heatmap PNG: /mnt/c/Users/Marian/Documents/FAU_CE/master/Semester 4/Masterarbeit/HDC/code/hdcframeworkhorn/analysis/model_results/comparison_between_runs_heatmaps.png

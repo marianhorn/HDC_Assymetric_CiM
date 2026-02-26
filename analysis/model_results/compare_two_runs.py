@@ -66,10 +66,16 @@ def scope_name(row):
     return f"dataset_{row['dataset_id']}"
 
 
+def include_case(scope, dataset_id):
+    return not (scope == "dataset" and dataset_id == 1)
+
+
 def compare(run_a, run_b, eps):
     rows = []
     keys = sorted(set(run_a.keys()) & set(run_b.keys()))
     for key in keys:
+        if not include_case(key[2], key[3]):
+            continue
         a = run_a[key]
         b = run_b[key]
         delta = b - a
@@ -309,7 +315,7 @@ def main():
     means_b = means_by_key(grouped_b)
     rows = compare(means_a, means_b, eps=1e-9)
     if not rows:
-        raise RuntimeError("No overlapping config/scope cases between run A and run B.")
+        raise RuntimeError("No overlapping config/scope cases between run A and run B after filtering.")
 
     label_a = args.label_a if args.label_a else os.path.basename(os.path.normpath(run_a_dir))
     label_b = args.label_b if args.label_b else os.path.basename(os.path.normpath(run_b_dir))
@@ -328,6 +334,7 @@ def main():
         handle.write(f"Run B folder: {run_b_dir}\n")
         handle.write(f"Run A CSV: {run_a_csv}\n")
         handle.write(f"Run B CSV: {run_b_csv}\n")
+        handle.write("Filtered out: dataset=1 rows\n")
         if phase is not None:
             handle.write(f"Phase used: {phase}\n")
         handle.write(f"Label A: {label_a}\n")

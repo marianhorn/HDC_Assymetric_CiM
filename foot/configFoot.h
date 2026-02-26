@@ -20,8 +20,8 @@
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 5 // n-gram size
 #endif
-#ifndef ENCODER_ROLLING
-#define ENCODER_ROLLING 1 // use rolling XOR temporal encoding path
+#ifndef MODEL_VARIANT
+#define MODEL_VARIANT MODEL_VARIANT_FUSION // active default model path
 #endif
 #ifndef DOWNSAMPLE
 #define DOWNSAMPLE 1 // downsample factor
@@ -87,12 +87,9 @@
 #ifndef GA_INIT_UNIFORM
 #define GA_INIT_UNIFORM 1 // GA init uniform vs equal
 #endif
-
-#endif
 #ifndef GA_SELECTION_MODE
 #define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
 #endif
-
 
 extern int output_mode;
 
@@ -100,14 +97,14 @@ extern int output_mode;
 #define OUTPUT_NONE 0        // No printing
 #define OUTPUT_BASIC 1       // Print results
 #define OUTPUT_DETAILED 2    // Print intermediate information
+#define OUTPUT_DEBUG 3       // Print everything
 
-
-#define OUTPUT_DEBUG 3         // Print everything
-
-
-#define GA_SELECTION_PARETO 0 // GA selection: NSGA-II Pareto
-#define GA_SELECTION_MULTI 1 // GA selection: accuracy minus similarity
+#define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
+#define GA_SELECTION_MULTI 1    // GA selection: accuracy minus similarity
 #define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
 
+#define MODEL_VARIANT_MARIAN 0   // Marian baseline path
+#define MODEL_VARIANT_KRISCHAN 1 // Krischan-compatible rolling path
+#define MODEL_VARIANT_FUSION 2   // Marian temporal path + Krischan quantization
 
-
+#endif

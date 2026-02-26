@@ -62,8 +62,11 @@
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 3 // n-gram size
 #endif
-#ifndef ENCODER_ROLLING
-#define ENCODER_ROLLING 0 // use rolling XOR temporal encoding path
+#define MODEL_VARIANT_MARIAN 0 // Marian baseline path
+#define MODEL_VARIANT_KRISCHAN 1 // Krischan-compatible rolling path
+#define MODEL_VARIANT_FUSION 2 // Marian temporal path + Krischan quantization
+#ifndef MODEL_VARIANT
+#define MODEL_VARIANT MODEL_VARIANT_FUSION // active default model path
 #endif
 /** 
  * @brief Downsampling rate for the data.
@@ -160,7 +163,7 @@
 #define GA_DEFAULT_SEED 1u // GA RNG seed
 #endif
 #ifndef GA_MAX_FLIPS_CIM
-#define GA_MAX_FLIPS_CIM 0 // CiM max flips budget
+#define GA_MAX_FLIPS_CIM (VECTOR_DIMENSION / 2) // CiM max flips budget
 #endif
 #ifndef GA_INIT_UNIFORM
 #define GA_INIT_UNIFORM 0 // GA init uniform vs equal

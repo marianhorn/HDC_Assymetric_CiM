@@ -52,14 +52,14 @@ def main():
             print(
                 f"NUM_LEVELS={num_levels} "
                 f"VECTOR_DIMENSION={vector_dim} "
-                "ENCODER_ROLLING=0"
+                "MODEL_VARIANT=2"
             )
 
             make_cmd = [
                 make_cmd_name,
                 "foot",
                 "USE_OPENMP=1",
-                "ENCODER_ROLLING=0",
+                "MODEL_VARIANT=2",
                 "PRECOMPUTED_ITEM_MEMORY=1",
                 "USE_GENETIC_ITEM_MEMORY=0",
                 "VALIDATION_RATIO=0",
@@ -71,7 +71,7 @@ def main():
 
             with open(OUTPUT_PATH, "a", encoding="utf-8") as log_file:
                 log_file.write(
-                    f"\nNUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dim} ENCODER_ROLLING=0\n"
+                    f"\nNUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dim} MODEL_VARIANT=2\n"
                 )
                 log_file.flush()
 

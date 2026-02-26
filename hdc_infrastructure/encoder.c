@@ -69,10 +69,22 @@ void init_encoder(struct encoder *enc, struct item_memory *channel_memory, struc
  * @param emg_value The EMG signal value to be converted.
  * @return The discrete signal level (integer) corresponding to the EMG value.
  */
-int get_signal_level(double emg_value) {
-#if !BIPOLAR_MODE
-    // Temporary experiment: use Krischan quantization in binary mode
-    // independent of ENCODER_ROLLING.
+#if BIPOLAR_MODE || MODEL_VARIANT == MODEL_VARIANT_MARIAN
+static int get_signal_level_linear(double emg_value) {
+    if (emg_value <= MIN_LEVEL) {
+        return 0;
+    }
+    if (emg_value >= MAX_LEVEL) {
+        return NUM_LEVELS - 1;
+    }
+    double normalized_value = (emg_value - MIN_LEVEL) / (MAX_LEVEL - MIN_LEVEL);
+
+    return (int)(normalized_value * (NUM_LEVELS - 1));
+}
+#endif
+
+#if !BIPOLAR_MODE && (MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION)
+static int get_signal_level_krischan(double emg_value) {
     float value = (float)emg_value;
     int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
     if (scaled < 0) {
@@ -90,19 +102,18 @@ int get_signal_level(double emg_value) {
         level = NUM_LEVELS - 1;
     }
     return level;
-#else
-    if (emg_value <= MIN_LEVEL) {
-        return 0;
-    }
-    if (emg_value >= MAX_LEVEL) {
-        return NUM_LEVELS - 1;
-    }
-    double normalized_value = (emg_value - MIN_LEVEL) / (MAX_LEVEL - MIN_LEVEL);
+}
+#endif
 
-    return (int)(normalized_value * (NUM_LEVELS - 1));
-    /*
-    int64_t key = (int64_t)round(emg_value);
-    return key;*/
+int get_signal_level(double emg_value) {
+#if !BIPOLAR_MODE
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
+    return get_signal_level_krischan(emg_value);
+#else
+    return get_signal_level_linear(emg_value);
+#endif
+#else
+    return get_signal_level_linear(emg_value);
 #endif
 }
 
@@ -212,7 +223,7 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         }
     }
     #else
-#if ENCODER_ROLLING
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
     // Rolling-style temporal composition: XOR over slot-rotated timestamp HVs.
     for (int d = 0; d < VECTOR_DIMENSION; d++) {
         result->data[d] = 0;

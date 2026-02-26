@@ -76,7 +76,7 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
     }
     
 #else
-#if ENCODER_ROLLING
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
     int window_size = N_GRAM_SIZE;
     Vector *rolling_acc = create_vector();
     Vector **window_vectors = (Vector **)malloc((size_t)window_size * sizeof(Vector *));

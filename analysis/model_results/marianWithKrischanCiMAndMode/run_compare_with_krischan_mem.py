@@ -44,7 +44,7 @@ def main():
                 print(
                     f"NUM_LEVELS={num_levels} "
                     f"VECTOR_DIMENSION={vector_dimension} "
-                    "ENCODER_ROLLING=1 (Krischan IM/CM)"
+                    "MODEL_VARIANT=1 (Krischan IM/CM)"
                 )
 
                 subprocess.run(
@@ -70,7 +70,7 @@ def main():
                     "USE_GENETIC_ITEM_MEMORY=0",
                     "VALIDATION_RATIO=0",
                     "N_GRAM_SIZE=5",
-                    "ENCODER_ROLLING=1",
+                    "MODEL_VARIANT=1",
                     f"VECTOR_DIMENSION={vector_dimension}",
                     f"NUM_LEVELS={num_levels}",
                     f"RESULT_CSV_PATH={results_csv_rel}",

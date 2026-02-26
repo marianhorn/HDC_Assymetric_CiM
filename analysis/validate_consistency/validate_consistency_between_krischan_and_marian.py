@@ -195,7 +195,7 @@ def main():
             "USE_GENETIC_ITEM_MEMORY=0",
             "VALIDATION_RATIO=0",
             f"N_GRAM_SIZE={N_GRAM_SIZE}",
-            "ENCODER_ROLLING=1",
+            "MODEL_VARIANT=1",
             f"VECTOR_DIMENSION={VECTOR_DIMENSION}",
             f"NUM_LEVELS={NUM_LEVELS}",
             f"RESULT_CSV_PATH={marian_results_rel}",

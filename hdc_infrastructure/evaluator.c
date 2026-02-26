@@ -215,14 +215,14 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     memset(result.confusion_matrix, 0, sizeof(result.confusion_matrix));
 
     if (output_mode >= OUTPUT_DETAILED) {
-#if ENCODER_ROLLING && !BIPOLAR_MODE
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
         printf("Evaluating HDC-Model (rolling XOR) for %d testing samples.\n",testing_samples);
 #else
         printf("Evaluating HDC-Model for %d testing samples.\n",testing_samples);
 #endif
     }
 
-#if ENCODER_ROLLING && !BIPOLAR_MODE
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
     int window_size = N_GRAM_SIZE;
     Vector *rolling_acc = create_vector();
     Vector **window_vectors = (Vector **)malloc((size_t)window_size * sizeof(Vector *));
