@@ -2,7 +2,7 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 10000 // hypervector dimension
+#define VECTOR_DIMENSION 1000 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
 #define NUM_LEVELS 100 // number of quantization levels
@@ -18,7 +18,7 @@
 #define WINDOW 100 // sliding window length
 #endif
 #ifndef N_GRAM_SIZE
-#define N_GRAM_SIZE 5 // n-gram size
+#define N_GRAM_SIZE 3 // n-gram size
 #endif
 #ifndef MODEL_VARIANT
 #define MODEL_VARIANT MODEL_VARIANT_FUSION // active default model path

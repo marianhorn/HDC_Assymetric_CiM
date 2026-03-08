@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "../hdc_infrastructure/assoc_mem.h"
 #include "../hdc_infrastructure/item_mem.h"
 #include "../hdc_infrastructure/asymItemMemory.h"
@@ -30,6 +31,7 @@ int main(){
     size_t sum_not_correct = 0;
     size_t sum_transition_error = 0;
     size_t sum_total = 0;
+    double sum_training_time_ms = 0.0;
 
     for(int dataset = 0; dataset<4;dataset++){
 
@@ -76,7 +78,10 @@ int main(){
                           &testingSamples,
                           validationRatio);
 
+        clock_t train_start = clock();
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        clock_t train_end = clock();
+        double training_time_ms = 1000.0 * (double)(train_end - train_start) / (double)CLOCKS_PER_SEC;
 
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
@@ -99,8 +104,16 @@ int main(){
         #endif
         free_assoc_mem(&assMem);
         init_assoc_mem(&assMem);
+        train_start = clock();
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        train_end = clock();
+        training_time_ms += 1000.0 * (double)(train_end - train_start) / (double)CLOCKS_PER_SEC;
         #endif
+        sum_training_time_ms += training_time_ms;
+
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("Dataset %02d training time: %.3f ms\n", dataset, training_time_ms);
+        }
 
         struct timeseries_eval_result eval_test =
             evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
@@ -155,6 +168,7 @@ int main(){
 
     if (output_mode >= OUTPUT_BASIC) {
         printf("Accuracy: %.2f%%\n", overall_result.overall_accuracy * 100.0);
+        printf("Mean training time per dataset: %.3f ms\n", sum_training_time_ms / 4.0);
     }
 
     #if USE_GENETIC_ITEM_MEMORY
