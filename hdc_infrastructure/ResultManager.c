@@ -95,7 +95,7 @@ void addResult(const struct timeseries_eval_result *result, const char *info) {
             N_GRAM_SIZE,
             WINDOW,
             DOWNSAMPLE,
-            VALIDATION_RATIO);
+            (double)VALIDATION_RATIO);
 
     fprintf(result_file,
             "%.8f,%.8f,%.8f,%zu,%zu,%zu,%zu,",

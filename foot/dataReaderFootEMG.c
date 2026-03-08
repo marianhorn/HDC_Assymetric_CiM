@@ -194,7 +194,10 @@ size_t countCSVRows(const char* filename) {
     size_t rows = 0;
 
     // Skip the header row
-    fgets(line, sizeof(line), file);
+    if (!fgets(line, sizeof(line), file)) {
+        fclose(file);
+        return 0;
+    }
 
     while (fgets(line, sizeof(line), file)) {
         rows++;
@@ -221,7 +224,10 @@ double** loadEMGData(char* filename, size_t rows, size_t cols) {
     char line[1024];
 
     // Skip the header row
-    fgets(line, sizeof(line), file);
+    if (!fgets(line, sizeof(line), file)) {
+        fclose(file);
+        return data;
+    }
 
     size_t row = 0;
     while (fgets(line, sizeof(line), file)) {
@@ -262,7 +268,10 @@ int* loadLabels(char* filename, size_t rows) {
     char line[1024];
 
     // Skip the header row
-    fgets(line, sizeof(line), file);
+    if (!fgets(line, sizeof(line), file)) {
+        fclose(file);
+        return labels;
+    }
 
     size_t row = 0;
     while (fgets(line, sizeof(line), file)) {

@@ -812,9 +812,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         return;
     }
 
-    int dimension = VECTOR_DIMENSION;
-
-
     if (params->population_size <= 0) {
         params->population_size = 8;
     }
