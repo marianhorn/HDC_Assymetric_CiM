@@ -128,38 +128,49 @@ int get_signal_level(double emg_value) {
  * @param result A pointer to the resulting hypervector.
  */
 void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
-    Vector** bound_vectors = (Vector**)malloc(NUM_FEATURES * sizeof(Vector*));
-    if (bound_vectors == NULL) {
-        fprintf(stderr, "Error: Failed to allocate memory for bound_vectors\n");
-        return;
-    }
-     if (enc == NULL || emg_sample == NULL || result == NULL) {
+    if (enc == NULL || emg_sample == NULL || result == NULL) {
         fprintf(stderr, "Error: NULL pointer passed to encode_timestamp\n");
         return;
     }
 
+#if PRECOMPUTED_ITEM_MEMORY
+    Vector* bound_vectors[NUM_FEATURES];
     for (int channel = 0; channel < NUM_FEATURES; channel++) {
-          
         int signal_level = get_signal_level(emg_sample[channel]);
-        #if PRECOMPUTED_ITEM_MEMORY
-            bound_vectors[channel] = enc->item_mem->base_vectors[(signal_level*NUM_FEATURES)+channel];
-        #else
-        bound_vectors[channel] = create_vector();
-        bind(enc->channel_memory->base_vectors[channel], enc->signal_memory->base_vectors[signal_level], bound_vectors[channel]);
-        #endif
-       
+        bound_vectors[channel] = enc->item_mem->base_vectors[(signal_level * NUM_FEATURES) + channel];
     }
-    
     bundle_multi(bound_vectors, NUM_FEATURES, result);
-
-    #if PRECOMPUTED_ITEM_MEMORY
-    #else
-    for (int channel = 0; channel < NUM_FEATURES; channel++) {
-        free_vector(bound_vectors[channel]);
+#else
+#if BIPOLAR_MODE
+    for (int d = 0; d < VECTOR_DIMENSION; d++) {
+        result->data[d] = 0;
     }
-    #endif
-    free(bound_vectors);
+    for (int channel = 0; channel < NUM_FEATURES; channel++) {
+        int signal_level = get_signal_level(emg_sample[channel]);
+        Vector *channel_vec = enc->channel_memory->base_vectors[channel];
+        Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
+        for (int d = 0; d < VECTOR_DIMENSION; d++) {
+            result->data[d] += channel_vec->data[d] * signal_vec->data[d];
+        }
+    }
+#else
+    int count_true[VECTOR_DIMENSION] = {0};
+    for (int channel = 0; channel < NUM_FEATURES; channel++) {
+        int signal_level = get_signal_level(emg_sample[channel]);
+        Vector *channel_vec = enc->channel_memory->base_vectors[channel];
+        Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
+        for (int d = 0; d < VECTOR_DIMENSION; d++) {
+            count_true[d] += (channel_vec->data[d] ^ signal_vec->data[d]) ? 1 : 0;
+        }
+    }
+    int threshold = NUM_FEATURES / 2;
+    for (int d = 0; d < VECTOR_DIMENSION; d++) {
+        result->data[d] = (count_true[d] >= threshold) ? 1 : 0;
+    }
+#endif
+#endif
 }
+
 /**
  * @brief Checks if a sliding window of labels is stable.
  *
@@ -197,16 +208,15 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
 
     encode_timestamp(enc, emg_data[0], result);
 
+    Vector* encoded = create_vector();
+    Vector* result_permuted = create_vector();
     for (size_t i = 1; i < N_GRAM_SIZE; i++) {
-        Vector* encoded = create_vector();
-        Vector* result_permuted = create_vector();
         encode_timestamp(enc, emg_data[i], encoded);
         permute(result,1,result_permuted);
         bind(result_permuted,encoded,result);
-
-        free_vector(encoded);
-        free_vector(result_permuted);
     }
+    free_vector(encoded);
+    free_vector(result_permuted);
 
     if (output_mode >= OUTPUT_DEBUG) {
 
@@ -229,30 +239,29 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         result->data[d] = 0;
     }
 
+    Vector* encoded = create_vector();
+    Vector* encoded_permuted = create_vector();
     for (size_t i = 0; i < N_GRAM_SIZE; i++) {
-        Vector* encoded = create_vector();
-        Vector* encoded_permuted = create_vector();
         encode_timestamp(enc, emg_data[i], encoded);
         permute(encoded, (int)i, encoded_permuted);
         for (int d = 0; d < VECTOR_DIMENSION; d++) {
             result->data[d] = result->data[d] ^ encoded_permuted->data[d];
         }
-        free_vector(encoded);
-        free_vector(encoded_permuted);
     }
+    free_vector(encoded);
+    free_vector(encoded_permuted);
 #else
     encode_timestamp(enc, emg_data[0], result);
 
+    Vector* encoded = create_vector();
+    Vector* result_permuted = create_vector();
     for (size_t i = 1; i < N_GRAM_SIZE; i++) {
-        Vector* encoded = create_vector();
-        Vector* result_permuted = create_vector();
         encode_timestamp(enc, emg_data[i], encoded);
         permute(result,1,result_permuted);
         bind(result_permuted,encoded,result);
-
-        free_vector(encoded);
-        free_vector(result_permuted);
     }
+    free_vector(encoded);
+    free_vector(result_permuted);
 #endif
     if (output_mode >= OUTPUT_DEBUG) {
         bool vectorContainsOnlyZeroEntries = true;
@@ -284,36 +293,11 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
  * @note This function can be used for other applications than timeseries classification.
  */
 int encode_general_data(struct encoder *enc, double *emg_data, Vector *result) {
-    Vector** bound_vectors = (Vector**)malloc(NUM_FEATURES * sizeof(Vector*));
-    if (bound_vectors == NULL) {
-        fprintf(stderr, "Error: Failed to allocate memory for bound_vectors\n");
-        return -1;
-    }
-     if (enc == NULL || emg_data == NULL || result == NULL) {
+    if (enc == NULL || emg_data == NULL || result == NULL) {
         fprintf(stderr, "Error: NULL pointer passed to encode_timestamp\n");
         return -1;
     }
 
-    for (int channel = 0; channel < NUM_FEATURES; channel++) {
-          
-        int signal_level = get_signal_level(emg_data[channel]);
-        #if PRECOMPUTED_ITEM_MEMORY
-            bound_vectors[channel] = enc->item_mem->base_vectors[(signal_level*NUM_FEATURES)+channel];
-        #else
-        bound_vectors[channel] = create_vector();
-        bind(enc->channel_memory->base_vectors[channel], enc->signal_memory->base_vectors[signal_level], bound_vectors[channel]);
-        #endif
-       
-    }
-    
-    bundle_multi(bound_vectors, NUM_FEATURES, result);
-
-    #if PRECOMPUTED_ITEM_MEMORY
-    #else
-    for (int channel = 0; channel < NUM_FEATURES; channel++) {
-        free_vector(bound_vectors[channel]);
-    }
-    #endif
-    free(bound_vectors);
+    encode_timestamp(enc, emg_data, result);
     return 0;
 }

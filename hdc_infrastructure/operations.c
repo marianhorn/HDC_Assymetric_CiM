@@ -118,23 +118,18 @@ void bundle(Vector* vector1, Vector* vector2, Vector* result) {
         printf("Input vector for bundling not initialized");
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
 #if BIPOLAR_MODE
+    for (int i = 0; i < VECTOR_DIMENSION; i++) {
         result->data[i] = vector1->data[i] + vector2->data[i]; //Addition for bipolar
-#else
-        int count_true[VECTOR_DIMENSION] = {0};
-
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            count_true[i] += vector1->data[i];
-            count_true[i] += vector2->data[i];
-        }
-
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            result->data[i] = count_true[i] > 1; // Majority voting: true if count of true is more than half
-        }
-#endif
     }
+#else
+    for (int i = 0; i < VECTOR_DIMENSION; i++) {
+        int count_true = (vector1->data[i] ? 1 : 0) + (vector2->data[i] ? 1 : 0);
+        result->data[i] = count_true > 1; // Majority voting: true if count of true is more than half
+    }
+#endif
 }
+
 /**
  * @brief Aggregates multiple hypervectors.
  *

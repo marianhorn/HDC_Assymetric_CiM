@@ -107,9 +107,9 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
 
     int window_filled = 0;
     int window_pos = 0;
+    Vector *sample_hv = create_vector();
+    Vector *rotated_hv = create_vector();
     for (int i = 0; i < training_samples; i++) {
-        Vector *sample_hv = create_vector();
-        Vector *rotated_hv = create_vector();
         encode_timestamp(enc, training_data[i], sample_hv);
         permute(sample_hv, window_pos, rotated_hv);
 
@@ -139,9 +139,9 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
             }
         }
 
-        free_vector(rotated_hv);
-        free_vector(sample_hv);
     }
+    free_vector(rotated_hv);
+    free_vector(sample_hv);
 
     for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {
         Vector *bundled_hv = create_vector();
@@ -165,48 +165,56 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
     free(window_vectors);
     free_vector(rolling_acc);
 #else
-    Vector*** encoded_vectors = (Vector***)malloc((training_samples - N_GRAM_SIZE) * NUM_CLASSES * sizeof(Vector*));
-    int* vector_counts = (int*)calloc(NUM_CLASSES, sizeof(int)); // Array to keep track of vector count for each class
-    // Allocate memory for each class' vector array
+    int **class_bit_counts = (int **)malloc((size_t)NUM_CLASSES * sizeof(int *));
+    int* vector_counts = (int*)calloc((size_t)NUM_CLASSES, sizeof(int));
+    if (!class_bit_counts || !vector_counts) {
+        fprintf(stderr, "Failed to allocate training bit counters.\n");
+        free(class_bit_counts);
+        free(vector_counts);
+        exit(EXIT_FAILURE);
+    }
     for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {
-        encoded_vectors[class_id] = (Vector**)malloc((training_samples - N_GRAM_SIZE) * sizeof(Vector*));
-        
-        // Initialize each vector to NULL or allocate the Vector objects
-        for (int i = 0; i < training_samples - N_GRAM_SIZE; i++) {
-            encoded_vectors[class_id][i] = create_vector();  // Allocate each Vector for the class
+        class_bit_counts[class_id] = (int *)calloc((size_t)VECTOR_DIMENSION, sizeof(int));
+        if (!class_bit_counts[class_id]) {
+            fprintf(stderr, "Failed to allocate class bit counters.\n");
+            exit(EXIT_FAILURE);
         }
     }
+
+    Vector* sample_hv = create_vector();
     for (int j = 0; j < training_samples - N_GRAM_SIZE; j++) {
      
         if (is_window_stable(&training_labels[j])) {  // Ensure the window is stable
-            encode_timeseries(enc, &training_data[j], encoded_vectors[training_labels[j]][vector_counts[training_labels[j]]]);  // Encode the data
-            if(training_labels[j]==1){
-              //  printf("%d ",j+1);
+            int class_id = training_labels[j];
+            encode_timeseries(enc, &training_data[j], sample_hv);
+            if (class_id >= 0 && class_id < NUM_CLASSES) {
+                for (int d = 0; d < VECTOR_DIMENSION; d++) {
+                    class_bit_counts[class_id][d] += sample_hv->data[d] ? 1 : 0;
+                }
+                vector_counts[class_id]++;
             }
-
-            vector_counts[training_labels[j]]++;
         }else{
             j+=(N_GRAM_SIZE-1);
         }
     }
+    free_vector(sample_hv);
 
     for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {
         Vector* bundled_hv = create_vector();  // Create a bundled vector to store the final result
-        bundle_multi(encoded_vectors[class_id], vector_counts[class_id], bundled_hv);  // Bundle all vectors for this class
+        int threshold = vector_counts[class_id] / 2;
+        for (int d = 0; d < VECTOR_DIMENSION; d++) {
+            bundled_hv->data[d] = class_bit_counts[class_id][d] >= threshold ? 1 : 0;
+        }
         
         // Add the bundled vector to the associative memory for this class
         add_to_assoc_mem(assoc_mem, bundled_hv, class_id);
         assoc_mem->counts[class_id] = vector_counts[class_id];
         
         free_vector(bundled_hv);  // Free the bundled vector
-        
-        for (int i = 0; i < training_samples - N_GRAM_SIZE; i++) {
-            free_vector(encoded_vectors[class_id][i]);  // Free each stored vector
-        }
 
-        free(encoded_vectors[class_id]);  // Free the array of vectors for each class
+        free(class_bit_counts[class_id]);
     }
-    free(encoded_vectors);
+    free(class_bit_counts);
     free(vector_counts);
 #endif
 #endif
