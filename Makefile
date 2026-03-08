@@ -2,11 +2,20 @@ CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG
 LDFLAGS = -lm -flto
 
-# Optional OpenMP support (set USE_OPENMP=1)
-USE_OPENMP ?= 0
+# Optional OpenMP support:
+#   USE_OPENMP=1    force enable
+#   USE_OPENMP=0    force disable
+#   USE_OPENMP=auto enable when compiler supports -fopenmp (default)
+USE_OPENMP ?= auto
+OPENMP_SUPPORTED := $(shell printf "int main(void){return 0;}\n" | $(CC) -x c -fopenmp -fsyntax-only - >/dev/null 2>&1 && echo 1 || echo 0)
 ifeq ($(USE_OPENMP),1)
 	CFLAGS += -fopenmp
 	LDFLAGS += -fopenmp
+else ifeq ($(USE_OPENMP),auto)
+ifeq ($(OPENMP_SUPPORTED),1)
+	CFLAGS += -fopenmp
+	LDFLAGS += -fopenmp
+endif
 endif
 
 # Optional results CSV path (set RESULT_CSV_PATH=path/to/file.csv)
