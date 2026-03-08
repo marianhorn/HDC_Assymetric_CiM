@@ -42,7 +42,7 @@ void init_assoc_mem(struct associative_memory *assoc_mem) {
     }
     for (int i = 0; i < NUM_CLASSES; i++) {
         assoc_mem->class_vectors[i] = create_vector();
-        memset(assoc_mem->class_vectors[i]->data, 0, VECTOR_DIMENSION * sizeof(vector_element));
+        vector_zero(assoc_mem->class_vectors[i]);
         assoc_mem->counts[i] = 0;
     }
 }
@@ -99,9 +99,7 @@ int add_to_assoc_mem(struct associative_memory *assoc_mem, Vector *sample_hv, in
                 else{return 0;}
             }
         #else
-            for (int i = 0; i < VECTOR_DIMENSION; i++) {
-                    assoc_mem->class_vectors[class_id]->data[i] = sample_hv->data[i];
-                }
+            vector_copy(assoc_mem->class_vectors[class_id], sample_hv);
             assoc_mem->counts[class_id]=1;
             return 1;
         #endif
@@ -194,7 +192,7 @@ void print_class_vectors(struct associative_memory *assoc_mem) {
 #if BIPOLAR_MODE
             printf("%d ", assoc_mem->class_vectors[j]->data[i]);
 #else 
-            printf("%d ", (bool)assoc_mem->class_vectors[j]->data[i]);
+            printf("%d ", vector_get_bit(assoc_mem->class_vectors[j], i));
 #endif
         }
         printf("\n");
@@ -252,7 +250,10 @@ void store_assoc_mem_to_bin(struct associative_memory *assoc_mem, const char *fi
     }
 
     for (int i = 0; i < assoc_mem->num_classes; i++) {
-        fwrite(assoc_mem->class_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file);
+        fwrite(assoc_mem->class_vectors[i]->data,
+               sizeof(vector_element),
+               vector_storage_count(),
+               file);
     }
 
     fclose(file);
@@ -287,7 +288,10 @@ void load_assoc_mem_from_bin(struct associative_memory *assoc_mem, const char *f
     init_assoc_mem(assoc_mem);
 
     for (int i = 0; i < NUM_CLASSES; i++) {
-        if (fread(assoc_mem->class_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file) != VECTOR_DIMENSION) {
+        if (fread(assoc_mem->class_vectors[i]->data,
+                  sizeof(vector_element),
+                  vector_storage_count(),
+                  file) != vector_storage_count()) {
             fprintf(stderr, "Error: Incomplete vector data for class %d\n", i);
             exit(EXIT_FAILURE);
         }
@@ -402,7 +406,7 @@ void store_assoc_mem_to_csv(struct associative_memory *assoc_mem, const char *fi
 
     for (int i = 0; i < assoc_mem->num_classes; i++) {
         for (int j = 0; j < VECTOR_DIMENSION; j++) {
-            fprintf(file, "%d", (int)assoc_mem->class_vectors[i]->data[j]);
+            fprintf(file, "%d", vector_get_bit(assoc_mem->class_vectors[i], j));
             if (j < VECTOR_DIMENSION - 1) {
                 fputc(',', file);
             }
@@ -445,7 +449,7 @@ void load_assoc_mem_from_csv(struct associative_memory *assoc_mem, const char *f
                 fprintf(stderr, "Error: Incomplete vector data at row %d, col %d\n", i, j);
                 exit(EXIT_FAILURE);
             }
-            assoc_mem->class_vectors[i]->data[j] = (vector_element)value;
+            vector_set_bit(assoc_mem->class_vectors[i], j, value);
             if (j < VECTOR_DIMENSION - 1) {
                 int ch = fgetc(file);
                 if (ch != ',') {

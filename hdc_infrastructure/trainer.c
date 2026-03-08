@@ -115,16 +115,12 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
 
         if (window_filled < window_size) {
             bind(rolling_acc, rotated_hv, rolling_acc);
-            memcpy(window_vectors[window_pos]->data,
-                   rotated_hv->data,
-                   VECTOR_DIMENSION * sizeof(vector_element));
+            vector_copy(window_vectors[window_pos], rotated_hv);
             window_filled++;
         } else {
             bind(rolling_acc, window_vectors[window_pos], rolling_acc);
             bind(rolling_acc, rotated_hv, rolling_acc);
-            memcpy(window_vectors[window_pos]->data,
-                   rotated_hv->data,
-                   VECTOR_DIMENSION * sizeof(vector_element));
+            vector_copy(window_vectors[window_pos], rotated_hv);
         }
 
         window_pos = (window_pos + 1) % window_size;
@@ -133,7 +129,7 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
             int label = training_labels[i];
             if (label >= 0 && label < NUM_CLASSES) {
                 for (int d = 0; d < VECTOR_DIMENSION; d++) {
-                    class_bit_counts[label][d] += rolling_acc->data[d] ? 1 : 0;
+                    class_bit_counts[label][d] += vector_get_bit(rolling_acc, d) ? 1 : 0;
                 }
                 class_counts[label]++;
             }
@@ -147,7 +143,7 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
         Vector *bundled_hv = create_vector();
         int thr = class_counts[class_id] / 2;
         for (int d = 0; d < VECTOR_DIMENSION; d++) {
-            bundled_hv->data[d] = (class_bit_counts[class_id][d] > thr) ? 1 : 0;
+            vector_set_bit(bundled_hv, d, (class_bit_counts[class_id][d] > thr) ? 1 : 0);
         }
         add_to_assoc_mem(assoc_mem, bundled_hv, class_id);
         assoc_mem->counts[class_id] = class_counts[class_id];
@@ -189,7 +185,7 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
             encode_timeseries(enc, &training_data[j], sample_hv);
             if (class_id >= 0 && class_id < NUM_CLASSES) {
                 for (int d = 0; d < VECTOR_DIMENSION; d++) {
-                    class_bit_counts[class_id][d] += sample_hv->data[d] ? 1 : 0;
+                    class_bit_counts[class_id][d] += vector_get_bit(sample_hv, d) ? 1 : 0;
                 }
                 vector_counts[class_id]++;
             }
@@ -203,7 +199,7 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
         Vector* bundled_hv = create_vector();  // Create a bundled vector to store the final result
         int threshold = vector_counts[class_id] / 2;
         for (int d = 0; d < VECTOR_DIMENSION; d++) {
-            bundled_hv->data[d] = class_bit_counts[class_id][d] >= threshold ? 1 : 0;
+            vector_set_bit(bundled_hv, d, class_bit_counts[class_id][d] >= threshold ? 1 : 0);
         }
         
         // Add the bundled vector to the associative memory for this class

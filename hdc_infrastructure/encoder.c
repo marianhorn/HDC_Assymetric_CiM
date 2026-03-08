@@ -154,19 +154,50 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
         }
     }
 #else
-    int count_true[VECTOR_DIMENSION] = {0};
-    for (int channel = 0; channel < NUM_FEATURES; channel++) {
-        int signal_level = get_signal_level(emg_sample[channel]);
-        Vector *channel_vec = enc->channel_memory->base_vectors[channel];
-        Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
-        for (int d = 0; d < VECTOR_DIMENSION; d++) {
-            count_true[d] += (channel_vec->data[d] ^ signal_vec->data[d]) ? 1 : 0;
-        }
-    }
     int threshold = NUM_FEATURES / 2;
-    for (int d = 0; d < VECTOR_DIMENSION; d++) {
-        result->data[d] = (count_true[d] >= threshold) ? 1 : 0;
+    int nbits = 0;
+    while ((1 << nbits) <= NUM_FEATURES && nbits < 31) {
+        nbits++;
     }
+    if (nbits < 1) {
+        nbits = 1;
+    }
+
+    uint64_t *planes = (uint64_t *)calloc((size_t)nbits, sizeof(uint64_t));
+    if (!planes) {
+        fprintf(stderr, "Error: Failed to allocate bit-sliced counters\n");
+        return;
+    }
+
+    size_t words = vector_storage_count();
+    for (size_t w = 0; w < words; w++) {
+        memset(planes, 0, (size_t)nbits * sizeof(uint64_t));
+        for (int channel = 0; channel < NUM_FEATURES; channel++) {
+            int signal_level = get_signal_level(emg_sample[channel]);
+            Vector *channel_vec = enc->channel_memory->base_vectors[channel];
+            Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
+            uint64_t carry = channel_vec->data[w] ^ signal_vec->data[w];
+            for (int b = 0; b < nbits; b++) {
+                uint64_t t = planes[b];
+                planes[b] = t ^ carry;
+                carry = t & carry;
+            }
+        }
+
+        uint64_t out_word = 0ull;
+        for (int bit = 0; bit < 64; bit++) {
+            int count = 0;
+            for (int b = 0; b < nbits; b++) {
+                count |= (int)(((planes[b] >> bit) & 1ull) << b);
+            }
+            if (count >= threshold) {
+                out_word |= (1ull << bit);
+            }
+        }
+        result->data[w] = out_word;
+    }
+    free(planes);
+    vector_mask_tail(result);
 #endif
 #endif
 }
@@ -235,17 +266,16 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
     #else
 #if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
     // Rolling-style temporal composition: XOR over slot-rotated timestamp HVs.
-    for (int d = 0; d < VECTOR_DIMENSION; d++) {
-        result->data[d] = 0;
-    }
+    vector_zero(result);
 
     Vector* encoded = create_vector();
     Vector* encoded_permuted = create_vector();
     for (size_t i = 0; i < N_GRAM_SIZE; i++) {
         encode_timestamp(enc, emg_data[i], encoded);
         permute(encoded, (int)i, encoded_permuted);
-        for (int d = 0; d < VECTOR_DIMENSION; d++) {
-            result->data[d] = result->data[d] ^ encoded_permuted->data[d];
+        size_t words = vector_storage_count();
+        for (size_t w = 0; w < words; w++) {
+            result->data[w] ^= encoded_permuted->data[w];
         }
     }
     free_vector(encoded);
@@ -266,7 +296,7 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
     if (output_mode >= OUTPUT_DEBUG) {
         bool vectorContainsOnlyZeroEntries = true;
         for(int z = 0; z<VECTOR_DIMENSION; z++){
-            if(result->data[z]!=0){
+            if(vector_get_bit(result, z)!=0){
                 vectorContainsOnlyZeroEntries = false;
                 break;
             }
@@ -276,10 +306,11 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
             fprintf(stdout,"Encoding Error: This vector is zero\n");
         }
     }
-    #endif
+#endif
     return 0;
 
 }
+
 /**
  * @brief Encodes a single EMG data point into a hypervector.
  *

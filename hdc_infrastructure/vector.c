@@ -36,8 +36,12 @@
 
 Vector* create_vector() {
     Vector* vec = (Vector*)malloc(sizeof(Vector));
-    vec->data = (vector_element*)malloc(VECTOR_DIMENSION * sizeof(vector_element));
-    if (!(vec&&vec->data)) {
+    if (!vec) {
+        fprintf(stderr, "Memory allocation failed for vector\n");
+        exit(EXIT_FAILURE);
+    }
+    vec->data = (vector_element*)malloc(vector_storage_bytes());
+    if (!vec->data) {
         fprintf(stderr, "Memory allocation failed for vector\n");
         exit(EXIT_FAILURE);
     }
@@ -46,9 +50,7 @@ Vector* create_vector() {
         vec->data[i] = -1; // Initialize to -1 for bipolar
     }
 #else
-    for (size_t i = 0; i < VECTOR_DIMENSION; i++) {
-        vec->data[i] = false; // Initialize to 0 for binary
-    }
+    vector_zero(vec);
 #endif
     return vec;
 }
@@ -67,7 +69,15 @@ Vector* create_vector() {
  */
 Vector* create_uninitialized_vector() {
     Vector* vec = (Vector*)malloc(sizeof(Vector));
-    vec->data = (vector_element*)malloc(VECTOR_DIMENSION * sizeof(vector_element));
+    if (!vec) {
+        fprintf(stderr, "Memory allocation failed for vector\n");
+        exit(EXIT_FAILURE);
+    }
+    vec->data = (vector_element*)malloc(vector_storage_bytes());
+    if (!vec->data) {
+        fprintf(stderr, "Memory allocation failed for vector\n");
+        exit(EXIT_FAILURE);
+    }
     return vec;
 }
 
@@ -98,7 +108,7 @@ void free_vector(Vector* vec) {
  */
 void print_vector(const Vector* vec) {
     for (size_t i = 0; i < 100; i+=1) {
-        printf("%d ", vec->data[i]);
+        printf("%d ", vector_get_bit(vec, (int)i));
     }
     printf("\n");
 }

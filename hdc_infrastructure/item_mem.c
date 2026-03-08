@@ -60,9 +60,22 @@ static void generate_random_hv_with_rng(vector_element *data, int dimension, uin
 #if BIPOLAR_MODE
         data[i] = (item_mem_rand_range(state, 2) * 2) - 1;
 #else
-        data[i] = item_mem_rand_range(state, 2);
+        int word = i >> 6;
+        int bit = i & 63;
+        uint64_t mask = 1ull << bit;
+        if (item_mem_rand_range(state, 2)) {
+            data[word] |= mask;
+        } else {
+            data[word] &= ~mask;
+        }
 #endif
     }
+#if !BIPOLAR_MODE
+    int rest = dimension & 63;
+    if (rest != 0) {
+        data[(dimension + 63) / 64 - 1] &= ((1ull << rest) - 1ull);
+    }
+#endif
 }
 /**
  * @brief Initializes item memory for discrete items, eg. features.
@@ -86,9 +99,12 @@ void init_item_memory(struct item_memory *item_mem, int num_items) {
 #if BIPOLAR_MODE
             item_mem->base_vectors[i]->data[j] = (rand() % 2) * 2 - 1; //-1 or 1 for bipolar
 #else
-            item_mem->base_vectors[i]->data[j] = rand() % 2; //0 or 1 for binary
+            vector_set_bit(item_mem->base_vectors[i], j, rand() % 2); //0 or 1 for binary
 #endif
         }
+#if !BIPOLAR_MODE
+        vector_mask_tail(item_mem->base_vectors[i]);
+#endif
     }
     if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
@@ -113,10 +129,15 @@ void generate_orthogonal_vectors(Vector *vector1, Vector *vector2, int dimension
         vector1->data[i] = (rand() % 2) * 2 - 1; // -1 or 1 for bipolar
         vector2->data[i] = -vector1->data[i]; // Orthogonal for bipolar
 #else
-        vector1->data[i] = rand() % 2;
-        vector2->data[i] = !vector1->data[i]; // Orthogonal for binary
+        int v = rand() % 2;
+        vector_set_bit(vector1, i, v);
+        vector_set_bit(vector2, i, !v); // Orthogonal for binary
 #endif
     }
+#if !BIPOLAR_MODE
+    vector_mask_tail(vector1);
+    vector_mask_tail(vector2);
+#endif
 }
 
 /**
@@ -137,10 +158,10 @@ void generate_orthogonal_vectors(Vector *vector1, Vector *vector2, int dimension
  */
 void interpolate_vectors(Vector *vec1, Vector *vec2, Vector *result, int dimension, double ratio) {
     int flip_count = (int)(dimension * ratio);
-    memcpy(result->data, vec1->data, dimension * sizeof(vector_element));
+    vector_copy(result, vec1);
     for (int i = 0; i < flip_count; i++) {
         int index = rand() % dimension;
-        result->data[index] = vec2->data[index];
+        vector_set_bit(result, index, vector_get_bit(vec2, index));
     }
 }
 
@@ -186,9 +207,7 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
     int total_flips = GA_MAX_FLIPS_CIM;
 
     // Level 0 is the min vector.
-    memcpy(item_mem->base_vectors[0]->data,
-           min_vector->data,
-           VECTOR_DIMENSION * sizeof(vector_element));
+    vector_copy(item_mem->base_vectors[0], min_vector);
 
     if (num_levels > 1) {
         int steps = num_levels - 1;
@@ -204,14 +223,14 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
 
             Vector *prev = item_mem->base_vectors[level - 1];
             Vector *curr = item_mem->base_vectors[level];
-            memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
+            vector_copy(curr, prev);
 
             for (int k = prev_target; k < target; k++) {
                 int idx = perm[k];
 #if BIPOLAR_MODE
                 curr->data[idx] = -curr->data[idx];
 #else
-                curr->data[idx] = !curr->data[idx];
+                vector_flip_bit(curr, idx);
 #endif
             }
 
@@ -272,9 +291,7 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
     uint32_t rng_state = item_mem_seed_from_permutation(permutation, VECTOR_DIMENSION);
     generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
-    memcpy(item_mem->base_vectors[0]->data,
-           min_vector->data,
-           VECTOR_DIMENSION * sizeof(vector_element));
+    vector_copy(item_mem->base_vectors[0], min_vector);
 
     int max_flips = GA_MAX_FLIPS_CIM;
 
@@ -292,14 +309,14 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
 
             Vector *prev = item_mem->base_vectors[level - 1];
             Vector *curr = item_mem->base_vectors[level];
-            memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
+            vector_copy(curr, prev);
 
             for (int k = prev_target; k < target; k++) {
                 int idx = permutation[k];
 #if BIPOLAR_MODE
                 curr->data[idx] = -curr->data[idx];
 #else
-                curr->data[idx] = !curr->data[idx];
+                vector_flip_bit(curr, idx);
 #endif
             }
 
@@ -321,9 +338,22 @@ void generate_random_hv(vector_element *data, int dimension) {
         data[i] = (rand() % 2) * 2 - 1; // Randomly assign -1 or 1 for bipolar
 
         #else
-        data[i] = rand() % 2; // Randomly assign 0 or 1 for binary
+        int word = i >> 6;
+        int bit = i & 63;
+        uint64_t mask = 1ull << bit;
+        if (rand() % 2) {
+            data[word] |= mask;
+        } else {
+            data[word] &= ~mask;
+        }
         #endif
     }
+#if !BIPOLAR_MODE
+    int rest = dimension & 63;
+    if (rest != 0) {
+        data[(dimension + 63) / 64 - 1] &= ((1ull << rest) - 1ull);
+    }
+#endif
 }
 /**
  * @brief Initializes binary item memory for precomputed feature-level representations.
@@ -370,9 +400,7 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
         }
 
         // Level 0 is the min vector.
-        memcpy(item_mem->base_vectors[feature]->data,
-               min_vector->data,
-               VECTOR_DIMENSION * sizeof(vector_element));
+        vector_copy(item_mem->base_vectors[feature], min_vector);
 
         if (num_levels > 1) {
             int steps = num_levels - 1;
@@ -388,14 +416,14 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
 
                 Vector *prev = item_mem->base_vectors[(level - 1) * num_features + feature];
                 Vector *curr = item_mem->base_vectors[level * num_features + feature];
-                memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
+                vector_copy(curr, prev);
 
                 for (int k = prev_target; k < target; k++) {
                     int idx = perm[k];
     #if BIPOLAR_MODE
                     curr->data[idx] = -curr->data[idx];
     #else
-                    curr->data[idx] = !curr->data[idx];
+                    vector_flip_bit(curr, idx);
     #endif
                 }
 
@@ -463,9 +491,7 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
         generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
         // Level 0 is the min vector.
-        memcpy(item_mem->base_vectors[feature]->data,
-               min_vector->data,
-               VECTOR_DIMENSION * sizeof(vector_element));
+        vector_copy(item_mem->base_vectors[feature], min_vector);
 
         if (num_levels > 1) {
             int prev_target = 0;
@@ -481,14 +507,14 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
 
                 Vector *prev = item_mem->base_vectors[(level - 1) * num_features + feature];
                 Vector *curr = item_mem->base_vectors[level * num_features + feature];
-                memcpy(curr->data, prev->data, VECTOR_DIMENSION * sizeof(vector_element));
+                vector_copy(curr, prev);
 
                 for (int k = prev_target; k < target; k++) {
                     int idx = perm[k];
     #if BIPOLAR_MODE
                     curr->data[idx] = -curr->data[idx];
     #else
-                    curr->data[idx] = !curr->data[idx];
+                    vector_flip_bit(curr, idx);
     #endif
                 }
 
@@ -550,7 +576,7 @@ void print_item_memory(struct item_memory *item_mem) {
     printf("Item memory contains %d vectors of dimension %d\n", item_mem->num_vectors, VECTOR_DIMENSION);
     for (int j = 0; j < VECTOR_DIMENSION; j += 1000) {
         for (int i = 0; i < item_mem->num_vectors; i++) {
-            printf("%d ", item_mem->base_vectors[i]->data[j]);
+            printf("%d ", vector_get_bit(item_mem->base_vectors[i], j));
         }
         printf("\n");
     }
@@ -585,7 +611,10 @@ void store_item_mem_to_bin(struct item_memory *item_mem, const char *filepath) {
 
     // Write each vector's data
     for (int i = 0; i < item_mem->num_vectors; i++) {
-        fwrite(item_mem->base_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file);
+        fwrite(item_mem->base_vectors[i]->data,
+               sizeof(vector_element),
+               vector_storage_count(),
+               file);
     }
 
     fclose(file);
@@ -613,7 +642,7 @@ void store_item_mem_to_csv(struct item_memory *item_mem, const char *filepath) {
             VECTOR_DIMENSION);
     for (int i = 0; i < item_mem->num_vectors; i++) {
         for (int j = 0; j < VECTOR_DIMENSION; j++) {
-            fprintf(file, "%d", (int)item_mem->base_vectors[i]->data[j]);
+            fprintf(file, "%d", vector_get_bit(item_mem->base_vectors[i], j));
             if (j < VECTOR_DIMENSION - 1) {
                 fputc(',', file);
             }
@@ -669,7 +698,7 @@ void store_precomp_item_mem_to_csv(struct item_memory *item_mem,
 
     for (int i = 0; i < item_mem->num_vectors; i++) {
         for (int j = 0; j < VECTOR_DIMENSION; j++) {
-            fprintf(file, "%d", (int)item_mem->base_vectors[i]->data[j]);
+            fprintf(file, "%d", vector_get_bit(item_mem->base_vectors[i], j));
             if (j < VECTOR_DIMENSION - 1) {
                 fputc(',', file);
             }
@@ -713,8 +742,11 @@ void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, 
     init_item_memory(item_mem, num_items);
 
     for (int i = 0; i < num_items; i++) {
-        size_t items_read = fread(item_mem->base_vectors[i]->data, sizeof(vector_element), VECTOR_DIMENSION, file);
-        if (items_read != VECTOR_DIMENSION) {
+        size_t items_read = fread(item_mem->base_vectors[i]->data,
+                                  sizeof(vector_element),
+                                  vector_storage_count(),
+                                  file);
+        if (items_read != vector_storage_count()) {
             fprintf(stderr, "Error: Incomplete vector data at row %d with only %ld elements\n", i,items_read);
             exit(EXIT_FAILURE);
         }
@@ -804,7 +836,7 @@ static void load_item_mem_from_csv_stream(struct item_memory *item_mem, FILE *fi
                 fprintf(stderr, "Error: Incomplete vector data at row %d, col %d\n", i, j);
                 exit(EXIT_FAILURE);
             }
-            item_mem->base_vectors[i]->data[j] = (vector_element)value;
+            vector_set_bit(item_mem->base_vectors[i], j, value);
             if (j < VECTOR_DIMENSION - 1) {
                 int ch = fgetc(file);
                 if (ch != ',') {

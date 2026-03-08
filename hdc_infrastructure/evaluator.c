@@ -245,16 +245,12 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
 
         if (window_filled < window_size) {
             bind(rolling_acc, rotated_hv, rolling_acc);
-            memcpy(window_vectors[window_pos]->data,
-                   rotated_hv->data,
-                   VECTOR_DIMENSION * sizeof(vector_element));
+            vector_copy(window_vectors[window_pos], rotated_hv);
             window_filled++;
         } else {
             bind(rolling_acc, window_vectors[window_pos], rolling_acc);
             bind(rolling_acc, rotated_hv, rolling_acc);
-            memcpy(window_vectors[window_pos]->data,
-                   rotated_hv->data,
-                   VECTOR_DIMENSION * sizeof(vector_element));
+            vector_copy(window_vectors[window_pos], rotated_hv);
         }
 
         window_pos = (window_pos + 1) % window_size;

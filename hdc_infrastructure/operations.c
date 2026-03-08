@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "vector.h"
 
 #if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
@@ -36,7 +37,7 @@ static void permute_like_krischan(Vector *vector, int offset, Vector *result) {
 
     // Match krischan loader bit order: index i maps to bit 31-(i%32) in chunk i/32.
     for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        if (vector->data[i]) {
+        if (vector_get_bit(vector, i)) {
             int chunk = i / 32;
             int bit_in_chunk = 31 - (i % 32);
             in_words[chunk] |= (1u << bit_in_chunk);
@@ -61,14 +62,65 @@ static void permute_like_krischan(Vector *vector, int offset, Vector *result) {
         out_words[i] = (a >> bit_shift) | (b << (32 - bit_shift));
     }
 
+    vector_zero(result);
     for (int i = 0; i < VECTOR_DIMENSION; i++) {
         int chunk = i / 32;
         int bit_in_chunk = 31 - (i % 32);
-        result->data[i] = (out_words[chunk] >> bit_in_chunk) & 1u;
+        vector_set_bit(result, i, (out_words[chunk] >> bit_in_chunk) & 1u);
     }
 
     free(out_words);
     free(in_words);
+}
+#endif
+
+#if !BIPOLAR_MODE
+static void permute_binary_words(const Vector *vector, int right_shift, Vector *result) {
+    int shift = right_shift % VECTOR_DIMENSION;
+    if (shift < 0) {
+        shift += VECTOR_DIMENSION;
+    }
+
+    if (shift == 0) {
+        memcpy(result->data, vector->data, vector_storage_bytes());
+        return;
+    }
+
+    if ((VECTOR_DIMENSION & 63) == 0) {
+        int words = (int)vector_storage_count();
+        int word_shift = shift >> 6;
+        int bit_shift = shift & 63;
+        for (int w = 0; w < words; w++) {
+            int src = w - word_shift;
+            while (src < 0) {
+                src += words;
+            }
+            src %= words;
+
+            if (bit_shift == 0) {
+                result->data[w] = vector->data[src];
+            } else {
+                int src_prev = src - 1;
+                if (src_prev < 0) {
+                    src_prev += words;
+                }
+                result->data[w] =
+                    (vector->data[src] << bit_shift) |
+                    (vector->data[src_prev] >> (64 - bit_shift));
+            }
+        }
+        return;
+    }
+
+    vector_zero(result);
+    for (int i = 0; i < VECTOR_DIMENSION; i++) {
+        int out_idx = i + shift;
+        if (out_idx >= VECTOR_DIMENSION) {
+            out_idx -= VECTOR_DIMENSION;
+        }
+        vector_set_bit(result, out_idx, vector_get_bit(vector, i));
+    }
+    vector_mask_tail(result);
 }
 #endif
 /**
@@ -90,13 +142,16 @@ void bind(Vector* vector1, Vector* vector2, Vector* result) {
         printf("Input vector for binding not initialized");
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
 #if BIPOLAR_MODE
+    for (int i = 0; i < VECTOR_DIMENSION; i++) {
         result->data[i] = vector1->data[i] * vector2->data[i]; //multiplication for bipolar
-#else
-        result->data[i] = vector1->data[i] ^ vector2->data[i]; // XOR for binary
-#endif
     }
+#else
+    size_t words = vector_storage_count();
+    for (size_t w = 0; w < words; w++) {
+        result->data[w] = vector1->data[w] ^ vector2->data[w]; // XOR for binary
+    }
+#endif
 }
 
 /**
@@ -123,10 +178,12 @@ void bundle(Vector* vector1, Vector* vector2, Vector* result) {
         result->data[i] = vector1->data[i] + vector2->data[i]; //Addition for bipolar
     }
 #else
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        int count_true = (vector1->data[i] ? 1 : 0) + (vector2->data[i] ? 1 : 0);
-        result->data[i] = count_true > 1; // Majority voting: true if count of true is more than half
+    size_t words = vector_storage_count();
+    for (size_t w = 0; w < words; w++) {
+        // For two vectors and strict majority (>1), binary bundle is bitwise AND.
+        result->data[w] = vector1->data[w] & vector2->data[w];
     }
+    vector_mask_tail(result);
 #endif
 }
 
@@ -149,9 +206,7 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
         printf("Input vector for bundling not initialized");
         exit(EXIT_FAILURE);
     }
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        result->data[i] = 0;
-    }
+    vector_zero(result);
 #if BIPOLAR_MODE
     for (int v = 0; v < num_vectors; v++) {
         for (int i = 0; i < VECTOR_DIMENSION; i++) {
@@ -160,17 +215,49 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
     }
 
 #else
-    int count_true[VECTOR_DIMENSION] = {0};
+    int threshold = num_vectors / 2;
+    int nbits = 0;
+    int max_count = num_vectors;
+    while ((1 << nbits) <= max_count && nbits < 31) {
+        nbits++;
+    }
+    if (nbits < 1) {
+        nbits = 1;
+    }
 
-    for (int v = 0; v < num_vectors; v++) {
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            count_true[i] += vectors[v]->data[i];
+    uint64_t *planes = (uint64_t *)calloc((size_t)nbits, sizeof(uint64_t));
+    if (!planes) {
+        fprintf(stderr, "Failed to allocate bit-sliced counters in bundle_multi\n");
+        exit(EXIT_FAILURE);
+    }
+
+    size_t words = vector_storage_count();
+    for (size_t w = 0; w < words; w++) {
+        memset(planes, 0, (size_t)nbits * sizeof(uint64_t));
+
+        for (int v = 0; v < num_vectors; v++) {
+            uint64_t carry = vectors[v]->data[w];
+            for (int b = 0; b < nbits; b++) {
+                uint64_t t = planes[b];
+                planes[b] = t ^ carry;
+                carry = t & carry;
+            }
         }
-    }
 
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        result->data[i] = (count_true[i] >= num_vectors / 2) ? 1 : 0;
+        uint64_t out_word = 0ull;
+        for (int bit = 0; bit < 64; bit++) {
+            int count = 0;
+            for (int b = 0; b < nbits; b++) {
+                count |= (int)(((planes[b] >> bit) & 1ull) << b);
+            }
+            if (count >= threshold) {
+                out_word |= (1ull << bit);
+            }
+        }
+        result->data[w] = out_word;
     }
+    free(planes);
+    vector_mask_tail(result);
 
 #endif
 }
@@ -192,6 +279,7 @@ void permute(Vector* vector, int offset, Vector* result) {
 #if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
     permute_like_krischan(vector, offset, result);
 #else
+#if BIPOLAR_MODE
     if(offset>0){
         for (int i = 0; i < VECTOR_DIMENSION; i++) {
             result->data[(i + offset) % VECTOR_DIMENSION] = vector->data[i];
@@ -203,6 +291,18 @@ void permute(Vector* vector, int offset, Vector* result) {
             result->data[i] = vector->data[(i + offset) % VECTOR_DIMENSION];
         }
     }
+#else
+    if (offset > 0) {
+        permute_binary_words(vector, offset, result);
+    } else {
+        int left_shift = -offset;
+        int right_shift = VECTOR_DIMENSION - (left_shift % VECTOR_DIMENSION);
+        if (right_shift == VECTOR_DIMENSION) {
+            right_shift = 0;
+        }
+        permute_binary_words(vector, right_shift, result);
+    }
+#endif
 #endif
 }
 
@@ -259,10 +359,14 @@ double cosine_similarity(Vector *vec1, Vector *vec2) {
  */
 double hamming_distance(Vector *vec1, Vector *vec2) {
     int distance = 0;
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        if (vec1->data[i] != vec2->data[i]) {
-            distance++;
+    size_t words = vector_storage_count();
+    for (size_t w = 0; w < words; w++) {
+        uint64_t diff = vec1->data[w] ^ vec2->data[w];
+        if (w + 1 == words && (VECTOR_DIMENSION & 63) != 0) {
+            uint64_t mask = (1ull << (VECTOR_DIMENSION & 63)) - 1ull;
+            diff &= mask;
         }
+        distance += __builtin_popcountll(diff);
     }
     // Project Hamming distance onto the range -1 to 1
     // distance of 0 (identical) -> 1, max distance -> -1
