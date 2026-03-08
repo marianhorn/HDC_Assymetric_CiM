@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11
-LDFLAGS = -lm
+CFLAGS = -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG
+LDFLAGS = -lm -flto
 
 # Optional OpenMP support (set USE_OPENMP=1)
 USE_OPENMP ?= 0
