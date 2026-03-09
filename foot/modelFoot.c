@@ -35,9 +35,18 @@ int main(){
         printf("\nHDC-classification for EMG-signals:\n\n");
     }
 
-    double mean_overall_accuracy = 0.0;
-    double mean_class_average_accuracy = 0.0;
-    double mean_class_vector_similarity = 0.0;
+    double mean_post_test_overall_accuracy = 0.0;
+    double mean_post_test_class_average_accuracy = 0.0;
+    double mean_post_test_class_vector_similarity = 0.0;
+    double mean_pre_test_overall_accuracy = 0.0;
+    double mean_pre_test_class_average_accuracy = 0.0;
+    double mean_pre_test_class_vector_similarity = 0.0;
+    double mean_pre_val_overall_accuracy = 0.0;
+    double mean_pre_val_class_average_accuracy = 0.0;
+    double mean_pre_val_class_vector_similarity = 0.0;
+    double mean_post_val_overall_accuracy = 0.0;
+    double mean_post_val_class_average_accuracy = 0.0;
+    double mean_post_val_class_vector_similarity = 0.0;
     size_t sum_correct = 0;
     size_t sum_not_correct = 0;
     size_t sum_transition_error = 0;
@@ -89,6 +98,33 @@ int main(){
                           &testingSamples,
                           validationRatio);
 
+        double train_start_ms = now_ms();
+        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        double train_end_ms = now_ms();
+        double training_time_ms = train_end_ms - train_start_ms;
+
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("Dataset %02d initial training time: %.3f ms\n", dataset, training_time_ms);
+        }
+
+        #if USE_GENETIC_ITEM_MEMORY
+        #else
+        sum_training_time_ms += training_time_ms;
+        #endif
+
+        struct timeseries_eval_result eval_pre_val = {0};
+        struct timeseries_eval_result eval_pre_test = {0};
+        if (output_mode >= OUTPUT_DETAILED) {
+            printf("Evaluating pre-optimization model on validation set.\n");
+        }
+        if (validationData && validationLabels && validationSamples > 0) {
+            eval_pre_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
+        }
+        if (output_mode >= OUTPUT_DETAILED) {
+            printf("Evaluating pre-optimization model on test set.\n");
+        }
+        eval_pre_test = evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
+
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
         optimize_item_memory(&itemMem,
@@ -110,39 +146,69 @@ int main(){
         #endif
         #endif
 
-        double train_start_ms = now_ms();
-        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        double train_end_ms = now_ms();
-        double training_time_ms = train_end_ms - train_start_ms;
-
-        sum_training_time_ms += training_time_ms;
-
         if (output_mode >= OUTPUT_BASIC) {
-            printf("Dataset %02d training time: %.3f ms\n", dataset, training_time_ms);
+            printf("Dataset %02d pre-optimization test accuracy: %.2f%%\n", dataset, eval_pre_test.overall_accuracy * 100.0);
         }
 
-        struct timeseries_eval_result eval_test =
+        char result_info[160];
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-validation", dataset);
+        addResult(&eval_pre_val, result_info);
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-test", dataset);
+        addResult(&eval_pre_test, result_info);
+
+        mean_pre_val_overall_accuracy += eval_pre_val.overall_accuracy;
+        mean_pre_val_class_average_accuracy += eval_pre_val.class_average_accuracy;
+        mean_pre_val_class_vector_similarity += eval_pre_val.class_vector_similarity;
+        mean_pre_test_overall_accuracy += eval_pre_test.overall_accuracy;
+        mean_pre_test_class_average_accuracy += eval_pre_test.class_average_accuracy;
+        mean_pre_test_class_vector_similarity += eval_pre_test.class_vector_similarity;
+
+        #if USE_GENETIC_ITEM_MEMORY
+        sum_training_time_ms += training_time_ms;
+        if (output_mode >= OUTPUT_DETAILED) {
+            printf("Re-training post-optimization model.\n");
+        }
+        train_start_ms = now_ms();
+        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        train_end_ms = now_ms();
+        training_time_ms = train_end_ms - train_start_ms;
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("Dataset %02d post-optimization training time: %.3f ms\n", dataset, training_time_ms);
+        }
+        #endif
+
+        struct timeseries_eval_result eval_post_val = {0};
+        struct timeseries_eval_result eval_post_test =
             evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
 
-        if (output_mode >= OUTPUT_BASIC) {
-            printf("Dataset %02d accuracy: %.2f%%\n", dataset, eval_test.overall_accuracy * 100.0);
+        if (validationData && validationLabels && validationSamples > 0) {
+            if (output_mode >= OUTPUT_DETAILED) {
+                printf("Evaluating post-optimization model on validation set.\n");
+            }
+            eval_post_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
         }
 
-        mean_overall_accuracy += eval_test.overall_accuracy;
-        mean_class_average_accuracy += eval_test.class_average_accuracy;
-        mean_class_vector_similarity += eval_test.class_vector_similarity;
-        sum_correct += eval_test.correct;
-        sum_not_correct += eval_test.not_correct;
-        sum_transition_error += eval_test.transition_error;
-        sum_total += eval_test.total;
+        mean_post_val_overall_accuracy += eval_post_val.overall_accuracy;
+        mean_post_val_class_average_accuracy += eval_post_val.class_average_accuracy;
+        mean_post_val_class_vector_similarity += eval_post_val.class_vector_similarity;
+        mean_post_test_overall_accuracy += eval_post_test.overall_accuracy;
+        mean_post_test_class_average_accuracy += eval_post_test.class_average_accuracy;
+        mean_post_test_class_vector_similarity += eval_post_test.class_vector_similarity;
 
-        char result_info[128];
-        #if USE_GENETIC_ITEM_MEMORY
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("Dataset %02d pre-opt test accuracy: %.2f%%\n", dataset, eval_pre_test.overall_accuracy * 100.0);
+            printf("Dataset %02d post-opt test accuracy: %.2f%%\n", dataset, eval_post_test.overall_accuracy * 100.0);
+        }
+
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-validation", dataset);
+        addResult(&eval_post_val, result_info);
         snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-test", dataset);
-        #else
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=test", dataset);
-        #endif
-        addResult(&eval_test, result_info);
+        addResult(&eval_post_test, result_info);
+
+        sum_correct += eval_post_test.correct;
+        sum_not_correct += eval_post_test.not_correct;
+        sum_transition_error += eval_post_test.transition_error;
+        sum_total += eval_post_test.total;
 
         // Free allocated memory
         freeData(trainingData, trainingSamples);
@@ -168,20 +234,41 @@ int main(){
     overall_result.not_correct = sum_not_correct;
     overall_result.transition_error = sum_transition_error;
     overall_result.total = sum_total;
-    overall_result.overall_accuracy = mean_overall_accuracy / 4.0;
-    overall_result.class_average_accuracy = mean_class_average_accuracy / 4.0;
-    overall_result.class_vector_similarity = mean_class_vector_similarity / 4.0;
+    overall_result.overall_accuracy = mean_post_test_overall_accuracy / 4.0;
+    overall_result.class_average_accuracy = mean_post_test_class_average_accuracy / 4.0;
+    overall_result.class_vector_similarity = mean_post_test_class_vector_similarity / 4.0;
 
     if (output_mode >= OUTPUT_BASIC) {
         printf("Accuracy: %.2f%%\n", overall_result.overall_accuracy * 100.0);
         printf("Mean training time per dataset: %.3f ms\n", sum_training_time_ms / 4.0);
     }
 
-    #if USE_GENETIC_ITEM_MEMORY
+    if (output_mode >= OUTPUT_BASIC) {
+        printf("Overall pre-optimization (test): %.2f%%\n", (mean_pre_test_overall_accuracy / 4.0) * 100.0);
+        printf("Overall post-optimization (test): %.2f%%\n", (mean_post_test_overall_accuracy / 4.0) * 100.0);
+        printf("Overall pre-optimization (validation): %.2f%%\n", (mean_pre_val_overall_accuracy / 4.0) * 100.0);
+        printf("Overall post-optimization (validation): %.2f%%\n", (mean_post_val_overall_accuracy / 4.0) * 100.0);
+    }
+
+    struct timeseries_eval_result overall_pre_val = {0};
+    overall_pre_val.overall_accuracy = mean_pre_val_overall_accuracy / 4.0;
+    overall_pre_val.class_average_accuracy = mean_pre_val_class_average_accuracy / 4.0;
+    overall_pre_val.class_vector_similarity = mean_pre_val_class_vector_similarity / 4.0;
+    addResult(&overall_pre_val, "model=mine,scope=overall,phase=preopt-validation");
+
+    struct timeseries_eval_result overall_pre_test = {0};
+    overall_pre_test.overall_accuracy = mean_pre_test_overall_accuracy / 4.0;
+    overall_pre_test.class_average_accuracy = mean_pre_test_class_average_accuracy / 4.0;
+    overall_pre_test.class_vector_similarity = mean_pre_test_class_vector_similarity / 4.0;
+    addResult(&overall_pre_test, "model=mine,scope=overall,phase=preopt-test");
+
     addResult(&overall_result, "model=mine,scope=overall,phase=postopt-test");
-    #else
-    addResult(&overall_result, "model=mine,scope=overall,phase=test");
-    #endif
+
+    struct timeseries_eval_result overall_post_val = {0};
+    overall_post_val.overall_accuracy = mean_post_val_overall_accuracy / 4.0;
+    overall_post_val.class_average_accuracy = mean_post_val_class_average_accuracy / 4.0;
+    overall_post_val.class_vector_similarity = mean_post_val_class_vector_similarity / 4.0;
+    addResult(&overall_post_val, "model=mine,scope=overall,phase=postopt-validation");
 
     result_manager_close();
     return 0;
