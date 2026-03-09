@@ -15,8 +15,19 @@
 #include "../hdc_infrastructure/ResultManager.h"
 #include "../hdc_infrastructure/vector.h"
 #include "../hdc_infrastructure/trainer.h"
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 int output_mode = OUTPUT_MODE;
+
+static double now_ms(void) {
+#ifdef _OPENMP
+    return omp_get_wtime() * 1000.0;
+#else
+    return 1000.0 * (double)clock() / (double)CLOCKS_PER_SEC;
+#endif
+}
 
 int main(){
     result_manager_init();
@@ -78,11 +89,6 @@ int main(){
                           &testingSamples,
                           validationRatio);
 
-        clock_t train_start = clock();
-        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        clock_t train_end = clock();
-        double training_time_ms = 1000.0 * (double)(train_end - train_start) / (double)CLOCKS_PER_SEC;
-
         #if USE_GENETIC_ITEM_MEMORY
         #if PRECOMPUTED_ITEM_MEMORY
         optimize_item_memory(&itemMem,
@@ -102,13 +108,13 @@ int main(){
                              validationLabels,
                              validationSamples);
         #endif
-        free_assoc_mem(&assMem);
-        init_assoc_mem(&assMem);
-        train_start = clock();
-        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        train_end = clock();
-        training_time_ms += 1000.0 * (double)(train_end - train_start) / (double)CLOCKS_PER_SEC;
         #endif
+
+        double train_start_ms = now_ms();
+        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
+        double train_end_ms = now_ms();
+        double training_time_ms = train_end_ms - train_start_ms;
+
         sum_training_time_ms += training_time_ms;
 
         if (output_mode >= OUTPUT_BASIC) {

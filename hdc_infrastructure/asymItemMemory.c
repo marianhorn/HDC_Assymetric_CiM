@@ -905,7 +905,10 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
 
     for (int gen = 0; gen < params->generations; gen++) {
-        if (ga_output_mode >= OUTPUT_BASIC) {
+        if (ga_output_mode == OUTPUT_BASIC) {
+            printf("\rGA generation %d/%d   ", gen + 1, params->generations);
+            fflush(stdout);
+        } else if (ga_output_mode >= OUTPUT_DETAILED) {
             printf("GA generation %d/%d\n", gen + 1, params->generations);
         }
 
@@ -920,7 +923,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                      &simP[i]);
         }
         output_mode = ga_output_mode;
-        if (ga_output_mode >= OUTPUT_BASIC) {
+        if (ga_output_mode >= OUTPUT_DETAILED) {
             for (int i = 0; i < population_size; i++) {
                 printf("  individual %d/%d accuracy: %.3f%%, similarity: %.3f\n",
                        i + 1,
@@ -1040,6 +1043,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                           fitR,
                                           fronts);
         }
+    }
+    if (ga_output_mode == OUTPUT_BASIC) {
+        printf("\n");
     }
 
     int best_idx = 0;
