@@ -53,7 +53,7 @@
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
 #endif
 #ifndef VALIDATION_RATIO
-#define VALIDATION_RATIO 0.25 // validation split ratio
+#define VALIDATION_RATIO 0.3 // validation split ratio
 #endif
 
 #ifndef BIPOLAR_MODE

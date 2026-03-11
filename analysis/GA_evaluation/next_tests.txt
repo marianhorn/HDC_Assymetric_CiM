@@ -1,0 +1,3 @@
+2026-03-09  test next: vary GA_TOURNAMENT_SIZE (2,4,8) while keeping GA_SELECTION_MODE=0, GA_INIT_UNIFORM=1, mutation in {0.1,0.3,0.5,0.7}; compare pre/post gains on val/test
+
+make sure the mutation rate is also reported in the results. and i want a console output for each run (not every dataset, but every new unique configuration) to keep track of the current state of the scirpt run
