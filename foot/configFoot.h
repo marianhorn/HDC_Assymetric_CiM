@@ -67,7 +67,7 @@
 #define GA_DEFAULT_GENERATIONS 64 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
-#define GA_DEFAULT_CROSSOVER_RATE 0.0 // GA crossover rate
+#define GA_DEFAULT_CROSSOVER_RATE 0.9 // GA crossover rate
 #endif
 #ifndef GA_DEFAULT_MUTATION_RATE
 #define GA_DEFAULT_MUTATION_RATE 0.8 // GA mutation rate
@@ -90,6 +90,9 @@
 #ifndef GA_SELECTION_MODE
 #define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
 #endif
+#ifndef GA_PIPELINE
+#define GA_PIPELINE PIPELINE_CUSTOM // GA variation pipeline
+#endif
 
 extern int output_mode;
 
@@ -102,6 +105,8 @@ extern int output_mode;
 #define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
 #define GA_SELECTION_MULTI 1    // GA selection: accuracy minus similarity
 #define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
+#define PIPELINE_NAIVE 0        // GA pipeline: existing operators
+#define PIPELINE_CUSTOM 1       // GA pipeline: custom event-list operators
 
 #define MODEL_VARIANT_MARIAN 0   // Marian baseline path
 #define MODEL_VARIANT_KRISCHAN 1 // Krischan-compatible rolling path

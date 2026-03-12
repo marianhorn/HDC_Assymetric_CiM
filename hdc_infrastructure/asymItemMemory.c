@@ -14,6 +14,9 @@
 #include <omp.h>
 #endif
 
+static const int CUSTOM_PIPELINE_CHUNK_SIZE = 4;
+static const int CUSTOM_PIPELINE_EVENT_STEP = 1;
+
 void init_ga_params(struct ga_params *params) {
     if (!params) {
         return;
@@ -735,10 +738,10 @@ static double evaluate_candidate(const uint16_t *B,
 #endif
 }
 
-static void mutate_individual(uint16_t *individual,
-                              int gene_count,
-                              double mutation_rate,
-                              uint32_t *rng_state) {
+static void mutate_individual_naive(uint16_t *individual,
+                                    int gene_count,
+                                    double mutation_rate,
+                                    uint32_t *rng_state) {
     if (!individual || gene_count <= 1) {
         return;
     }
@@ -769,12 +772,12 @@ static void mutate_individual(uint16_t *individual,
     }
 }
 
-static void crossover_individual(const uint16_t *parent_a,
-                                 const uint16_t *parent_b,
-                                 uint16_t *child,
-                                 int genome_length,
-                                 double crossover_rate,
-                                 uint32_t *rng_state) {
+static void crossover_individual_naive(const uint16_t *parent_a,
+                                       const uint16_t *parent_b,
+                                       uint16_t *child,
+                                       int genome_length,
+                                       double crossover_rate,
+                                       uint32_t *rng_state) {
     if (rng_uniform(rng_state) < crossover_rate) {
         for (int i = 0; i < genome_length; i++) {
             child[i] = rng_range(rng_state, 2) == 0 ? parent_a[i] : parent_b[i];
@@ -782,6 +785,189 @@ static void crossover_individual(const uint16_t *parent_a,
     } else {
         memcpy(child, parent_a, genome_length * sizeof(uint16_t));
     }
+}
+
+static int wrap_event_level(int level, int transitions) {
+    while (level > transitions) {
+        level -= transitions;
+    }
+    while (level < 1) {
+        level += transitions;
+    }
+    return level;
+}
+
+static int block_to_event_list_or_die(const uint16_t *block,
+                                      int transitions,
+                                      int expected_events,
+                                      int *events_out,
+                                      const char *parent_name,
+                                      int feature_index) {
+    if (!block || !events_out || transitions <= 0 || expected_events <= 0) {
+        fprintf(stderr, "GA custom pipeline error: invalid block/event configuration.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int total = 0;
+    for (int i = 0; i < transitions; i++) {
+        total += (int)block[i];
+    }
+    if (total != expected_events) {
+        fprintf(stderr,
+                "GA custom pipeline error: feature %d %s has %d events, expected %d (GA_MAX_FLIPS_CIM).\n",
+                feature_index,
+                parent_name,
+                total,
+                expected_events);
+        exit(EXIT_FAILURE);
+    }
+
+    int written = 0;
+    for (int level_idx = 0; level_idx < transitions; level_idx++) {
+        int count = (int)block[level_idx];
+        for (int k = 0; k < count; k++) {
+            if (written >= expected_events) {
+                fprintf(stderr,
+                        "GA custom pipeline error: feature %d %s event overflow while expanding B.\n",
+                        feature_index,
+                        parent_name);
+                exit(EXIT_FAILURE);
+            }
+            events_out[written++] = level_idx + 1;
+        }
+    }
+    if (written != expected_events) {
+        fprintf(stderr,
+                "GA custom pipeline error: feature %d %s wrote %d events, expected %d.\n",
+                feature_index,
+                parent_name,
+                written,
+                expected_events);
+        exit(EXIT_FAILURE);
+    }
+    return written;
+}
+
+static void event_list_to_block_or_die(const int *events,
+                                       int event_count,
+                                       int transitions,
+                                       uint16_t *block_out,
+                                       int feature_index) {
+    if (!events || !block_out || transitions <= 0 || event_count < 0) {
+        fprintf(stderr, "GA custom pipeline error: invalid event/block reconstruction inputs.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(block_out, 0, (size_t)transitions * sizeof(uint16_t));
+    for (int i = 0; i < event_count; i++) {
+        int level = events[i];
+        if (level < 1 || level > transitions) {
+            fprintf(stderr,
+                    "GA custom pipeline error: feature %d has out-of-range event level %d.\n",
+                    feature_index,
+                    level);
+            exit(EXIT_FAILURE);
+        }
+        int idx = level - 1;
+        if (block_out[idx] == UINT16_MAX) {
+            fprintf(stderr,
+                    "GA custom pipeline error: feature %d overflow while rebuilding B.\n",
+                    feature_index);
+            exit(EXIT_FAILURE);
+        }
+        block_out[idx] += 1;
+    }
+}
+
+static void mutate_event_list(int *events,
+                              int event_count,
+                              int transitions,
+                              double mutation_rate,
+                              uint32_t *rng_state) {
+    if (!events || event_count <= 0 || transitions <= 0) {
+        return;
+    }
+
+    for (int i = 0; i < event_count; i++) {
+        if (rng_uniform(rng_state) < mutation_rate) {
+            int step = rng_range(rng_state, 2) == 0 ? -CUSTOM_PIPELINE_EVENT_STEP : CUSTOM_PIPELINE_EVENT_STEP;
+            events[i] = wrap_event_level(events[i] + step, transitions);
+        }
+    }
+}
+
+static void recombine_individual_custom(const uint16_t *parent_a,
+                                        const uint16_t *parent_b,
+                                        uint16_t *child,
+                                        int transitions,
+                                        int feature_blocks,
+                                        int max_events,
+                                        double crossover_rate,
+                                        double mutation_rate,
+                                        uint32_t *rng_state) {
+    if (!parent_a || !parent_b || !child || !rng_state || transitions <= 0 || feature_blocks <= 0) {
+        fprintf(stderr, "GA custom pipeline error: invalid recombination inputs.\n");
+        exit(EXIT_FAILURE);
+    }
+    if (max_events <= 0) {
+        fprintf(stderr, "GA custom pipeline error: GA_MAX_FLIPS_CIM must be > 0.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int *events_a = (int *)malloc((size_t)max_events * sizeof(int));
+    int *events_b = (int *)malloc((size_t)max_events * sizeof(int));
+    int *events_child = (int *)malloc((size_t)max_events * sizeof(int));
+    if (!events_a || !events_b || !events_child) {
+        fprintf(stderr, "GA custom pipeline error: failed to allocate event-list buffers.\n");
+        free(events_a);
+        free(events_b);
+        free(events_child);
+        exit(EXIT_FAILURE);
+    }
+
+    for (int feature = 0; feature < feature_blocks; feature++) {
+        const uint16_t *block_a = parent_a + (size_t)feature * (size_t)transitions;
+        const uint16_t *block_b = parent_b + (size_t)feature * (size_t)transitions;
+        uint16_t *block_child = child + (size_t)feature * (size_t)transitions;
+
+        int count_a = block_to_event_list_or_die(
+            block_a, transitions, max_events, events_a, "parent A", feature
+        );
+        int count_b = block_to_event_list_or_die(
+            block_b, transitions, max_events, events_b, "parent B", feature
+        );
+        if (count_a != count_b) {
+            fprintf(stderr,
+                    "GA custom pipeline error: feature %d parent event length mismatch (%d vs %d).\n",
+                    feature,
+                    count_a,
+                    count_b);
+            exit(EXIT_FAILURE);
+        }
+
+        int event_count = count_a;
+        if (rng_uniform(rng_state) < crossover_rate) {
+            for (int start = 0; start < event_count; start += CUSTOM_PIPELINE_CHUNK_SIZE) {
+                int end = start + CUSTOM_PIPELINE_CHUNK_SIZE;
+                if (end > event_count) {
+                    end = event_count;
+                }
+                const int *src = (rng_range(rng_state, 2) == 0) ? events_a : events_b;
+                for (int i = start; i < end; i++) {
+                    events_child[i] = src[i];
+                }
+            }
+        } else {
+            memcpy(events_child, events_a, (size_t)event_count * sizeof(int));
+        }
+
+        mutate_event_list(events_child, event_count, transitions, mutation_rate, rng_state);
+        event_list_to_block_or_die(events_child, event_count, transitions, block_child, feature);
+    }
+
+    free(events_child);
+    free(events_b);
+    free(events_a);
 }
 
 static void run_ga(const struct ga_eval_context *ctx_in,
@@ -802,6 +988,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         selection_mode != GA_SELECTION_ACCURACY) {
         selection_mode = GA_SELECTION_PARETO;
     }
+    int pipeline_mode = GA_PIPELINE;
     int genome_length = ctx.num_levels - 1;
 #if PRECOMPUTED_ITEM_MEMORY
     genome_length *= ctx.num_features;
@@ -822,7 +1009,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         params->tournament_size = 3;
     }
     if (params->crossover_rate < 0.0 || params->crossover_rate > 1.0) {
-        params->crossover_rate = 0.7;
+        params->crossover_rate = 0.9;
     }
     if (params->mutation_rate < 0.0 || params->mutation_rate > 1.0) {
         params->mutation_rate = 0.02;
@@ -869,6 +1056,14 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     int transitions = ctx.num_levels - 1;
     int max_total = GA_MAX_FLIPS_CIM;
+    int feature_blocks = 1;
+#if PRECOMPUTED_ITEM_MEMORY
+    feature_blocks = ctx.num_features;
+#endif
+    if (pipeline_mode == PIPELINE_CUSTOM && max_total <= 0) {
+        fprintf(stderr, "GA custom pipeline error: GA_MAX_FLIPS_CIM must be > 0.\n");
+        exit(EXIT_FAILURE);
+    }
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
 #if PRECOMPUTED_ITEM_MEMORY
@@ -976,16 +1171,28 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                 parent_a = fitness_tournament(fitP, population_size, params->tournament_size, &ga_state);
                 parent_b = fitness_tournament(fitP, population_size, params->tournament_size, &ga_state);
             }
-            crossover_individual(&population[parent_a * genome_length],
-                                 &population[parent_b * genome_length],
-                                 &offspring[i * genome_length],
-                                 genome_length,
-                                 params->crossover_rate,
-                                 &ga_state);
-            mutate_individual(&offspring[i * genome_length],
-                              genome_length,
-                              params->mutation_rate,
-                              &ga_state);
+            if (pipeline_mode == PIPELINE_CUSTOM) {
+                recombine_individual_custom(&population[parent_a * genome_length],
+                                            &population[parent_b * genome_length],
+                                            &offspring[i * genome_length],
+                                            transitions,
+                                            feature_blocks,
+                                            max_total,
+                                            params->crossover_rate,
+                                            params->mutation_rate,
+                                            &ga_state);
+            } else {
+                crossover_individual_naive(&population[parent_a * genome_length],
+                                           &population[parent_b * genome_length],
+                                           &offspring[i * genome_length],
+                                           genome_length,
+                                           params->crossover_rate,
+                                           &ga_state);
+                mutate_individual_naive(&offspring[i * genome_length],
+                                        genome_length,
+                                        params->mutation_rate,
+                                        &ga_state);
+            }
         }
 
         output_mode = OUTPUT_NONE;

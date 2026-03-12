@@ -148,7 +148,7 @@
 #define GA_DEFAULT_GENERATIONS 256 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
-#define GA_DEFAULT_CROSSOVER_RATE 0.0 // GA crossover rate
+#define GA_DEFAULT_CROSSOVER_RATE 0.9 // GA crossover rate
 #endif
 #ifndef GA_DEFAULT_MUTATION_RATE
 #define GA_DEFAULT_MUTATION_RATE 0.8 // GA mutation rate
@@ -179,6 +179,15 @@
 #endif
 #ifndef GA_SELECTION_MODE
 #define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
+#endif
+#ifndef PIPELINE_NAIVE
+#define PIPELINE_NAIVE 0 // GA pipeline: existing operators
+#endif
+#ifndef PIPELINE_CUSTOM
+#define PIPELINE_CUSTOM 1 // GA pipeline: custom event-list operators
+#endif
+#ifndef GA_PIPELINE
+#define GA_PIPELINE PIPELINE_NAIVE // GA variation pipeline
 #endif
 extern int output_mode;
 
