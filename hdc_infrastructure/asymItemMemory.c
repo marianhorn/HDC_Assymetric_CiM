@@ -10,11 +10,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
-static const int CUSTOM_PIPELINE_CHUNK_SIZE = 4;
+static const double ADAPTIVE_CHUNK_ALPHA = 1.5;
+static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.4;
 static const int CUSTOM_PIPELINE_EVENT_STEP = 1;
 
 void init_ga_params(struct ga_params *params) {
@@ -797,6 +799,76 @@ static int wrap_event_level(int level, int transitions) {
     return level;
 }
 
+static int round_positive_to_int(double value) {
+    return (int)floor(value + 0.5);
+}
+
+static double *build_adaptive_chunk_schedule_or_die(int event_count, int generations) {
+    if (event_count <= 0 || generations <= 0) {
+        fprintf(stderr, "GA custom pipeline error: invalid chunk schedule dimensions.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int mu_min = round_positive_to_int(0.01 * (double)event_count);
+    if (mu_min < 2) {
+        mu_min = 2;
+    }
+
+    int mu_max = round_positive_to_int(0.15 * (double)event_count);
+    if (mu_max < mu_min + 1) {
+        mu_max = mu_min + 1;
+    }
+
+    double *schedule = (double *)malloc((size_t)generations * sizeof(double));
+    if (!schedule) {
+        fprintf(stderr, "GA custom pipeline error: failed to allocate chunk schedule.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    double ratio = (double)mu_max / (double)mu_min;
+    for (int g = 0; g < generations; g++) {
+        double t = generations > 1 ? (double)g / (double)(generations - 1) : 1.0;
+        double exponent = pow(t, ADAPTIVE_CHUNK_ALPHA);
+        double mu = (double)mu_min * pow(ratio, exponent);
+        if (mu < 1.0) {
+            mu = 1.0;
+        }
+        schedule[g] = mu;
+    }
+
+    return schedule;
+}
+
+static int sample_adaptive_chunk_size(double mean_chunk_size, int remaining, uint32_t *rng_state) {
+    if (remaining <= 0) {
+        return 0;
+    }
+    if (!rng_state || mean_chunk_size <= 0.0) {
+        fprintf(stderr, "GA custom pipeline error: invalid adaptive chunk sampling state.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int c_min = (int)floor(mean_chunk_size * (1.0 - ADAPTIVE_CHUNK_REL_WIDTH));
+    if (c_min < 1) {
+        c_min = 1;
+    }
+
+    int c_max = (int)floor(mean_chunk_size * (1.0 + ADAPTIVE_CHUNK_REL_WIDTH));
+    if (c_max < c_min) {
+        c_max = c_min;
+    }
+
+    int span = c_max - c_min + 1;
+    int chunk_size = c_min + rng_range(rng_state, span);
+    if (chunk_size > remaining) {
+        chunk_size = remaining;
+    }
+    if (chunk_size < 1) {
+        chunk_size = 1;
+    }
+    return chunk_size;
+}
+
 static int block_to_event_list_or_die(const uint16_t *block,
                                       int transitions,
                                       int expected_events,
@@ -904,6 +976,7 @@ static void recombine_individual_custom(const uint16_t *parent_a,
                                         int max_events,
                                         double crossover_rate,
                                         double mutation_rate,
+                                        double mean_chunk_size,
                                         uint32_t *rng_state) {
     if (!parent_a || !parent_b || !child || !rng_state || transitions <= 0 || feature_blocks <= 0) {
         fprintf(stderr, "GA custom pipeline error: invalid recombination inputs.\n");
@@ -911,6 +984,10 @@ static void recombine_individual_custom(const uint16_t *parent_a,
     }
     if (max_events <= 0) {
         fprintf(stderr, "GA custom pipeline error: GA_MAX_FLIPS_CIM must be > 0.\n");
+        exit(EXIT_FAILURE);
+    }
+    if (mean_chunk_size <= 0.0) {
+        fprintf(stderr, "GA custom pipeline error: adaptive chunk mean must be > 0.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -947,15 +1024,15 @@ static void recombine_individual_custom(const uint16_t *parent_a,
 
         int event_count = count_a;
         if (rng_uniform(rng_state) < crossover_rate) {
-            for (int start = 0; start < event_count; start += CUSTOM_PIPELINE_CHUNK_SIZE) {
-                int end = start + CUSTOM_PIPELINE_CHUNK_SIZE;
-                if (end > event_count) {
-                    end = event_count;
-                }
+            int start = 0;
+            while (start < event_count) {
+                int remaining = event_count - start;
+                int chunk_size = sample_adaptive_chunk_size(mean_chunk_size, remaining, rng_state);
                 const int *src = (rng_range(rng_state, 2) == 0) ? events_a : events_b;
-                for (int i = start; i < end; i++) {
-                    events_child[i] = src[i];
+                for (int i = 0; i < chunk_size; i++) {
+                    events_child[start + i] = src[start + i];
                 }
+                start += chunk_size;
             }
         } else {
             memcpy(events_child, events_a, (size_t)event_count * sizeof(int));
@@ -1057,12 +1134,16 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     int transitions = ctx.num_levels - 1;
     int max_total = GA_MAX_FLIPS_CIM;
     int feature_blocks = 1;
+    double *adaptive_chunk_schedule = NULL;
 #if PRECOMPUTED_ITEM_MEMORY
     feature_blocks = ctx.num_features;
 #endif
     if (pipeline_mode == PIPELINE_CUSTOM && max_total <= 0) {
         fprintf(stderr, "GA custom pipeline error: GA_MAX_FLIPS_CIM must be > 0.\n");
         exit(EXIT_FAILURE);
+    }
+    if (pipeline_mode == PIPELINE_CUSTOM) {
+        adaptive_chunk_schedule = build_adaptive_chunk_schedule_or_die(max_total, params->generations);
     }
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
@@ -1180,6 +1261,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                             max_total,
                                             params->crossover_rate,
                                             params->mutation_rate,
+                                            adaptive_chunk_schedule[gen],
                                             &ga_state);
             } else {
                 crossover_individual_naive(&population[parent_a * genome_length],
@@ -1322,6 +1404,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     free(combined);
     free(offspring);
     free(population);
+    free(adaptive_chunk_schedule);
 }
 
 #if PRECOMPUTED_ITEM_MEMORY
