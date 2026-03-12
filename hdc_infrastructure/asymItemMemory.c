@@ -1024,13 +1024,18 @@ static void recombine_individual_custom(const uint16_t *parent_a,
 
         int event_count = count_a;
         if (rng_uniform(rng_state) < crossover_rate) {
+            int offset = rng_range(rng_state, event_count);
             int start = 0;
             while (start < event_count) {
                 int remaining = event_count - start;
                 int chunk_size = sample_adaptive_chunk_size(mean_chunk_size, remaining, rng_state);
                 const int *src = (rng_range(rng_state, 2) == 0) ? events_a : events_b;
                 for (int i = 0; i < chunk_size; i++) {
-                    events_child[start + i] = src[start + i];
+                    int src_idx = start + i + offset;
+                    if (src_idx >= event_count) {
+                        src_idx -= event_count;
+                    }
+                    events_child[start + i] = src[src_idx];
                 }
                 start += chunk_size;
             }
