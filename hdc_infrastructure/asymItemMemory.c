@@ -446,8 +446,10 @@ static void select_next_population_pareto(const uint16_t *population,
                                           int *rankR,
                                           double *crowdR,
                                           int *fronts,
-                                          int *front_offsets) {
+                                          int *front_offsets,
+                                          int *new_selected_count) {
     int combined_count = population_size * 2;
+    int new_selected = 0;
 
     memcpy(combined,
            population,
@@ -481,6 +483,9 @@ static void select_next_population_pareto(const uint16_t *population,
                        (size_t)genome_length * sizeof(uint16_t));
                 next_acc[filled] = accR[idx];
                 next_sim[filled] = simR[idx];
+                if (idx >= population_size) {
+                    new_selected++;
+                }
                 filled++;
             }
         } else {
@@ -494,6 +499,9 @@ static void select_next_population_pareto(const uint16_t *population,
                            (size_t)genome_length * sizeof(uint16_t));
                     next_acc[filled] = accR[idx];
                     next_sim[filled] = simR[idx];
+                    if (idx >= population_size) {
+                        new_selected++;
+                    }
                     filled++;
                 }
                 break;
@@ -509,10 +517,16 @@ static void select_next_population_pareto(const uint16_t *population,
                        (size_t)genome_length * sizeof(uint16_t));
                 next_acc[filled] = accR[idx];
                 next_sim[filled] = simR[idx];
+                if (idx >= population_size) {
+                    new_selected++;
+                }
                 filled++;
             }
             free(front_indices);
         }
+    }
+    if (new_selected_count) {
+        *new_selected_count = new_selected;
     }
 }
 
@@ -534,8 +548,10 @@ static void select_next_population_scalar(const uint16_t *population,
                                           double *accR,
                                           double *simR,
                                           double *fitR,
-                                          int *indices) {
+                                          int *indices,
+                                          int *new_selected_count) {
     int combined_count = population_size * 2;
+    int new_selected = 0;
 
     memcpy(combined,
            population,
@@ -564,6 +580,12 @@ static void select_next_population_scalar(const uint16_t *population,
         next_acc[i] = accR[idx];
         next_sim[i] = simR[idx];
         next_fit[i] = fitR[idx];
+        if (idx >= population_size) {
+            new_selected++;
+        }
+    }
+    if (new_selected_count) {
+        *new_selected_count = new_selected;
     }
 }
 
@@ -1230,6 +1252,18 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #endif
     }
 
+    output_mode = OUTPUT_NONE;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+    for (int i = 0; i < population_size; i++) {
+        (void)evaluate_candidate(&population[i * genome_length],
+                                 &ctx,
+                                 &accP[i],
+                                 &simP[i]);
+    }
+    output_mode = ga_output_mode;
+
     for (int gen = 0; gen < params->generations; gen++) {
         if (ga_output_mode == OUTPUT_BASIC) {
             printf("\rGA generation %d/%d   ", gen + 1, params->generations);
@@ -1238,17 +1272,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
             printf("GA generation %d/%d\n", gen + 1, params->generations);
         }
 
-        output_mode = OUTPUT_NONE;
-#ifdef _OPENMP
-#pragma omp parallel for schedule(dynamic)
-#endif
-        for (int i = 0; i < population_size; i++) {
-            (void)evaluate_candidate(&population[i * genome_length],
-                                     &ctx,
-                                     &accP[i],
-                                     &simP[i]);
-        }
-        output_mode = ga_output_mode;
         if (ga_output_mode >= OUTPUT_DETAILED) {
             for (int i = 0; i < population_size; i++) {
                 printf("  individual %d/%d accuracy: %.3f%%, similarity: %.3f\n",
@@ -1340,6 +1363,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         }
         output_mode = ga_output_mode;
 
+        int new_selected_count = 0;
         if (selection_mode == GA_SELECTION_PARETO) {
             select_next_population_pareto(population,
                                           offspring,
@@ -1358,7 +1382,8 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                           rankR,
                                           crowdR,
                                           fronts,
-                                          front_offsets);
+                                          front_offsets,
+                                          &new_selected_count);
         } else {
             for (int i = 0; i < population_size; i++) {
                 fitQ[i] = compute_scalar_fitness(selection_mode, accQ[i], simQ[i]);
@@ -1381,7 +1406,12 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                           accR,
                                           simR,
                                           fitR,
-                                          fronts);
+                                          fronts,
+                                          &new_selected_count);
+        }
+
+        if (ga_output_mode > OUTPUT_BASIC) {
+            printf("  new selected individuals: %d/%d\n", new_selected_count, population_size);
         }
     }
     if (ga_output_mode == OUTPUT_BASIC) {

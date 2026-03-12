@@ -47,7 +47,7 @@
 #define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
-#define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
+#define OUTPUT_MODE OUTPUT_DETAILED // output verbosity level
 #endif
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
