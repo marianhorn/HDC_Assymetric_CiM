@@ -17,7 +17,7 @@
 
 static const double ADAPTIVE_CHUNK_ALPHA = 1.5;
 static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.4;
-static const int CUSTOM_PIPELINE_EVENT_STEP = 1;
+static const double ADAPTIVE_MUTATION_BETA = 1.5;
 
 void init_ga_params(struct ga_params *params) {
     if (!params) {
@@ -790,13 +790,14 @@ static void crossover_individual_naive(const uint16_t *parent_a,
 }
 
 static int wrap_event_level(int level, int transitions) {
-    while (level > transitions) {
-        level -= transitions;
+    if (transitions <= 0) {
+        return level;
     }
-    while (level < 1) {
-        level += transitions;
+    int zero_based = (level - 1) % transitions;
+    if (zero_based < 0) {
+        zero_based += transitions;
     }
-    return level;
+    return zero_based + 1;
 }
 
 static int round_positive_to_int(double value) {
@@ -834,6 +835,36 @@ static double *build_adaptive_chunk_schedule_or_die(int event_count, int generat
             mu = 1.0;
         }
         schedule[g] = mu;
+    }
+
+    return schedule;
+}
+
+static int *build_adaptive_mutation_step_schedule_or_die(int transitions, int generations) {
+    if (transitions <= 0 || generations <= 0) {
+        fprintf(stderr, "GA custom pipeline error: invalid mutation schedule dimensions.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int *schedule = (int *)malloc((size_t)generations * sizeof(int));
+    if (!schedule) {
+        fprintf(stderr, "GA custom pipeline error: failed to allocate mutation schedule.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    double base = 1.0 / (double)transitions;
+    for (int g = 0; g < generations; g++) {
+        double t = generations > 1 ? (double)g / (double)(generations - 1) : 1.0;
+        double exponent = pow(t, ADAPTIVE_MUTATION_BETA);
+        double max_step_f = (double)transitions * pow(base, exponent);
+        int max_step = round_positive_to_int(max_step_f);
+        if (max_step < 1) {
+            max_step = 1;
+        }
+        if (max_step > transitions) {
+            max_step = transitions;
+        }
+        schedule[g] = max_step;
     }
 
     return schedule;
@@ -954,16 +985,22 @@ static void event_list_to_block_or_die(const int *events,
 static void mutate_event_list(int *events,
                               int event_count,
                               int transitions,
+                              int max_step,
                               double mutation_rate,
                               uint32_t *rng_state) {
     if (!events || event_count <= 0 || transitions <= 0) {
         return;
     }
+    if (!rng_state || max_step <= 0 || max_step > transitions) {
+        fprintf(stderr, "GA custom pipeline error: invalid mutation step bounds.\n");
+        exit(EXIT_FAILURE);
+    }
 
     for (int i = 0; i < event_count; i++) {
         if (rng_uniform(rng_state) < mutation_rate) {
-            int step = rng_range(rng_state, 2) == 0 ? -CUSTOM_PIPELINE_EVENT_STEP : CUSTOM_PIPELINE_EVENT_STEP;
-            events[i] = wrap_event_level(events[i] + step, transitions);
+            int step_mag = 1 + rng_range(rng_state, max_step);
+            int step_sign = rng_range(rng_state, 2) == 0 ? -1 : 1;
+            events[i] = wrap_event_level(events[i] + step_sign * step_mag, transitions);
         }
     }
 }
@@ -977,6 +1014,7 @@ static void recombine_individual_custom(const uint16_t *parent_a,
                                         double crossover_rate,
                                         double mutation_rate,
                                         double mean_chunk_size,
+                                        int max_mutation_step,
                                         uint32_t *rng_state) {
     if (!parent_a || !parent_b || !child || !rng_state || transitions <= 0 || feature_blocks <= 0) {
         fprintf(stderr, "GA custom pipeline error: invalid recombination inputs.\n");
@@ -1043,7 +1081,12 @@ static void recombine_individual_custom(const uint16_t *parent_a,
             memcpy(events_child, events_a, (size_t)event_count * sizeof(int));
         }
 
-        mutate_event_list(events_child, event_count, transitions, mutation_rate, rng_state);
+        mutate_event_list(events_child,
+                          event_count,
+                          transitions,
+                          max_mutation_step,
+                          mutation_rate,
+                          rng_state);
         event_list_to_block_or_die(events_child, event_count, transitions, block_child, feature);
     }
 
@@ -1140,6 +1183,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     int max_total = GA_MAX_FLIPS_CIM;
     int feature_blocks = 1;
     double *adaptive_chunk_schedule = NULL;
+    int *adaptive_mutation_step_schedule = NULL;
 #if PRECOMPUTED_ITEM_MEMORY
     feature_blocks = ctx.num_features;
 #endif
@@ -1149,6 +1193,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     }
     if (pipeline_mode == PIPELINE_CUSTOM) {
         adaptive_chunk_schedule = build_adaptive_chunk_schedule_or_die(max_total, params->generations);
+        adaptive_mutation_step_schedule = build_adaptive_mutation_step_schedule_or_die(transitions, params->generations);
     }
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
@@ -1267,6 +1312,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                                             params->crossover_rate,
                                             params->mutation_rate,
                                             adaptive_chunk_schedule[gen],
+                                            adaptive_mutation_step_schedule[gen],
                                             &ga_state);
             } else {
                 crossover_individual_naive(&population[parent_a * genome_length],
@@ -1410,6 +1456,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     free(offspring);
     free(population);
     free(adaptive_chunk_schedule);
+    free(adaptive_mutation_step_schedule);
 }
 
 #if PRECOMPUTED_ITEM_MEMORY
