@@ -15,9 +15,9 @@
 #include <omp.h>
 #endif
 
-static const double ADAPTIVE_CHUNK_ALPHA = 1.5;
-static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.4;
-static const double ADAPTIVE_MUTATION_BETA = 1.5;
+static const double ADAPTIVE_CHUNK_ALPHA = 1.0;
+static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.2;
+static const double ADAPTIVE_MUTATION_BETA = 0.8;
 
 void init_ga_params(struct ga_params *params) {
     if (!params) {
@@ -832,7 +832,7 @@ static double *build_adaptive_chunk_schedule_or_die(int event_count, int generat
         exit(EXIT_FAILURE);
     }
 
-    int mu_min = round_positive_to_int(0.01 * (double)event_count);
+    int mu_min = round_positive_to_int(0.005 * (double)event_count);
     if (mu_min < 2) {
         mu_min = 2;
     }

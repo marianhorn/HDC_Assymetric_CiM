@@ -2,7 +2,7 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 1024 // hypervector dimension
+#define VECTOR_DIMENSION 2048 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
 #define NUM_LEVELS 100 // number of quantization levels
@@ -61,16 +61,16 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 32 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 64 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 64 // GA generations
+#define GA_DEFAULT_GENERATIONS 128 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
-#define GA_DEFAULT_CROSSOVER_RATE 0.9 // GA crossover rate
+#define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate
 #endif
 #ifndef GA_DEFAULT_MUTATION_RATE
-#define GA_DEFAULT_MUTATION_RATE 0.8 // GA mutation rate
+#define GA_DEFAULT_MUTATION_RATE 0.3 // GA mutation rate
 #endif
 #ifndef GA_DEFAULT_TOURNAMENT_SIZE
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 // GA tournament size
