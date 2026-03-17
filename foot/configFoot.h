@@ -70,7 +70,7 @@
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate
 #endif
 #ifndef GA_DEFAULT_MUTATION_RATE
-#define GA_DEFAULT_MUTATION_RATE 0.3 // GA mutation rate
+#define GA_DEFAULT_MUTATION_RATE 0.2 // GA mutation rate
 #endif
 #ifndef GA_DEFAULT_TOURNAMENT_SIZE
 #define GA_DEFAULT_TOURNAMENT_SIZE 3 // GA tournament size

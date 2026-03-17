@@ -15,7 +15,7 @@
 #include <omp.h>
 #endif
 
-static const double ADAPTIVE_CHUNK_ALPHA = 1.0;
+static const double ADAPTIVE_CHUNK_ALPHA = 0.8;
 static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.2;
 static const double ADAPTIVE_MUTATION_BETA = 0.8;
 
