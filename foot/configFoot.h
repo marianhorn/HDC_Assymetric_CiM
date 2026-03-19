@@ -94,6 +94,10 @@
 #define GA_PIPELINE PIPELINE_CUSTOM // GA variation pipeline
 #endif
 
+#ifndef BINNING_MODE
+#define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
+#endif
+
 extern int output_mode;
 
 //*************DONT CHANGE ANYTHING below this line */
@@ -102,9 +106,14 @@ extern int output_mode;
 #define OUTPUT_DETAILED 2    // Print intermediate information
 #define OUTPUT_DEBUG 3       // Print everything
 
+#define UNIFORM_BINNING 0    // use existing uniform value-to-level mapping
+#define QUANTILE_BINNING 1   // use per-feature quantile value-to-level mapping
+
+
 #define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
 #define GA_SELECTION_MULTI 1    // GA selection: accuracy minus similarity
 #define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
+
 #define PIPELINE_NAIVE 0        // GA pipeline: existing operators
 #define PIPELINE_CUSTOM 1       // GA pipeline: custom event-list operators
 

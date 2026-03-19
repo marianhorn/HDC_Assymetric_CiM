@@ -20,6 +20,7 @@
 #include "../hdc_infrastructure/operations.h"
 #include "../hdc_infrastructure/evaluator.h"
 #include "../hdc_infrastructure/ResultManager.h"
+#include "../hdc_infrastructure/quantizer.h"
 #include "../hdc_infrastructure/vector.h"
 #include "../hdc_infrastructure/trainer.h"
 /**
@@ -30,6 +31,7 @@
 int output_mode = OUTPUT_MODE;
 
 int main(){
+    quantizer_clear();
     result_manager_init();
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
@@ -54,6 +56,11 @@ int main(){
 
     getData(&trainingData,&testingData,&trainingLabels,&testingLabels,&trainingSamples,&testingSamples);
 
+    if (quantizer_fit_from_training(trainingData, trainingSamples, NUM_FEATURES, NUM_LEVELS) != 0) {
+        fprintf(stderr, "Error: Failed to initialize quantizer.\n");
+        return EXIT_FAILURE;
+    }
+
     train_model_general_data(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
 
     struct timeseries_eval_result eval_result =
@@ -69,5 +76,7 @@ int main(){
 
     free_item_memory(&features);
     free_item_memory(&values);
+    quantizer_clear();
     result_manager_close();
+    return 0;
 }

@@ -13,6 +13,7 @@
 #include "configFoot.h"
 #include "../hdc_infrastructure/evaluator.h"
 #include "../hdc_infrastructure/ResultManager.h"
+#include "../hdc_infrastructure/quantizer.h"
 #include "../hdc_infrastructure/vector.h"
 #include "../hdc_infrastructure/trainer.h"
 #ifdef _OPENMP
@@ -29,7 +30,7 @@ static double now_ms(void) {
 #endif
 }
 
-int main(){
+int main(void){
     result_manager_init();
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
@@ -54,6 +55,7 @@ int main(){
     double sum_training_time_ms = 0.0;
 
     for(int dataset = 0; dataset<4;dataset++){
+        quantizer_clear();
 
         if (output_mode >= OUTPUT_BASIC) {
             printf("\n\nModel for dataset #%d\n",dataset);
@@ -97,6 +99,16 @@ int main(){
                           &validationSamples,
                           &testingSamples,
                           validationRatio);
+
+        if (quantizer_fit_from_training(trainingData, trainingSamples, NUM_FEATURES, NUM_LEVELS) != 0) {
+            fprintf(stderr, "Error: Failed to initialize quantizer for dataset %d.\n", dataset);
+            return EXIT_FAILURE;
+        }
+
+        if (quantizer_export_cuts_csv_for_dataset(dataset) != 0) {
+            fprintf(stderr, "Error: Failed to export quantizer cuts for dataset %d.\n", dataset);
+            return EXIT_FAILURE;
+        }
 
         double train_start_ms = now_ms();
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
@@ -270,6 +282,7 @@ int main(){
     overall_post_val.class_vector_similarity = mean_post_val_class_vector_similarity / 4.0;
     addResult(&overall_post_val, "model=mine,scope=overall,phase=postopt-validation");
 
+    quantizer_clear();
     result_manager_close();
     return 0;
 }

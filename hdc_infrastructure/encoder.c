@@ -21,11 +21,11 @@
  */
 #include "encoder.h"
 #include "operations.h"
+#include "quantizer.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <math.h>
 
 #if PRECOMPUTED_ITEM_MEMORY
 /**
@@ -61,63 +61,6 @@ void init_encoder(struct encoder *enc, struct item_memory *channel_memory, struc
 }
 #endif
 /**
- * @brief Converts an EMG value to a discrete signal level.
- *
- * This function maps a continuous EMG signal value to a discrete 
- * level based on the predefined minimum and maximum levels (MIN_LEVEL, MAX_LEVEL, NUM_LEVELS).
- *
- * @param emg_value The EMG signal value to be converted.
- * @return The discrete signal level (integer) corresponding to the EMG value.
- */
-#if BIPOLAR_MODE || MODEL_VARIANT == MODEL_VARIANT_MARIAN
-static int get_signal_level_linear(double emg_value) {
-    if (emg_value <= MIN_LEVEL) {
-        return 0;
-    }
-    if (emg_value >= MAX_LEVEL) {
-        return NUM_LEVELS - 1;
-    }
-    double normalized_value = (emg_value - MIN_LEVEL) / (MAX_LEVEL - MIN_LEVEL);
-
-    return (int)(normalized_value * (NUM_LEVELS - 1));
-}
-#endif
-
-#if !BIPOLAR_MODE && (MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION)
-static int get_signal_level_krischan(double emg_value) {
-    float value = (float)emg_value;
-    int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
-    if (scaled < 0) {
-        scaled = 0;
-    }
-    if (scaled > 20000) {
-        scaled = 20000;
-    }
-
-    int level = (scaled * (NUM_LEVELS - 1) + 10000) / 20000;
-    if (level < 0) {
-        level = 0;
-    }
-    if (level >= NUM_LEVELS) {
-        level = NUM_LEVELS - 1;
-    }
-    return level;
-}
-#endif
-
-int get_signal_level(double emg_value) {
-#if !BIPOLAR_MODE
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
-    return get_signal_level_krischan(emg_value);
-#else
-    return get_signal_level_linear(emg_value);
-#endif
-#else
-    return get_signal_level_linear(emg_value);
-#endif
-}
-
-/**
  * @brief Encodes a single timestamp of data into a hypervector.
  *
  * This function performs spatial encoding by binding channel and signal vectors
@@ -136,7 +79,7 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
 #if PRECOMPUTED_ITEM_MEMORY
     Vector* bound_vectors[NUM_FEATURES];
     for (int channel = 0; channel < NUM_FEATURES; channel++) {
-        int signal_level = get_signal_level(emg_sample[channel]);
+        int signal_level = get_signal_level(channel, emg_sample[channel]);
         bound_vectors[channel] = enc->item_mem->base_vectors[(signal_level * NUM_FEATURES) + channel];
     }
     bundle_multi(bound_vectors, NUM_FEATURES, result);
@@ -146,7 +89,7 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
         result->data[d] = 0;
     }
     for (int channel = 0; channel < NUM_FEATURES; channel++) {
-        int signal_level = get_signal_level(emg_sample[channel]);
+        int signal_level = get_signal_level(channel, emg_sample[channel]);
         Vector *channel_vec = enc->channel_memory->base_vectors[channel];
         Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
         for (int d = 0; d < VECTOR_DIMENSION; d++) {
@@ -173,7 +116,7 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
     for (size_t w = 0; w < words; w++) {
         memset(planes, 0, (size_t)nbits * sizeof(uint64_t));
         for (int channel = 0; channel < NUM_FEATURES; channel++) {
-            int signal_level = get_signal_level(emg_sample[channel]);
+            int signal_level = get_signal_level(channel, emg_sample[channel]);
             Vector *channel_vec = enc->channel_memory->base_vectors[channel];
             Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
             uint64_t carry = channel_vec->data[w] ^ signal_vec->data[w];

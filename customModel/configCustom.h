@@ -189,12 +189,20 @@
 #ifndef GA_PIPELINE
 #define GA_PIPELINE PIPELINE_NAIVE // GA variation pipeline
 #endif
+
+#ifndef BINNING_MODE
+#define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
+#endif
+
 extern int output_mode;
 
 //*************DONT CHANGE ANYTHING below this line */
 #define OUTPUT_NONE 0        // No printing
 #define OUTPUT_BASIC 1       // Print results
 #define OUTPUT_DETAILED 2    // Print intermediate information
-#define OUTPUT_DEBUG 3         // Print everything
+#define OUTPUT_DEBUG 3       // Print everything
+
+#define UNIFORM_BINNING 0    // use existing uniform value-to-level mapping
+#define QUANTILE_BINNING 1   // use per-feature quantile value-to-level mapping
 
 #endif
