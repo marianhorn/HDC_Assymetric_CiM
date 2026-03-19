@@ -204,5 +204,6 @@ extern int output_mode;
 
 #define UNIFORM_BINNING 0    // use existing uniform value-to-level mapping
 #define QUANTILE_BINNING 1   // use per-feature quantile value-to-level mapping
+#define KMEANS_1D_BINNING 2  // use per-feature 1D k-means value-to-level mapping
 
 #endif

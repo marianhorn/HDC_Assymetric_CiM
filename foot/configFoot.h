@@ -2,10 +2,10 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 2048 // hypervector dimension
+#define VECTOR_DIMENSION 512 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 100 // number of quantization levels
+#define NUM_LEVELS 10 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -47,7 +47,7 @@
 #define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
-#define OUTPUT_MODE OUTPUT_DETAILED // output verbosity level
+#define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
 #endif
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
@@ -61,10 +61,10 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 64 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 32 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 128 // GA generations
+#define GA_DEFAULT_GENERATIONS 64 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate
@@ -95,7 +95,7 @@
 #endif
 
 #ifndef BINNING_MODE
-#define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
+#define BINNING_MODE KMEANS_1D_BINNING // active value-to-level binning mode
 #endif
 
 extern int output_mode;
@@ -108,6 +108,7 @@ extern int output_mode;
 
 #define UNIFORM_BINNING 0    // use existing uniform value-to-level mapping
 #define QUANTILE_BINNING 1   // use per-feature quantile value-to-level mapping
+#define KMEANS_1D_BINNING 2  // use per-feature 1D k-means value-to-level mapping
 
 
 #define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
