@@ -12,6 +12,7 @@
 #endif
 
 int quantizer_fit_from_training(double **training_data,
+                                const int *training_labels,
                                 int training_samples,
                                 int num_features,
                                 int num_levels);

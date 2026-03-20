@@ -56,7 +56,11 @@ int main(){
 
     getData(&trainingData,&testingData,&trainingLabels,&testingLabels,&trainingSamples,&testingSamples);
 
-    if (quantizer_fit_from_training(trainingData, trainingSamples, NUM_FEATURES, NUM_LEVELS) != 0) {
+    if (quantizer_fit_from_training(trainingData,
+                                    trainingLabels,
+                                    trainingSamples,
+                                    NUM_FEATURES,
+                                    NUM_LEVELS) != 0) {
         fprintf(stderr, "Error: Failed to initialize quantizer.\n");
         return EXIT_FAILURE;
     }

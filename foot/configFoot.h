@@ -109,6 +109,7 @@ extern int output_mode;
 #define UNIFORM_BINNING 0    // use existing uniform value-to-level mapping
 #define QUANTILE_BINNING 1   // use per-feature quantile value-to-level mapping
 #define KMEANS_1D_BINNING 2  // use per-feature 1D k-means value-to-level mapping
+#define DECISION_TREE_1D_BINNING 3  // use per-feature supervised 1D decision-tree value-to-level mapping
 
 
 #define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto

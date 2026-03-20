@@ -9,6 +9,18 @@
 #define QUANTIZER_EXPORT_CENTERS_PATH_TEMPLATE "analysis/quantizer_centers_dataset%02d.csv"
 #define KMEANS_1D_MAX_ITERATIONS 100
 #define KMEANS_1D_TOLERANCE 1e-9
+#define TREE_1D_MIN_SAMPLES_LEAF 10
+#define TREE_1D_THRESHOLD_EPS 1e-12
+
+typedef struct {
+    double value;
+    int label;
+} feature_sample_t;
+
+typedef struct {
+    int start;
+    int end;
+} tree_leaf_t;
 
 static double *g_boundaries = NULL;
 static double *g_centers = NULL;
@@ -18,6 +30,8 @@ static int *g_zero_width_interval_counts = NULL;
 static int *g_empty_bin_counts = NULL;
 static int *g_iteration_counts = NULL;
 static int *g_training_occupancy = NULL;
+static int *g_tree_split_counts = NULL;
+static int *g_fallback_threshold_counts = NULL;
 static int g_num_features = 0;
 static int g_num_levels = 0;
 static int g_fitted = 0;
@@ -26,6 +40,8 @@ static int g_total_refinements = 0;
 static int g_total_duplicate_centers = 0;
 static int g_total_zero_width_intervals = 0;
 static int g_total_empty_bins = 0;
+static int g_total_tree_splits = 0;
+static int g_total_fallback_thresholds = 0;
 
 static size_t boundary_count_total_for(int num_features, int num_levels) {
     if (num_features <= 0 || num_levels <= 1) {
@@ -47,7 +63,7 @@ static int center_index(int feature_idx, int center_idx) {
 }
 #endif
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
 static int occupancy_index(int feature_idx, int level_idx) {
     return feature_idx * g_num_levels + level_idx;
 }
@@ -59,7 +75,7 @@ static void fill_with_nan(double *data, size_t count) {
     }
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
 static int boundary_index(int feature_idx, int cut_idx) {
     return feature_idx * (g_num_levels - 1) + cut_idx;
 }
@@ -117,6 +133,8 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
     g_zero_width_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
     g_empty_bin_counts = (int *)calloc((size_t)num_features, sizeof(int));
     g_iteration_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_tree_split_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_fallback_threshold_counts = (int *)calloc((size_t)num_features, sizeof(int));
 
     if ((boundary_count > 0 && g_boundaries == NULL) ||
         (center_count > 0 && g_centers == NULL) ||
@@ -125,7 +143,9 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
         g_duplicate_center_counts == NULL ||
         g_zero_width_interval_counts == NULL ||
         g_empty_bin_counts == NULL ||
-        g_iteration_counts == NULL) {
+        g_iteration_counts == NULL ||
+        g_tree_split_counts == NULL ||
+        g_fallback_threshold_counts == NULL) {
         fprintf(stderr, "quantizer: failed to allocate state buffers.\n");
         return -1;
     }
@@ -147,12 +167,14 @@ static const char *quantizer_mode_name(void) {
     return "quantile";
 #elif BINNING_MODE == KMEANS_1D_BINNING
     return "kmeans-1d";
+#elif BINNING_MODE == DECISION_TREE_1D_BINNING
+    return "decision-tree-1d";
 #else
     return "unknown";
 #endif
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
 static int map_value_with_boundaries_unchecked(int feature_idx, double x) {
     if (g_num_levels <= 1) {
         return 0;
@@ -296,7 +318,6 @@ static int fit_quantile_feature(int feature_idx, const double *sorted_values, in
     return 0;
 }
 #endif
-
 #if BINNING_MODE == KMEANS_1D_BINNING
 static int nearest_center_index(const double *centers, int center_count, double value) {
     int best_idx = 0;
@@ -507,8 +528,316 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
     return 0;
 }
 #endif
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
+static int compare_feature_samples(const void *a, const void *b) {
+    const feature_sample_t *sa = (const feature_sample_t *)a;
+    const feature_sample_t *sb = (const feature_sample_t *)b;
+    if (sa->value < sb->value) {
+        return -1;
+    }
+    if (sa->value > sb->value) {
+        return 1;
+    }
+    if (sa->label < sb->label) {
+        return -1;
+    }
+    if (sa->label > sb->label) {
+        return 1;
+    }
+    return 0;
+}
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+static double gini_impurity(const int *counts, int total) {
+    if (total <= 0) {
+        return 0.0;
+    }
+
+    double sum_sq = 0.0;
+    for (int cls = 0; cls < NUM_CLASSES; cls++) {
+        double p = (double)counts[cls] / (double)total;
+        sum_sq += p * p;
+    }
+    return 1.0 - sum_sq;
+}
+
+static void get_range_class_counts(const int *prefix_counts, int start, int end, int *out_counts) {
+    for (int cls = 0; cls < NUM_CLASSES; cls++) {
+        out_counts[cls] = prefix_counts[end * NUM_CLASSES + cls] -
+                          prefix_counts[start * NUM_CLASSES + cls];
+    }
+}
+
+static int contains_near_duplicate_threshold(const double *values,
+                                             int count,
+                                             double candidate,
+                                             double eps) {
+    for (int i = 0; i < count; i++) {
+        if (fabs(values[i] - candidate) <= eps) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int finalize_decision_tree_boundaries(int feature_idx,
+                                             const double *tree_thresholds,
+                                             int tree_threshold_count,
+                                             const double *sorted_values,
+                                             int sample_count) {
+    int cut_count = g_num_levels - 1;
+    int fallback_count = 0;
+    int refinements = 0;
+    int unique_tree_count = 0;
+    double *sorted_tree = NULL;
+    double *quantile_thresholds = NULL;
+    double *selected = NULL;
+
+    if (cut_count <= 0) {
+        g_tree_split_counts[feature_idx] = tree_threshold_count;
+        g_fallback_threshold_counts[feature_idx] = 0;
+        g_refinement_counts[feature_idx] = 0;
+        g_total_tree_splits += tree_threshold_count;
+        return 0;
+    }
+
+    sorted_tree = (double *)malloc((size_t)((tree_threshold_count > 0) ? tree_threshold_count : 1) * sizeof(double));
+    quantile_thresholds = (double *)malloc((size_t)cut_count * sizeof(double));
+    selected = (double *)malloc((size_t)cut_count * sizeof(double));
+    if (!sorted_tree || !quantile_thresholds || !selected) {
+        fprintf(stderr, "quantizer: failed to allocate decision-tree threshold buffers.\n");
+        free(sorted_tree);
+        free(quantile_thresholds);
+        free(selected);
+        return -1;
+    }
+
+    for (int i = 0; i < tree_threshold_count; i++) {
+        sorted_tree[i] = tree_thresholds[i];
+    }
+    if (tree_threshold_count > 1) {
+        qsort(sorted_tree, (size_t)tree_threshold_count, sizeof(double), compare_doubles);
+    }
+
+    for (int k = 1; k < g_num_levels; k++) {
+        double q = (double)k / (double)g_num_levels;
+        quantile_thresholds[k - 1] = interpolate_sorted_value(sorted_values, sample_count, q);
+    }
+
+    int selected_count = 0;
+    for (int i = 0; i < tree_threshold_count && selected_count < cut_count; i++) {
+        if (!contains_near_duplicate_threshold(selected,
+                                               selected_count,
+                                               sorted_tree[i],
+                                               TREE_1D_THRESHOLD_EPS)) {
+            selected[selected_count++] = sorted_tree[i];
+            unique_tree_count++;
+        }
+    }
+
+    for (int i = 0; i < cut_count && selected_count < cut_count; i++) {
+        if (!contains_near_duplicate_threshold(selected,
+                                               selected_count,
+                                               quantile_thresholds[i],
+                                               TREE_1D_THRESHOLD_EPS)) {
+            selected[selected_count++] = quantile_thresholds[i];
+        }
+    }
+
+    fallback_count = selected_count - unique_tree_count;
+    if (fallback_count < 0) {
+        fallback_count = 0;
+    }
+
+    int quantile_idx = 0;
+    while (selected_count < cut_count) {
+        selected[selected_count++] = quantile_thresholds[quantile_idx];
+        fallback_count++;
+        quantile_idx++;
+        if (quantile_idx >= cut_count) {
+            quantile_idx = 0;
+        }
+    }
+
+    qsort(selected, (size_t)cut_count, sizeof(double), compare_doubles);
+    for (int i = 1; i < cut_count; i++) {
+        if (selected[i] <= selected[i - 1]) {
+            selected[i] = nextafter(selected[i - 1], INFINITY);
+            refinements++;
+        }
+    }
+
+    for (int i = 0; i < cut_count; i++) {
+        g_boundaries[boundary_index(feature_idx, i)] = selected[i];
+    }
+
+    g_tree_split_counts[feature_idx] = tree_threshold_count;
+    g_fallback_threshold_counts[feature_idx] = fallback_count;
+    g_refinement_counts[feature_idx] = refinements;
+    g_total_tree_splits += tree_threshold_count;
+    g_total_fallback_thresholds += fallback_count;
+    g_total_refinements += refinements;
+
+    free(sorted_tree);
+    free(quantile_thresholds);
+    free(selected);
+    return 0;
+}
+
+static int evaluate_best_tree_split(const feature_sample_t *sorted_samples,
+                                    const int *prefix_counts,
+                                    int start,
+                                    int end,
+                                    int *best_split_pos,
+                                    double *best_threshold,
+                                    double *best_gain) {
+    int leaf_size = end - start;
+    if (leaf_size < 2 * TREE_1D_MIN_SAMPLES_LEAF) {
+        return 0;
+    }
+
+    int total_counts[NUM_CLASSES];
+    get_range_class_counts(prefix_counts, start, end, total_counts);
+    double parent_weighted_impurity = (double)leaf_size * gini_impurity(total_counts, leaf_size);
+    int found = 0;
+    double local_best_gain = TREE_1D_THRESHOLD_EPS;
+    int local_best_pos = -1;
+    double local_best_threshold = 0.0;
+
+    for (int split_pos = start + TREE_1D_MIN_SAMPLES_LEAF;
+         split_pos <= end - TREE_1D_MIN_SAMPLES_LEAF;
+         split_pos++) {
+        if (fabs(sorted_samples[split_pos].value - sorted_samples[split_pos - 1].value) <=
+            TREE_1D_THRESHOLD_EPS) {
+            continue;
+        }
+
+        int left_size = split_pos - start;
+        int right_size = end - split_pos;
+        int left_counts[NUM_CLASSES];
+        int right_counts[NUM_CLASSES];
+        get_range_class_counts(prefix_counts, start, split_pos, left_counts);
+        get_range_class_counts(prefix_counts, split_pos, end, right_counts);
+
+        double children_weighted_impurity =
+            (double)left_size * gini_impurity(left_counts, left_size) +
+            (double)right_size * gini_impurity(right_counts, right_size);
+        double gain = parent_weighted_impurity - children_weighted_impurity;
+
+        if (gain > local_best_gain + TREE_1D_THRESHOLD_EPS) {
+            local_best_gain = gain;
+            local_best_pos = split_pos;
+            local_best_threshold =
+                0.5 * (sorted_samples[split_pos - 1].value + sorted_samples[split_pos].value);
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        return 0;
+    }
+
+    *best_split_pos = local_best_pos;
+    *best_threshold = local_best_threshold;
+    *best_gain = local_best_gain;
+    return 1;
+}
+
+static int fit_decision_tree_feature(int feature_idx,
+                                     const feature_sample_t *sorted_samples,
+                                     const double *sorted_values,
+                                     int sample_count) {
+    int *prefix_counts = NULL;
+    tree_leaf_t *leaves = NULL;
+    double *tree_thresholds = NULL;
+    int leaf_count = 1;
+    int tree_threshold_count = 0;
+
+    if (g_num_levels <= 1) {
+        g_tree_split_counts[feature_idx] = 0;
+        g_fallback_threshold_counts[feature_idx] = 0;
+        g_refinement_counts[feature_idx] = 0;
+        return 0;
+    }
+
+    prefix_counts = (int *)calloc((size_t)(sample_count + 1) * (size_t)NUM_CLASSES, sizeof(int));
+    leaves = (tree_leaf_t *)malloc((size_t)g_num_levels * sizeof(tree_leaf_t));
+    tree_thresholds = (double *)malloc((size_t)(g_num_levels - 1) * sizeof(double));
+    if (!prefix_counts || !leaves || !tree_thresholds) {
+        fprintf(stderr, "quantizer: failed to allocate decision-tree fit buffers.\n");
+        free(prefix_counts);
+        free(leaves);
+        free(tree_thresholds);
+        return -1;
+    }
+
+    for (int i = 0; i < sample_count; i++) {
+        memcpy(&prefix_counts[(size_t)(i + 1) * (size_t)NUM_CLASSES],
+               &prefix_counts[(size_t)i * (size_t)NUM_CLASSES],
+               (size_t)NUM_CLASSES * sizeof(int));
+        prefix_counts[(size_t)(i + 1) * (size_t)NUM_CLASSES + (size_t)sorted_samples[i].label] += 1;
+    }
+
+    leaves[0].start = 0;
+    leaves[0].end = sample_count;
+
+    while (leaf_count < g_num_levels) {
+        int best_leaf_idx = -1;
+        int best_split_pos = -1;
+        double best_threshold = 0.0;
+        double best_gain = TREE_1D_THRESHOLD_EPS;
+
+        for (int leaf_idx = 0; leaf_idx < leaf_count; leaf_idx++) {
+            int candidate_split_pos = -1;
+            double candidate_threshold = 0.0;
+            double candidate_gain = 0.0;
+
+            if (evaluate_best_tree_split(sorted_samples,
+                                         prefix_counts,
+                                         leaves[leaf_idx].start,
+                                         leaves[leaf_idx].end,
+                                         &candidate_split_pos,
+                                         &candidate_threshold,
+                                         &candidate_gain)) {
+                if (best_leaf_idx < 0 || candidate_gain > best_gain + TREE_1D_THRESHOLD_EPS) {
+                    best_leaf_idx = leaf_idx;
+                    best_split_pos = candidate_split_pos;
+                    best_threshold = candidate_threshold;
+                    best_gain = candidate_gain;
+                }
+            }
+        }
+
+        if (best_leaf_idx < 0) {
+            break;
+        }
+
+        tree_leaf_t original_leaf = leaves[best_leaf_idx];
+        leaves[best_leaf_idx].start = original_leaf.start;
+        leaves[best_leaf_idx].end = best_split_pos;
+        leaves[leaf_count].start = best_split_pos;
+        leaves[leaf_count].end = original_leaf.end;
+        leaf_count++;
+        tree_thresholds[tree_threshold_count++] = best_threshold;
+    }
+
+    if (finalize_decision_tree_boundaries(feature_idx,
+                                          tree_thresholds,
+                                          tree_threshold_count,
+                                          sorted_values,
+                                          sample_count) != 0) {
+        free(prefix_counts);
+        free(leaves);
+        free(tree_thresholds);
+        return -1;
+    }
+
+    free(prefix_counts);
+    free(leaves);
+    free(tree_thresholds);
+    return 0;
+}
+#endif
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
 static void compute_training_occupancy(double **training_data, int training_samples) {
     if (g_training_occupancy == NULL || g_num_features <= 0 || g_num_levels <= 0) {
         return;
@@ -578,6 +907,40 @@ static void print_kmeans_diagnostics(void) {
 }
 #endif
 
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
+static void print_decision_tree_diagnostics(void) {
+    if (output_mode >= OUTPUT_DETAILED) {
+        for (int feature = 0; feature < g_num_features; feature++) {
+            fprintf(stdout,
+                    "quantizer: tree feature %d: splits=%d, fallback_thresholds=%d, empty_bins=%d, refinements=%d\n",
+                    feature,
+                    g_tree_split_counts[feature],
+                    g_fallback_threshold_counts[feature],
+                    g_empty_bin_counts[feature],
+                    g_refinement_counts[feature]);
+        }
+    }
+
+    if (output_mode >= OUTPUT_DEBUG) {
+        for (int feature = 0; feature < g_num_features; feature++) {
+            if (g_num_levels > 1) {
+                fprintf(stdout, "quantizer: feature %d boundaries:", feature);
+                for (int i = 0; i < g_num_levels - 1; i++) {
+                    fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, i)]);
+                }
+                fprintf(stdout, "\n");
+            }
+
+            fprintf(stdout, "quantizer: feature %d occupancy:", feature);
+            for (int level = 0; level < g_num_levels; level++) {
+                fprintf(stdout, " %d", g_training_occupancy[occupancy_index(feature, level)]);
+            }
+            fprintf(stdout, "\n");
+        }
+    }
+}
+#endif
+
 void quantizer_clear(void) {
     free(g_boundaries);
     free(g_centers);
@@ -587,6 +950,8 @@ void quantizer_clear(void) {
     free(g_empty_bin_counts);
     free(g_iteration_counts);
     free(g_training_occupancy);
+    free(g_tree_split_counts);
+    free(g_fallback_threshold_counts);
     g_boundaries = NULL;
     g_centers = NULL;
     g_refinement_counts = NULL;
@@ -595,6 +960,8 @@ void quantizer_clear(void) {
     g_empty_bin_counts = NULL;
     g_iteration_counts = NULL;
     g_training_occupancy = NULL;
+    g_tree_split_counts = NULL;
+    g_fallback_threshold_counts = NULL;
     g_num_features = 0;
     g_num_levels = 0;
     g_fitted = 0;
@@ -603,13 +970,15 @@ void quantizer_clear(void) {
     g_total_duplicate_centers = 0;
     g_total_zero_width_intervals = 0;
     g_total_empty_bins = 0;
+    g_total_tree_splits = 0;
+    g_total_fallback_thresholds = 0;
 }
 
 int quantizer_is_fitted(void) {
     return g_fitted;
 }
-
 int quantizer_fit_from_training(double **training_data,
+                                const int *training_labels,
                                 int training_samples,
                                 int num_features,
                                 int num_levels) {
@@ -630,10 +999,12 @@ int quantizer_fit_from_training(double **training_data,
 
 #if BINNING_MODE == UNIFORM_BINNING
     (void)training_data;
+    (void)training_labels;
     (void)training_samples;
     g_fitted = 1;
     return 0;
 #elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+    (void)training_labels;
     if (!training_data || training_samples <= 0) {
         fprintf(stderr, "quantizer: invalid fit input.\n");
         quantizer_clear();
@@ -675,8 +1046,70 @@ int quantizer_fit_from_training(double **training_data,
     }
 
     free(sorted_values);
+#elif BINNING_MODE == DECISION_TREE_1D_BINNING
+    if (!training_data || !training_labels || training_samples <= 0) {
+        fprintf(stderr, "quantizer: invalid fit input for decision-tree mode.\n");
+        quantizer_clear();
+        return -1;
+    }
+
+    feature_sample_t *sorted_samples = (feature_sample_t *)malloc((size_t)training_samples * sizeof(feature_sample_t));
+    double *sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
+    if (sorted_samples == NULL || sorted_values == NULL) {
+        fprintf(stderr, "quantizer: failed to allocate decision-tree training buffers.\n");
+        free(sorted_samples);
+        free(sorted_values);
+        quantizer_clear();
+        return -1;
+    }
+
+    for (int feature = 0; feature < num_features; feature++) {
+        for (int sample = 0; sample < training_samples; sample++) {
+            double value = training_data[sample][feature];
+            int label = training_labels[sample];
+            if (label < 0 || label >= NUM_CLASSES) {
+                fprintf(stderr,
+                        "quantizer: label %d at sample %d is out of range [0,%d).\n",
+                        label,
+                        sample,
+                        NUM_CLASSES);
+                free(sorted_samples);
+                free(sorted_values);
+                quantizer_clear();
+                return -1;
+            }
+            if (!isfinite(value)) {
+                value = 0.0;
+                g_non_finite_replacements++;
+            }
+            sorted_samples[sample].value = value;
+            sorted_samples[sample].label = label;
+        }
+
+        qsort(sorted_samples, (size_t)training_samples, sizeof(feature_sample_t), compare_feature_samples);
+        for (int sample = 0; sample < training_samples; sample++) {
+            sorted_values[sample] = sorted_samples[sample].value;
+        }
+
+        if (fit_decision_tree_feature(feature, sorted_samples, sorted_values, training_samples) != 0) {
+            free(sorted_samples);
+            free(sorted_values);
+            quantizer_clear();
+            return -1;
+        }
+    }
+
+    free(sorted_samples);
+    free(sorted_values);
+#else
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, or DECISION_TREE_1D_BINNING."
+#endif
+
     g_fitted = 1;
+
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
     compute_training_occupancy(training_data, training_samples);
+#endif
 
     if (g_non_finite_replacements > 0 && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr,
@@ -705,25 +1138,34 @@ int quantizer_fit_from_training(double **training_data,
                 g_total_empty_bins);
     }
     print_kmeans_diagnostics();
+#elif BINNING_MODE == DECISION_TREE_1D_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (tree splits: %d, fallback thresholds: %d, refinements: %d, empty bins: %d).\n",
+                quantizer_mode_name(),
+                g_num_features,
+                g_num_levels,
+                g_total_tree_splits,
+                g_total_fallback_thresholds,
+                g_total_refinements,
+                g_total_empty_bins);
+    }
+    print_decision_tree_diagnostics();
 #endif
 
     return 0;
-#else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, or KMEANS_1D_BINNING."
-#endif
 }
 
 int get_signal_level(int feature_idx, double emg_value) {
 #if BINNING_MODE == UNIFORM_BINNING
     (void)feature_idx;
     return get_signal_level_uniform(emg_value);
-#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
     return map_value_with_boundaries_checked(feature_idx, emg_value);
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, or KMEANS_1D_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, or DECISION_TREE_1D_BINNING."
 #endif
 }
-
 #if BINNING_MODE == KMEANS_1D_BINNING
 static int quantizer_export_centers_csv(const char *filepath) {
     if (!filepath || filepath[0] == '\0') {
@@ -819,38 +1261,45 @@ int quantizer_export_cuts_csv(const char *filepath) {
 
 #if BINNING_MODE == UNIFORM_BINNING
     fprintf(file,
-            "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=0,non_finite_replacements=0\n",
+            "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=0,non_finite_replacements=0,total_tree_splits=0,total_fallback_thresholds=0\n",
             quantizer_mode_name(),
             g_num_features,
             g_num_levels);
-    fprintf(file, "feature,refinement_count\n");
+    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count\n");
     for (int feature = 0; feature < g_num_features; feature++) {
-        fprintf(file, "%d,0\n", feature);
+        fprintf(file, "%d,0,0,0\n", feature);
     }
-#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
     int cut_count = g_num_levels - 1;
     fprintf(file,
-            "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=%d,non_finite_replacements=%d\n",
+            "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=%d,non_finite_replacements=%d,total_tree_splits=%d,total_fallback_thresholds=%d\n",
             quantizer_mode_name(),
             g_num_features,
             g_num_levels,
             g_total_refinements,
-            g_non_finite_replacements);
-    fprintf(file, "feature,refinement_count");
+            g_non_finite_replacements,
+            g_total_tree_splits,
+            g_total_fallback_thresholds);
+    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count");
     for (int k = 0; k < cut_count; k++) {
         fprintf(file, ",cut_%03d", k);
     }
     fprintf(file, "\n");
 
     for (int feature = 0; feature < g_num_features; feature++) {
-        fprintf(file, "%d,%d", feature, g_refinement_counts[feature]);
+        fprintf(file,
+                "%d,%d,%d,%d",
+                feature,
+                g_refinement_counts[feature],
+                g_tree_split_counts[feature],
+                g_fallback_threshold_counts[feature]);
         for (int k = 0; k < cut_count; k++) {
             fprintf(file, ",%.17g", g_boundaries[boundary_index(feature, k)]);
         }
         fprintf(file, "\n");
     }
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, or KMEANS_1D_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, or DECISION_TREE_1D_BINNING."
 #endif
 
     fclose(file);
