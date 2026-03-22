@@ -11,6 +11,7 @@
 #define KMEANS_1D_TOLERANCE 1e-9
 #define TREE_1D_MIN_SAMPLES_LEAF 10
 #define TREE_1D_THRESHOLD_EPS 1e-12
+#define CHIMERGE_THRESHOLD_EPS 1e-12
 
 typedef struct {
     double value;
@@ -22,6 +23,13 @@ typedef struct {
     int end;
 } tree_leaf_t;
 
+typedef struct {
+    double left_value;
+    double right_value;
+    int counts[NUM_CLASSES];
+    int sample_count;
+} chimerge_interval_t;
+
 static double *g_boundaries = NULL;
 static double *g_centers = NULL;
 static int *g_refinement_counts = NULL;
@@ -32,6 +40,7 @@ static int *g_iteration_counts = NULL;
 static int *g_training_occupancy = NULL;
 static int *g_tree_split_counts = NULL;
 static int *g_fallback_threshold_counts = NULL;
+static int *g_initial_interval_counts = NULL;
 static int g_num_features = 0;
 static int g_num_levels = 0;
 static int g_fitted = 0;
@@ -63,7 +72,7 @@ static int center_index(int feature_idx, int center_idx) {
 }
 #endif
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static int occupancy_index(int feature_idx, int level_idx) {
     return feature_idx * g_num_levels + level_idx;
 }
@@ -75,7 +84,7 @@ static void fill_with_nan(double *data, size_t count) {
     }
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static int boundary_index(int feature_idx, int cut_idx) {
     return feature_idx * (g_num_levels - 1) + cut_idx;
 }
@@ -135,6 +144,7 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
     g_iteration_counts = (int *)calloc((size_t)num_features, sizeof(int));
     g_tree_split_counts = (int *)calloc((size_t)num_features, sizeof(int));
     g_fallback_threshold_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_initial_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
 
     if ((boundary_count > 0 && g_boundaries == NULL) ||
         (center_count > 0 && g_centers == NULL) ||
@@ -145,7 +155,8 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
         g_empty_bin_counts == NULL ||
         g_iteration_counts == NULL ||
         g_tree_split_counts == NULL ||
-        g_fallback_threshold_counts == NULL) {
+        g_fallback_threshold_counts == NULL ||
+        g_initial_interval_counts == NULL) {
         fprintf(stderr, "quantizer: failed to allocate state buffers.\n");
         return -1;
     }
@@ -169,12 +180,14 @@ static const char *quantizer_mode_name(void) {
     return "kmeans-1d";
 #elif BINNING_MODE == DECISION_TREE_1D_BINNING
     return "decision-tree-1d";
+#elif BINNING_MODE == CHIMERGE_BINNING
+    return "chimerge";
 #else
     return "unknown";
 #endif
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static int map_value_with_boundaries_unchecked(int feature_idx, double x) {
     if (g_num_levels <= 1) {
         return 0;
@@ -837,7 +850,198 @@ static int fit_decision_tree_feature(int feature_idx,
     return 0;
 }
 #endif
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#if BINNING_MODE == CHIMERGE_BINNING
+static int compare_feature_samples(const void *a, const void *b) {
+    const feature_sample_t *sa = (const feature_sample_t *)a;
+    const feature_sample_t *sb = (const feature_sample_t *)b;
+    if (sa->value < sb->value) {
+        return -1;
+    }
+    if (sa->value > sb->value) {
+        return 1;
+    }
+    if (sa->label < sb->label) {
+        return -1;
+    }
+    if (sa->label > sb->label) {
+        return 1;
+    }
+    return 0;
+}
+
+static double compute_chimerge_score(const chimerge_interval_t *left,
+                                     const chimerge_interval_t *right) {
+    double grand_total = (double)(left->sample_count + right->sample_count);
+    if (grand_total <= 0.0) {
+        return 0.0;
+    }
+
+    double score = 0.0;
+    for (int cls = 0; cls < NUM_CLASSES; cls++) {
+        double column_total = (double)(left->counts[cls] + right->counts[cls]);
+        if (column_total <= 0.0) {
+            continue;
+        }
+
+        double expected_left = ((double)left->sample_count * column_total) / grand_total;
+        double expected_right = ((double)right->sample_count * column_total) / grand_total;
+
+        if (expected_left > 0.0) {
+            double diff_left = (double)left->counts[cls] - expected_left;
+            score += (diff_left * diff_left) / expected_left;
+        }
+        if (expected_right > 0.0) {
+            double diff_right = (double)right->counts[cls] - expected_right;
+            score += (diff_right * diff_right) / expected_right;
+        }
+    }
+
+    return score;
+}
+
+static int finalize_chimerge_boundaries(int feature_idx,
+                                        const chimerge_interval_t *intervals,
+                                        int interval_count,
+                                        const double *sorted_values,
+                                        int sample_count) {
+    int cut_count = g_num_levels - 1;
+    int meaningful_count = (interval_count > 0) ? (interval_count - 1) : 0;
+    int fallback_count = 0;
+    int refinements = 0;
+    double *selected = NULL;
+
+    if (cut_count <= 0) {
+        g_fallback_threshold_counts[feature_idx] = 0;
+        g_refinement_counts[feature_idx] = 0;
+        return 0;
+    }
+
+    selected = (double *)malloc((size_t)cut_count * sizeof(double));
+    if (selected == NULL) {
+        fprintf(stderr, "quantizer: failed to allocate ChiMerge threshold buffer.\n");
+        return -1;
+    }
+
+    for (int i = 0; i < meaningful_count && i < cut_count; i++) {
+        selected[i] = intervals[i].right_value +
+                      0.5 * (intervals[i + 1].left_value - intervals[i].right_value);
+    }
+
+    double fill_value = 0.0;
+    if (meaningful_count > 0) {
+        fill_value = selected[meaningful_count - 1];
+    } else if (sample_count > 0) {
+        fill_value = sorted_values[0];
+    }
+
+    for (int i = meaningful_count; i < cut_count; i++) {
+        selected[i] = fill_value;
+        fallback_count++;
+    }
+
+    for (int i = 1; i < cut_count; i++) {
+        if (selected[i] <= selected[i - 1]) {
+            selected[i] = nextafter(selected[i - 1], INFINITY);
+            refinements++;
+        }
+    }
+
+    for (int i = 0; i < cut_count; i++) {
+        g_boundaries[boundary_index(feature_idx, i)] = selected[i];
+    }
+
+    g_fallback_threshold_counts[feature_idx] = fallback_count;
+    g_refinement_counts[feature_idx] = refinements;
+    g_total_fallback_thresholds += fallback_count;
+    g_total_refinements += refinements;
+
+    free(selected);
+    return 0;
+}
+
+static int fit_chimerge_feature(int feature_idx,
+                                const feature_sample_t *sorted_samples,
+                                const double *sorted_values,
+                                int sample_count) {
+    chimerge_interval_t *intervals = NULL;
+    int interval_count = 0;
+
+    if (g_num_levels <= 1) {
+        g_initial_interval_counts[feature_idx] = 1;
+        g_fallback_threshold_counts[feature_idx] = 0;
+        g_refinement_counts[feature_idx] = 0;
+        return 0;
+    }
+
+    intervals = (chimerge_interval_t *)calloc((size_t)sample_count, sizeof(chimerge_interval_t));
+    if (intervals == NULL) {
+        fprintf(stderr, "quantizer: failed to allocate ChiMerge intervals.\n");
+        return -1;
+    }
+
+    for (int i = 0; i < sample_count; i++) {
+        double value = sorted_samples[i].value;
+        int label = sorted_samples[i].label;
+
+        if (interval_count == 0 ||
+            fabs(value - intervals[interval_count - 1].right_value) > CHIMERGE_THRESHOLD_EPS) {
+            intervals[interval_count].left_value = value;
+            intervals[interval_count].right_value = value;
+            interval_count++;
+        }
+
+        chimerge_interval_t *interval = &intervals[interval_count - 1];
+        interval->right_value = value;
+        interval->counts[label] += 1;
+        interval->sample_count += 1;
+    }
+
+    g_initial_interval_counts[feature_idx] = interval_count;
+    if (interval_count < g_num_levels && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr,
+                "quantizer: feature %d has only %d distinct value intervals for %d target bins; ChiMerge fallback will be used.\n",
+                feature_idx,
+                interval_count,
+                g_num_levels);
+    }
+
+    while (interval_count > g_num_levels) {
+        int best_pair_idx = 0;
+        double best_score = compute_chimerge_score(&intervals[0], &intervals[1]);
+
+        for (int pair_idx = 1; pair_idx < interval_count - 1; pair_idx++) {
+            double score = compute_chimerge_score(&intervals[pair_idx], &intervals[pair_idx + 1]);
+            if (score < best_score - CHIMERGE_THRESHOLD_EPS) {
+                best_score = score;
+                best_pair_idx = pair_idx;
+            }
+        }
+
+        chimerge_interval_t *left = &intervals[best_pair_idx];
+        chimerge_interval_t *right = &intervals[best_pair_idx + 1];
+        left->right_value = right->right_value;
+        left->sample_count += right->sample_count;
+        for (int cls = 0; cls < NUM_CLASSES; cls++) {
+            left->counts[cls] += right->counts[cls];
+        }
+
+        for (int i = best_pair_idx + 1; i < interval_count - 1; i++) {
+            intervals[i] = intervals[i + 1];
+        }
+        interval_count--;
+    }
+
+    if (finalize_chimerge_boundaries(feature_idx, intervals, interval_count, sorted_values, sample_count) != 0) {
+        free(intervals);
+        return -1;
+    }
+
+    free(intervals);
+    return 0;
+}
+#endif
+
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static void compute_training_occupancy(double **training_data, int training_samples) {
     if (g_training_occupancy == NULL || g_num_features <= 0 || g_num_levels <= 0) {
         return;
@@ -941,6 +1145,40 @@ static void print_decision_tree_diagnostics(void) {
 }
 #endif
 
+#if BINNING_MODE == CHIMERGE_BINNING
+static void print_chimerge_diagnostics(void) {
+    if (output_mode >= OUTPUT_DETAILED) {
+        for (int feature = 0; feature < g_num_features; feature++) {
+            fprintf(stdout,
+                    "quantizer: chimerge feature %d: initial_intervals=%d, fallback_thresholds=%d, empty_bins=%d, refinements=%d\n",
+                    feature,
+                    g_initial_interval_counts[feature],
+                    g_fallback_threshold_counts[feature],
+                    g_empty_bin_counts[feature],
+                    g_refinement_counts[feature]);
+        }
+    }
+
+    if (output_mode >= OUTPUT_DEBUG) {
+        for (int feature = 0; feature < g_num_features; feature++) {
+            if (g_num_levels > 1) {
+                fprintf(stdout, "quantizer: feature %d boundaries:", feature);
+                for (int i = 0; i < g_num_levels - 1; i++) {
+                    fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, i)]);
+                }
+                fprintf(stdout, "\n");
+            }
+
+            fprintf(stdout, "quantizer: feature %d occupancy:", feature);
+            for (int level = 0; level < g_num_levels; level++) {
+                fprintf(stdout, " %d", g_training_occupancy[occupancy_index(feature, level)]);
+            }
+            fprintf(stdout, "\n");
+        }
+    }
+}
+#endif
+
 void quantizer_clear(void) {
     free(g_boundaries);
     free(g_centers);
@@ -952,6 +1190,7 @@ void quantizer_clear(void) {
     free(g_training_occupancy);
     free(g_tree_split_counts);
     free(g_fallback_threshold_counts);
+    free(g_initial_interval_counts);
     g_boundaries = NULL;
     g_centers = NULL;
     g_refinement_counts = NULL;
@@ -962,6 +1201,7 @@ void quantizer_clear(void) {
     g_training_occupancy = NULL;
     g_tree_split_counts = NULL;
     g_fallback_threshold_counts = NULL;
+    g_initial_interval_counts = NULL;
     g_num_features = 0;
     g_num_levels = 0;
     g_fitted = 0;
@@ -1101,13 +1341,68 @@ int quantizer_fit_from_training(double **training_data,
 
     free(sorted_samples);
     free(sorted_values);
+#elif BINNING_MODE == CHIMERGE_BINNING
+    if (!training_data || !training_labels || training_samples <= 0) {
+        fprintf(stderr, "quantizer: invalid fit input for ChiMerge mode.\n");
+        quantizer_clear();
+        return -1;
+    }
+
+    feature_sample_t *sorted_samples = (feature_sample_t *)malloc((size_t)training_samples * sizeof(feature_sample_t));
+    double *sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
+    if (sorted_samples == NULL || sorted_values == NULL) {
+        fprintf(stderr, "quantizer: failed to allocate ChiMerge training buffers.\n");
+        free(sorted_samples);
+        free(sorted_values);
+        quantizer_clear();
+        return -1;
+    }
+
+    for (int feature = 0; feature < num_features; feature++) {
+        for (int sample = 0; sample < training_samples; sample++) {
+            double value = training_data[sample][feature];
+            int label = training_labels[sample];
+            if (label < 0 || label >= NUM_CLASSES) {
+                fprintf(stderr,
+                        "quantizer: label %d at sample %d is out of range [0,%d).\n",
+                        label,
+                        sample,
+                        NUM_CLASSES);
+                free(sorted_samples);
+                free(sorted_values);
+                quantizer_clear();
+                return -1;
+            }
+            if (!isfinite(value)) {
+                value = 0.0;
+                g_non_finite_replacements++;
+            }
+            sorted_samples[sample].value = value;
+            sorted_samples[sample].label = label;
+        }
+
+        qsort(sorted_samples, (size_t)training_samples, sizeof(feature_sample_t), compare_feature_samples);
+        for (int sample = 0; sample < training_samples; sample++) {
+            sorted_values[sample] = sorted_samples[sample].value;
+        }
+
+        if (fit_chimerge_feature(feature, sorted_samples, sorted_values, training_samples) != 0) {
+            free(sorted_samples);
+            free(sorted_values);
+            quantizer_clear();
+            return -1;
+        }
+    }
+
+    free(sorted_samples);
+    free(sorted_values);
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, or DECISION_TREE_1D_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, or CHIMERGE_BINNING."
 #endif
 
     g_fitted = 1;
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
     compute_training_occupancy(training_data, training_samples);
 #endif
 
@@ -1151,6 +1446,18 @@ int quantizer_fit_from_training(double **training_data,
                 g_total_empty_bins);
     }
     print_decision_tree_diagnostics();
+#elif BINNING_MODE == CHIMERGE_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (fallback thresholds: %d, refinements: %d, empty bins: %d).\n",
+                quantizer_mode_name(),
+                g_num_features,
+                g_num_levels,
+                g_total_fallback_thresholds,
+                g_total_refinements,
+                g_total_empty_bins);
+    }
+    print_chimerge_diagnostics();
 #endif
 
     return 0;
@@ -1160,10 +1467,10 @@ int get_signal_level(int feature_idx, double emg_value) {
 #if BINNING_MODE == UNIFORM_BINNING
     (void)feature_idx;
     return get_signal_level_uniform(emg_value);
-#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
     return map_value_with_boundaries_checked(feature_idx, emg_value);
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, or DECISION_TREE_1D_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, or CHIMERGE_BINNING."
 #endif
 }
 #if BINNING_MODE == KMEANS_1D_BINNING
@@ -1265,11 +1572,11 @@ int quantizer_export_cuts_csv(const char *filepath) {
             quantizer_mode_name(),
             g_num_features,
             g_num_levels);
-    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count\n");
+    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count,initial_interval_count\n");
     for (int feature = 0; feature < g_num_features; feature++) {
-        fprintf(file, "%d,0,0,0\n", feature);
+        fprintf(file, "%d,0,0,0,0\n", feature);
     }
-#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING
+#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
     int cut_count = g_num_levels - 1;
     fprintf(file,
             "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=%d,non_finite_replacements=%d,total_tree_splits=%d,total_fallback_thresholds=%d\n",
@@ -1280,7 +1587,7 @@ int quantizer_export_cuts_csv(const char *filepath) {
             g_non_finite_replacements,
             g_total_tree_splits,
             g_total_fallback_thresholds);
-    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count");
+    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count,initial_interval_count");
     for (int k = 0; k < cut_count; k++) {
         fprintf(file, ",cut_%03d", k);
     }
@@ -1288,18 +1595,19 @@ int quantizer_export_cuts_csv(const char *filepath) {
 
     for (int feature = 0; feature < g_num_features; feature++) {
         fprintf(file,
-                "%d,%d,%d,%d",
+                "%d,%d,%d,%d,%d",
                 feature,
                 g_refinement_counts[feature],
                 g_tree_split_counts[feature],
-                g_fallback_threshold_counts[feature]);
+                g_fallback_threshold_counts[feature],
+                g_initial_interval_counts[feature]);
         for (int k = 0; k < cut_count; k++) {
             fprintf(file, ",%.17g", g_boundaries[boundary_index(feature, k)]);
         }
         fprintf(file, "\n");
     }
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, or DECISION_TREE_1D_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, or CHIMERGE_BINNING."
 #endif
 
     fclose(file);
