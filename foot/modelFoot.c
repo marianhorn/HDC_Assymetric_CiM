@@ -109,6 +109,56 @@ int main(void){
             return EXIT_FAILURE;
         }
 
+#if BINNING_MODE == GA_REFINED_BINNING
+        struct timeseries_eval_result eval_uniform_test = {0};
+        {
+            struct associative_memory uniformAssMem;
+            init_assoc_mem(&uniformAssMem);
+            int saved_output_mode = output_mode;
+            output_mode = OUTPUT_NONE;
+            train_model_timeseries(trainingData, trainingLabels, trainingSamples, &uniformAssMem, &enc);
+            eval_uniform_test =
+                evaluate_model_timeseries_direct(&enc, &uniformAssMem, testingData, testingLabels, testingSamples);
+            output_mode = saved_output_mode;
+            free_assoc_mem(&uniformAssMem);
+
+            int genome_length = NUM_FEATURES * (NUM_LEVELS - 1);
+            if (genome_length <= 0) {
+                fprintf(stderr, "Error: Invalid GA-refined quantizer genome length for dataset %d.\n", dataset);
+                return EXIT_FAILURE;
+            }
+            uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));
+            if (!flip_counts) {
+                fprintf(stderr, "Error: Failed to allocate preprocessing GA flip counts for dataset %d.\n", dataset);
+                return EXIT_FAILURE;
+            }
+
+            if (output_mode >= OUTPUT_BASIC) {
+                printf("Dataset %02d running preprocessing GA for quantizer refinement.\n", dataset);
+            }
+
+            if (optimize_item_memory_get_flip_counts(trainingData,
+                                                     trainingLabels,
+                                                     trainingSamples,
+                                                     validationData,
+                                                     validationLabels,
+                                                     validationSamples,
+                                                     flip_counts) != 0) {
+                free(flip_counts);
+                fprintf(stderr, "Error: Failed to run preprocessing GA for dataset %d.\n", dataset);
+                return EXIT_FAILURE;
+            }
+
+            if (quantizer_refine_from_flip_counts(flip_counts, genome_length) != 0) {
+                free(flip_counts);
+                fprintf(stderr, "Error: Failed to refine quantizer from GA output for dataset %d.\n", dataset);
+                return EXIT_FAILURE;
+            }
+
+            free(flip_counts);
+        }
+#endif
+
         if (quantizer_export_cuts_csv_for_dataset(dataset) != 0) {
             fprintf(stderr, "Error: Failed to export quantizer cuts for dataset %d.\n", dataset);
             return EXIT_FAILURE;
@@ -163,7 +213,9 @@ int main(void){
         #endif
 
         if (output_mode >= OUTPUT_BASIC) {
+#if BINNING_MODE != GA_REFINED_BINNING
             printf("Dataset %02d pre-optimization test accuracy: %.2f%%\n", dataset, eval_pre_test.overall_accuracy * 100.0);
+#endif
         }
 
         char result_info[160];
@@ -212,8 +264,26 @@ int main(void){
         mean_post_test_class_vector_similarity += eval_post_test.class_vector_similarity;
 
         if (output_mode >= OUTPUT_BASIC) {
+#if BINNING_MODE == GA_REFINED_BINNING
+            printf("Dataset %02d uniform-quantizer test accuracy: %.2f%%\n",
+                   dataset,
+                   eval_uniform_test.overall_accuracy * 100.0);
+            printf("Dataset %02d GA-refined-quantizer test accuracy (no item-memory GA): %.2f%%\n",
+                   dataset,
+                   eval_pre_test.overall_accuracy * 100.0);
+#if USE_GENETIC_ITEM_MEMORY
+            printf("Dataset %02d final test accuracy (with item-memory GA): %.2f%%\n",
+                   dataset,
+                   eval_post_test.overall_accuracy * 100.0);
+#else
+            printf("Dataset %02d final test accuracy: %.2f%%\n",
+                   dataset,
+                   eval_post_test.overall_accuracy * 100.0);
+#endif
+#else
             printf("Dataset %02d pre-opt test accuracy: %.2f%%\n", dataset, eval_pre_test.overall_accuracy * 100.0);
             printf("Dataset %02d post-opt test accuracy: %.2f%%\n", dataset, eval_post_test.overall_accuracy * 100.0);
+#endif
         }
 
         snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-validation", dataset);

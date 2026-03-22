@@ -1490,24 +1490,21 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 }
 
 #if PRECOMPUTED_ITEM_MEMORY
-void optimize_item_memory(struct item_memory *item_mem,
-                          double **training_data,
-                          int *training_labels,
-                          int training_samples,
-                          double **testing_data,
-                          int *testing_labels,
-                          int testing_samples) {
-    if (!item_mem || !training_data || !training_labels || training_samples <= N_GRAM_SIZE) {
-        return;
+static int run_precomputed_ga_and_capture_flip_counts(int num_features,
+                                                      int num_levels,
+                                                      double **training_data,
+                                                      int *training_labels,
+                                                      int training_samples,
+                                                      double **testing_data,
+                                                      int *testing_labels,
+                                                      int testing_samples,
+                                                      uint16_t *flip_counts_out,
+                                                      int **permutations_out) {
+    if (!training_data || !training_labels || training_samples <= N_GRAM_SIZE || !flip_counts_out) {
+        return -1;
     }
-
-    int num_features = NUM_FEATURES;
-    int num_levels = 0;
-    if (item_mem->num_vectors > 0 && num_features > 0) {
-        num_levels = item_mem->num_vectors / num_features;
-    }
-    if (num_levels <= 1) {
-        return;
+    if (num_features <= 0 || num_levels <= 1) {
+        return -1;
     }
 
     struct ga_params params;
@@ -1523,8 +1520,9 @@ void optimize_item_memory(struct item_memory *item_mem,
     int *permutations = (int *)malloc((size_t)num_features * VECTOR_DIMENSION * sizeof(int));
     if (!permutations) {
         fprintf(stderr, "Failed to allocate permutations.\n");
-        exit(EXIT_FAILURE);
+        return -1;
     }
+
     uint32_t perm_state = params.seed ^ 0x9E3779B9u;
     if (perm_state == 0u) {
         perm_state = 1u;
@@ -1550,13 +1548,77 @@ void optimize_item_memory(struct item_memory *item_mem,
     ctx.testing_samples = testing_samples;
 
     int genome_length = (num_levels - 1) * num_features;
+    memset(flip_counts_out, 0, (size_t)genome_length * sizeof(uint16_t));
+    run_ga(&ctx, &params, flip_counts_out);
+
+    if (permutations_out) {
+        *permutations_out = permutations;
+    } else {
+        free(permutations);
+    }
+    return 0;
+}
+
+int optimize_item_memory_get_flip_counts(double **training_data,
+                                         int *training_labels,
+                                         int training_samples,
+                                         double **testing_data,
+                                         int *testing_labels,
+                                         int testing_samples,
+                                         uint16_t *flip_counts_out) {
+    return run_precomputed_ga_and_capture_flip_counts(NUM_FEATURES,
+                                                      NUM_LEVELS,
+                                                      training_data,
+                                                      training_labels,
+                                                      training_samples,
+                                                      testing_data,
+                                                      testing_labels,
+                                                      testing_samples,
+                                                      flip_counts_out,
+                                                      NULL);
+}
+
+void optimize_item_memory(struct item_memory *item_mem,
+                          double **training_data,
+                          int *training_labels,
+                          int training_samples,
+                          double **testing_data,
+                          int *testing_labels,
+                          int testing_samples) {
+    if (!item_mem || !training_data || !training_labels || training_samples <= N_GRAM_SIZE) {
+        return;
+    }
+
+    int num_features = NUM_FEATURES;
+    int num_levels = 0;
+    if (item_mem->num_vectors > 0 && num_features > 0) {
+        num_levels = item_mem->num_vectors / num_features;
+    }
+    if (num_levels <= 1) {
+        return;
+    }
+
+    int genome_length = (num_levels - 1) * num_features;
     uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));
     if (!flip_counts) {
         fprintf(stderr, "Failed to allocate GA flip matrix.\n");
         exit(EXIT_FAILURE);
     }
-
-    run_ga(&ctx, &params, flip_counts);
+    int *permutations = NULL;
+    if (run_precomputed_ga_and_capture_flip_counts(num_features,
+                                                   num_levels,
+                                                   training_data,
+                                                   training_labels,
+                                                   training_samples,
+                                                   testing_data,
+                                                   testing_labels,
+                                                   testing_samples,
+                                                   flip_counts,
+                                                   &permutations) != 0) {
+        fprintf(stderr, "Failed to run precomputed GA.\n");
+        free(flip_counts);
+        return;
+    }
 
     if (item_mem->base_vectors && item_mem->num_vectors > 0) {
         free_item_memory(item_mem);

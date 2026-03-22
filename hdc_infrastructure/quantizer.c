@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #define QUANTIZER_EXPORT_ENABLED 0
@@ -12,6 +13,10 @@
 #define TREE_1D_MIN_SAMPLES_LEAF 10
 #define TREE_1D_THRESHOLD_EPS 1e-12
 #define CHIMERGE_THRESHOLD_EPS 1e-12
+
+#if BINNING_MODE == GA_REFINED_BINNING && (!defined(FOOT_EMG) || !PRECOMPUTED_ITEM_MEMORY)
+#error "GA_REFINED_BINNING requires FOOT_EMG with PRECOMPUTED_ITEM_MEMORY=1."
+#endif
 
 typedef struct {
     double value;
@@ -41,6 +46,13 @@ static int *g_training_occupancy = NULL;
 static int *g_tree_split_counts = NULL;
 static int *g_fallback_threshold_counts = NULL;
 static int *g_initial_interval_counts = NULL;
+#if BINNING_MODE == GA_REFINED_BINNING
+static uint16_t *g_ga_refined_flip_counts = NULL;
+static double *g_ga_refined_transition_weights = NULL;
+static double **g_training_data_ref = NULL;
+static int g_training_samples_ref = 0;
+static int g_ga_refined_ready = 0;
+#endif
 static int g_num_features = 0;
 static int g_num_levels = 0;
 static int g_fitted = 0;
@@ -72,7 +84,7 @@ static int center_index(int feature_idx, int center_idx) {
 }
 #endif
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int occupancy_index(int feature_idx, int level_idx) {
     return feature_idx * g_num_levels + level_idx;
 }
@@ -84,11 +96,13 @@ static void fill_with_nan(double *data, size_t count) {
     }
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int boundary_index(int feature_idx, int cut_idx) {
     return feature_idx * (g_num_levels - 1) + cut_idx;
 }
+#endif
 
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
 static int compare_doubles(const void *a, const void *b) {
     double da = *(const double *)a;
     double db = *(const double *)b;
@@ -145,6 +159,12 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
     g_tree_split_counts = (int *)calloc((size_t)num_features, sizeof(int));
     g_fallback_threshold_counts = (int *)calloc((size_t)num_features, sizeof(int));
     g_initial_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
+#if BINNING_MODE == GA_REFINED_BINNING
+    if (boundary_count > 0) {
+        g_ga_refined_flip_counts = (uint16_t *)calloc(boundary_count, sizeof(uint16_t));
+        g_ga_refined_transition_weights = (double *)malloc(boundary_count * sizeof(double));
+    }
+#endif
 
     if ((boundary_count > 0 && g_boundaries == NULL) ||
         (center_count > 0 && g_centers == NULL) ||
@@ -156,7 +176,12 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
         g_iteration_counts == NULL ||
         g_tree_split_counts == NULL ||
         g_fallback_threshold_counts == NULL ||
-        g_initial_interval_counts == NULL) {
+        g_initial_interval_counts == NULL
+#if BINNING_MODE == GA_REFINED_BINNING
+        || (boundary_count > 0 && g_ga_refined_flip_counts == NULL)
+        || (boundary_count > 0 && g_ga_refined_transition_weights == NULL)
+#endif
+        ) {
         fprintf(stderr, "quantizer: failed to allocate state buffers.\n");
         return -1;
     }
@@ -167,6 +192,11 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
     if (center_count > 0) {
         fill_with_nan(g_centers, center_count);
     }
+#if BINNING_MODE == GA_REFINED_BINNING
+    if (boundary_count > 0) {
+        fill_with_nan(g_ga_refined_transition_weights, boundary_count);
+    }
+#endif
 
     return 0;
 }
@@ -182,12 +212,14 @@ static const char *quantizer_mode_name(void) {
     return "decision-tree-1d";
 #elif BINNING_MODE == CHIMERGE_BINNING
     return "chimerge";
+#elif BINNING_MODE == GA_REFINED_BINNING
+    return "ga-refined";
 #else
     return "unknown";
 #endif
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int map_value_with_boundaries_unchecked(int feature_idx, double x) {
     if (g_num_levels <= 1) {
         return 0;
@@ -233,7 +265,7 @@ static int map_value_with_boundaries_checked(int feature_idx, double x) {
 }
 #endif
 
-#if BINNING_MODE == UNIFORM_BINNING
+#if BINNING_MODE == UNIFORM_BINNING || BINNING_MODE == GA_REFINED_BINNING
 #if BIPOLAR_MODE || MODEL_VARIANT == MODEL_VARIANT_MARIAN
 static int get_signal_level_linear(double emg_value) {
     if (emg_value <= MIN_LEVEL) {
@@ -290,6 +322,150 @@ static int get_signal_level_uniform(double emg_value) {
 #else
     return get_signal_level_linear(emg_value);
 #endif
+}
+#endif
+
+#if BINNING_MODE == GA_REFINED_BINNING
+static void reset_ga_refined_feature_stats(void) {
+    memset(g_refinement_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_duplicate_center_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_zero_width_interval_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_empty_bin_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_iteration_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_tree_split_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_fallback_threshold_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_initial_interval_counts, 0, (size_t)g_num_features * sizeof(int));
+    g_total_refinements = 0;
+    g_total_duplicate_centers = 0;
+    g_total_zero_width_intervals = 0;
+    g_total_empty_bins = 0;
+    g_total_tree_splits = 0;
+    g_total_fallback_thresholds = 0;
+}
+
+static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) {
+    int transitions = g_num_levels - 1;
+    if (transitions <= 0) {
+        return 0;
+    }
+
+    double sum_weights = 0.0;
+    for (int level = 0; level < transitions; level++) {
+        double weight = (double)flip_counts[level] + (double)GA_REFINED_EPSILON;
+        if (!isfinite(weight) || weight <= 0.0) {
+            weight = 1.0;
+        }
+        g_ga_refined_transition_weights[boundary_index(feature_idx, level)] = weight;
+        sum_weights += weight;
+        g_ga_refined_flip_counts[boundary_index(feature_idx, level)] = flip_counts[level];
+    }
+    if (sum_weights <= 0.0) {
+        sum_weights = (double)transitions;
+        for (int level = 0; level < transitions; level++) {
+            g_ga_refined_transition_weights[boundary_index(feature_idx, level)] = 1.0 / (double)transitions;
+        }
+    } else {
+        for (int level = 0; level < transitions; level++) {
+            g_ga_refined_transition_weights[boundary_index(feature_idx, level)] /= sum_weights;
+        }
+    }
+
+    double *bin_importance = (double *)malloc((size_t)g_num_levels * sizeof(double));
+    double *bin_widths = (double *)malloc((size_t)g_num_levels * sizeof(double));
+    if (!bin_importance || !bin_widths) {
+        fprintf(stderr, "quantizer: failed to allocate GA-refined buffers.\n");
+        free(bin_importance);
+        free(bin_widths);
+        return -1;
+    }
+
+    bin_importance[0] = g_ga_refined_transition_weights[boundary_index(feature_idx, 0)];
+    bin_importance[g_num_levels - 1] =
+        g_ga_refined_transition_weights[boundary_index(feature_idx, transitions - 1)];
+    for (int level = 1; level < g_num_levels - 1; level++) {
+        double left = g_ga_refined_transition_weights[boundary_index(feature_idx, level - 1)];
+        double right = g_ga_refined_transition_weights[boundary_index(feature_idx, level)];
+        bin_importance[level] = 0.5 * (left + right);
+    }
+
+    double width_sum = 0.0;
+    for (int level = 0; level < g_num_levels; level++) {
+        double importance = bin_importance[level];
+        if (!isfinite(importance) || importance <= 0.0) {
+            importance = 1.0;
+        }
+        double width = 1.0 / pow(importance, (double)GA_REFINED_ALPHA);
+        if (!isfinite(width) || width <= 0.0) {
+            width = 1.0;
+        }
+        bin_widths[level] = width;
+        width_sum += width;
+    }
+
+    double range = (double)MAX_LEVEL - (double)MIN_LEVEL;
+    double scale = (width_sum > 0.0 && range > 0.0) ? (range / width_sum) : 0.0;
+    double current = (double)MIN_LEVEL;
+    int refinements = 0;
+    int zero_width_intervals = 0;
+    double previous_boundary = -INFINITY;
+    for (int level = 0; level < transitions; level++) {
+        current += bin_widths[level] * scale;
+        double boundary = current;
+        if (level > 0 && boundary <= previous_boundary) {
+            zero_width_intervals++;
+        }
+        if (level > 0 && boundary <= previous_boundary) {
+            boundary = nextafter(previous_boundary, INFINITY);
+            refinements++;
+        }
+        g_boundaries[boundary_index(feature_idx, level)] = boundary;
+        previous_boundary = boundary;
+    }
+
+    g_refinement_counts[feature_idx] = refinements;
+    g_zero_width_interval_counts[feature_idx] = zero_width_intervals;
+    g_total_refinements += refinements;
+    g_total_zero_width_intervals += zero_width_intervals;
+
+    free(bin_widths);
+    free(bin_importance);
+    return 0;
+}
+
+static void print_ga_refined_diagnostics(void) {
+    if (output_mode >= OUTPUT_DETAILED) {
+        for (int feature = 0; feature < g_num_features; feature++) {
+            fprintf(stdout,
+                    "quantizer: ga-refined feature %d: refinements=%d, empty_bins=%d, zero_width_intervals=%d\n",
+                    feature,
+                    g_refinement_counts[feature],
+                    g_empty_bin_counts[feature],
+                    g_zero_width_interval_counts[feature]);
+        }
+    }
+
+    if (output_mode >= OUTPUT_DEBUG) {
+        int transitions = g_num_levels - 1;
+        for (int feature = 0; feature < g_num_features; feature++) {
+            fprintf(stdout, "quantizer: feature %d flip-counts:", feature);
+            for (int level = 0; level < transitions; level++) {
+                fprintf(stdout, " %u", (unsigned)g_ga_refined_flip_counts[boundary_index(feature, level)]);
+            }
+            fprintf(stdout, "\n");
+
+            fprintf(stdout, "quantizer: feature %d transition weights:", feature);
+            for (int level = 0; level < transitions; level++) {
+                fprintf(stdout, " %.17g", g_ga_refined_transition_weights[boundary_index(feature, level)]);
+            }
+            fprintf(stdout, "\n");
+
+            fprintf(stdout, "quantizer: feature %d boundaries:", feature);
+            for (int level = 0; level < transitions; level++) {
+                fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, level)]);
+            }
+            fprintf(stdout, "\n");
+        }
+    }
 }
 #endif
 
@@ -1041,7 +1217,7 @@ static int fit_chimerge_feature(int feature_idx,
 }
 #endif
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static void compute_training_occupancy(double **training_data, int training_samples) {
     if (g_training_occupancy == NULL || g_num_features <= 0 || g_num_levels <= 0) {
         return;
@@ -1191,6 +1367,10 @@ void quantizer_clear(void) {
     free(g_tree_split_counts);
     free(g_fallback_threshold_counts);
     free(g_initial_interval_counts);
+#if BINNING_MODE == GA_REFINED_BINNING
+    free(g_ga_refined_flip_counts);
+    free(g_ga_refined_transition_weights);
+#endif
     g_boundaries = NULL;
     g_centers = NULL;
     g_refinement_counts = NULL;
@@ -1202,6 +1382,13 @@ void quantizer_clear(void) {
     g_tree_split_counts = NULL;
     g_fallback_threshold_counts = NULL;
     g_initial_interval_counts = NULL;
+#if BINNING_MODE == GA_REFINED_BINNING
+    g_ga_refined_flip_counts = NULL;
+    g_ga_refined_transition_weights = NULL;
+    g_training_data_ref = NULL;
+    g_training_samples_ref = 0;
+    g_ga_refined_ready = 0;
+#endif
     g_num_features = 0;
     g_num_levels = 0;
     g_fitted = 0;
@@ -1242,6 +1429,26 @@ int quantizer_fit_from_training(double **training_data,
     (void)training_labels;
     (void)training_samples;
     g_fitted = 1;
+    return 0;
+#elif BINNING_MODE == GA_REFINED_BINNING
+    (void)training_labels;
+    if (!training_data || training_samples <= 0) {
+        fprintf(stderr, "quantizer: invalid fit input for GA-refined mode.\n");
+        quantizer_clear();
+        return -1;
+    }
+
+    g_training_data_ref = training_data;
+    g_training_samples_ref = training_samples;
+    g_ga_refined_ready = 0;
+    g_fitted = 1;
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: initialized %s mode with temporary uniform lookup for %d features, %d levels.\n",
+                quantizer_mode_name(),
+                g_num_features,
+                g_num_levels);
+    }
     return 0;
 #elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
     (void)training_labels;
@@ -1397,12 +1604,12 @@ int quantizer_fit_from_training(double **training_data,
     free(sorted_samples);
     free(sorted_values);
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, or CHIMERGE_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, CHIMERGE_BINNING, or GA_REFINED_BINNING."
 #endif
 
     g_fitted = 1;
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
     compute_training_occupancy(training_data, training_samples);
 #endif
 
@@ -1458,19 +1665,86 @@ int quantizer_fit_from_training(double **training_data,
                 g_total_empty_bins);
     }
     print_chimerge_diagnostics();
+#elif BINNING_MODE == GA_REFINED_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (refinements: %d, empty bins: %d, zero-width intervals: %d).\n",
+                quantizer_mode_name(),
+                g_num_features,
+                g_num_levels,
+                g_total_refinements,
+                g_total_empty_bins,
+                g_total_zero_width_intervals);
+    }
+    print_ga_refined_diagnostics();
 #endif
 
     return 0;
+}
+
+int quantizer_refine_from_flip_counts(const uint16_t *flip_counts, int genome_length) {
+#if BINNING_MODE != GA_REFINED_BINNING
+    (void)flip_counts;
+    (void)genome_length;
+    fprintf(stderr, "quantizer: refine_from_flip_counts is only available in GA_REFINED_BINNING.\n");
+    return -1;
+#else
+    if (!g_fitted) {
+        fprintf(stderr, "quantizer: GA-refined thresholds requested before fit.\n");
+        return -1;
+    }
+
+    int expected_length = g_num_features * (g_num_levels - 1);
+    if (!flip_counts || genome_length != expected_length) {
+        fprintf(stderr,
+                "quantizer: invalid GA-refined flip-count input (got %d, expected %d).\n",
+                genome_length,
+                expected_length);
+        return -1;
+    }
+
+    reset_ga_refined_feature_stats();
+    if (g_training_occupancy != NULL) {
+        memset(g_training_occupancy, 0, (size_t)g_num_features * (size_t)g_num_levels * sizeof(int));
+    }
+
+    int transitions = g_num_levels - 1;
+    for (int feature = 0; feature < g_num_features; feature++) {
+        if (fit_ga_refined_feature(feature, flip_counts + (size_t)feature * transitions) != 0) {
+            return -1;
+        }
+    }
+
+    g_ga_refined_ready = 1;
+    if (g_training_data_ref && g_training_samples_ref > 0) {
+        compute_training_occupancy(g_training_data_ref, g_training_samples_ref);
+    }
+
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: installed GA-refined thresholds for %d features, %d levels.\n",
+                g_num_features,
+                g_num_levels);
+    }
+    print_ga_refined_diagnostics();
+    return 0;
+#endif
 }
 
 int get_signal_level(int feature_idx, double emg_value) {
 #if BINNING_MODE == UNIFORM_BINNING
     (void)feature_idx;
     return get_signal_level_uniform(emg_value);
+#elif BINNING_MODE == GA_REFINED_BINNING
+    if (!g_ga_refined_ready) {
+        (void)feature_idx;
+        return get_signal_level_uniform(emg_value);
+    }
+    return map_value_with_boundaries_checked(feature_idx, emg_value);
 #elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
     return map_value_with_boundaries_checked(feature_idx, emg_value);
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, or CHIMERGE_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, CHIMERGE_BINNING, or GA_REFINED_BINNING."
 #endif
 }
 #if BINNING_MODE == KMEANS_1D_BINNING
@@ -1606,8 +1880,51 @@ int quantizer_export_cuts_csv(const char *filepath) {
         }
         fprintf(file, "\n");
     }
+#elif BINNING_MODE == GA_REFINED_BINNING
+    int cut_count = g_num_levels - 1;
+    fprintf(file,
+            "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=%d,non_finite_replacements=%d,total_zero_width_intervals=%d,epsilon=%.17g,alpha=%.17g,refined_ready=%d\n",
+            quantizer_mode_name(),
+            g_num_features,
+            g_num_levels,
+            g_total_refinements,
+            g_non_finite_replacements,
+            g_total_zero_width_intervals,
+            (double)GA_REFINED_EPSILON,
+            (double)GA_REFINED_ALPHA,
+            g_ga_refined_ready);
+    fprintf(file, "feature,refinement_count,empty_bin_count,zero_width_interval_count");
+    for (int k = 0; k < cut_count; k++) {
+        fprintf(file, ",flip_%03d", k);
+    }
+    for (int k = 0; k < cut_count; k++) {
+        fprintf(file, ",weight_%03d", k);
+    }
+    for (int k = 0; k < cut_count; k++) {
+        fprintf(file, ",cut_%03d", k);
+    }
+    fprintf(file, "\n");
+
+    for (int feature = 0; feature < g_num_features; feature++) {
+        fprintf(file,
+                "%d,%d,%d,%d",
+                feature,
+                g_refinement_counts[feature],
+                g_empty_bin_counts[feature],
+                g_zero_width_interval_counts[feature]);
+        for (int k = 0; k < cut_count; k++) {
+            fprintf(file, ",%u", (unsigned)g_ga_refined_flip_counts[boundary_index(feature, k)]);
+        }
+        for (int k = 0; k < cut_count; k++) {
+            fprintf(file, ",%.17g", g_ga_refined_transition_weights[boundary_index(feature, k)]);
+        }
+        for (int k = 0; k < cut_count; k++) {
+            fprintf(file, ",%.17g", g_boundaries[boundary_index(feature, k)]);
+        }
+        fprintf(file, "\n");
+    }
 #else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, or CHIMERGE_BINNING."
+#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, CHIMERGE_BINNING, or GA_REFINED_BINNING."
 #endif
 
     fclose(file);

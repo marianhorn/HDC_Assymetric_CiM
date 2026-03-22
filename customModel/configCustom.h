@@ -193,6 +193,12 @@
 #ifndef BINNING_MODE
 #define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
 #endif
+#ifndef GA_REFINED_EPSILON
+#define GA_REFINED_EPSILON 1.0 // smoothing for GA-refined transition weights
+#endif
+#ifndef GA_REFINED_ALPHA
+#define GA_REFINED_ALPHA 1.0 // inverse-width strength for GA-refined quantizer
+#endif
 
 extern int output_mode;
 
@@ -207,5 +213,6 @@ extern int output_mode;
 #define KMEANS_1D_BINNING 2  // use per-feature 1D k-means value-to-level mapping
 #define DECISION_TREE_1D_BINNING 3  // use per-feature supervised 1D decision-tree value-to-level mapping
 #define CHIMERGE_BINNING 4  // use per-feature supervised ChiMerge value-to-level mapping
+#define GA_REFINED_BINNING 5  // use one preprocessing GA run to refine per-feature thresholds
 
 #endif

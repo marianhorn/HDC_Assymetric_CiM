@@ -39,6 +39,14 @@ void optimize_item_memory(
     double **testing_data,
     int *testing_labels,
     int testing_samples);
+int optimize_item_memory_get_flip_counts(
+    double **training_data,
+    int *training_labels,
+    int training_samples,
+    double **testing_data,
+    int *testing_labels,
+    int testing_samples,
+    uint16_t *flip_counts_out);
 #else
 void optimize_item_memory(
     struct item_memory *signal_mem,
