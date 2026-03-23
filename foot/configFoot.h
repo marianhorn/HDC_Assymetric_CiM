@@ -2,10 +2,10 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 1024 // hypervector dimension
+#define VECTOR_DIMENSION 512 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 10 // number of quantization levels
+#define NUM_LEVELS 70 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -44,7 +44,7 @@
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
@@ -95,7 +95,7 @@
 #endif
 
 #ifndef BINNING_MODE
-#define BINNING_MODE GA_REFINED_BINNING // active value-to-level binning mode
+#define BINNING_MODE 2 // active value-to-level binning mode
 #endif
 #ifndef GA_REFINED_EPSILON
 #define GA_REFINED_EPSILON 1.0 // smoothing for GA-refined transition weights

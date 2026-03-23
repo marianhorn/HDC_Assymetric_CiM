@@ -56,6 +56,7 @@ static int g_ga_refined_ready = 0;
 static int g_num_features = 0;
 static int g_num_levels = 0;
 static int g_fitted = 0;
+static int g_force_uniform_lookup = 0;
 static int g_non_finite_replacements = 0;
 static int g_total_refinements = 0;
 static int g_total_duplicate_centers = 0;
@@ -102,7 +103,7 @@ static int boundary_index(int feature_idx, int cut_idx) {
 }
 #endif
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static int compare_doubles(const void *a, const void *b) {
     double da = *(const double *)a;
     double db = *(const double *)b;
@@ -265,7 +266,7 @@ static int map_value_with_boundaries_checked(int feature_idx, double x) {
 }
 #endif
 
-#if BINNING_MODE == UNIFORM_BINNING || BINNING_MODE == GA_REFINED_BINNING
+#if 1
 #if BIPOLAR_MODE || MODEL_VARIANT == MODEL_VARIANT_MARIAN
 static int get_signal_level_linear(double emg_value) {
     if (emg_value <= MIN_LEVEL) {
@@ -513,7 +514,7 @@ static int nearest_center_index(const double *centers, int center_count, double 
     double best_dist = fabs(value - centers[0]);
     for (int i = 1; i < center_count; i++) {
         double dist = fabs(value - centers[i]);
-        if (dist + KMEANS_1D_TOLERANCE < best_dist) {
+        if (dist < best_dist) {
             best_dist = dist;
             best_idx = i;
         }
@@ -1392,6 +1393,7 @@ void quantizer_clear(void) {
     g_num_features = 0;
     g_num_levels = 0;
     g_fitted = 0;
+    g_force_uniform_lookup = 0;
     g_non_finite_replacements = 0;
     g_total_refinements = 0;
     g_total_duplicate_centers = 0;
@@ -1418,6 +1420,7 @@ int quantizer_fit_from_training(double **training_data,
 
     g_num_features = num_features;
     g_num_levels = num_levels;
+    g_force_uniform_lookup = 0;
 
     if (allocate_quantizer_state(num_features, num_levels) != 0) {
         quantizer_clear();
@@ -1732,6 +1735,11 @@ int quantizer_refine_from_flip_counts(const uint16_t *flip_counts, int genome_le
 }
 
 int get_signal_level(int feature_idx, double emg_value) {
+    if (g_force_uniform_lookup) {
+        (void)feature_idx;
+        return get_signal_level_uniform(emg_value);
+    }
+
 #if BINNING_MODE == UNIFORM_BINNING
     (void)feature_idx;
     return get_signal_level_uniform(emg_value);
@@ -1746,6 +1754,14 @@ int get_signal_level(int feature_idx, double emg_value) {
 #else
 #error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, CHIMERGE_BINNING, or GA_REFINED_BINNING."
 #endif
+}
+
+void quantizer_set_force_uniform_lookup(int enabled) {
+    g_force_uniform_lookup = enabled ? 1 : 0;
+}
+
+const char *quantizer_get_mode_name(void) {
+    return quantizer_mode_name();
 }
 #if BINNING_MODE == KMEANS_1D_BINNING
 static int quantizer_export_centers_csv(const char *filepath) {

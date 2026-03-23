@@ -48,13 +48,15 @@ int main(void){
     double mean_post_val_overall_accuracy = 0.0;
     double mean_post_val_class_average_accuracy = 0.0;
     double mean_post_val_class_vector_similarity = 0.0;
-#if BINNING_MODE == GA_REFINED_BINNING
+#if BINNING_MODE != UNIFORM_BINNING
     double mean_uniform_test_overall_accuracy = 0.0;
     double mean_uniform_test_class_average_accuracy = 0.0;
     double mean_uniform_test_class_vector_similarity = 0.0;
     double mean_uniform_val_overall_accuracy = 0.0;
     double mean_uniform_val_class_average_accuracy = 0.0;
     double mean_uniform_val_class_vector_similarity = 0.0;
+#endif
+#if BINNING_MODE == GA_REFINED_BINNING
 #if USE_GENETIC_ITEM_MEMORY
     double mean_uniform_ga_test_overall_accuracy = 0.0;
     double mean_uniform_ga_test_class_average_accuracy = 0.0;
@@ -125,9 +127,13 @@ int main(void){
             return EXIT_FAILURE;
         }
 
-#if BINNING_MODE == GA_REFINED_BINNING
+#if BINNING_MODE != UNIFORM_BINNING
         struct timeseries_eval_result eval_uniform_val = {0};
         struct timeseries_eval_result eval_uniform_test = {0};
+        int has_uniform_baseline = 0;
+#endif
+
+#if BINNING_MODE == GA_REFINED_BINNING
         struct timeseries_eval_result eval_uniform_ga_val = {0};
         struct timeseries_eval_result eval_uniform_ga_test = {0};
         int has_uniform_ga_stage = 0;
@@ -143,6 +149,7 @@ int main(void){
             }
             eval_uniform_test =
                 evaluate_model_timeseries_direct(&enc, &uniformAssMem, testingData, testingLabels, testingSamples);
+            has_uniform_baseline = 1;
             free_assoc_mem(&uniformAssMem);
 
 #if USE_GENETIC_ITEM_MEMORY
@@ -208,6 +215,25 @@ int main(void){
 
             free(flip_counts);
         }
+#elif BINNING_MODE != UNIFORM_BINNING
+        {
+            struct associative_memory uniformAssMem;
+            init_assoc_mem(&uniformAssMem);
+            int saved_output_mode = output_mode;
+            output_mode = OUTPUT_NONE;
+            quantizer_set_force_uniform_lookup(1);
+            train_model_timeseries(trainingData, trainingLabels, trainingSamples, &uniformAssMem, &enc);
+            if (validationData && validationLabels && validationSamples > 0) {
+                eval_uniform_val =
+                    evaluate_model_timeseries_direct(&enc, &uniformAssMem, validationData, validationLabels, validationSamples);
+            }
+            eval_uniform_test =
+                evaluate_model_timeseries_direct(&enc, &uniformAssMem, testingData, testingLabels, testingSamples);
+            quantizer_set_force_uniform_lookup(0);
+            output_mode = saved_output_mode;
+            has_uniform_baseline = 1;
+            free_assoc_mem(&uniformAssMem);
+        }
 #endif
 
         if (quantizer_export_cuts_csv_for_dataset(dataset) != 0) {
@@ -270,19 +296,23 @@ int main(void){
         }
 
         char result_info[160];
+#if BINNING_MODE != UNIFORM_BINNING
+        if (has_uniform_baseline) {
+            snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-validation", dataset);
+            addResult(&eval_uniform_val, result_info);
+            snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-test", dataset);
+            addResult(&eval_uniform_test, result_info);
+
+            mean_uniform_val_overall_accuracy += eval_uniform_val.overall_accuracy;
+            mean_uniform_val_class_average_accuracy += eval_uniform_val.class_average_accuracy;
+            mean_uniform_val_class_vector_similarity += eval_uniform_val.class_vector_similarity;
+            mean_uniform_test_overall_accuracy += eval_uniform_test.overall_accuracy;
+            mean_uniform_test_class_average_accuracy += eval_uniform_test.class_average_accuracy;
+            mean_uniform_test_class_vector_similarity += eval_uniform_test.class_vector_similarity;
+        }
+#endif
+
 #if BINNING_MODE == GA_REFINED_BINNING
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-validation", dataset);
-        addResult(&eval_uniform_val, result_info);
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-test", dataset);
-        addResult(&eval_uniform_test, result_info);
-
-        mean_uniform_val_overall_accuracy += eval_uniform_val.overall_accuracy;
-        mean_uniform_val_class_average_accuracy += eval_uniform_val.class_average_accuracy;
-        mean_uniform_val_class_vector_similarity += eval_uniform_val.class_vector_similarity;
-        mean_uniform_test_overall_accuracy += eval_uniform_test.overall_accuracy;
-        mean_uniform_test_class_average_accuracy += eval_uniform_test.class_average_accuracy;
-        mean_uniform_test_class_vector_similarity += eval_uniform_test.class_vector_similarity;
-
 #if USE_GENETIC_ITEM_MEMORY
         if (has_uniform_ga_stage) {
             snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-ga-validation", dataset);
@@ -299,6 +329,11 @@ int main(void){
         }
 #endif
 #endif
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=advanced-validation", dataset);
+        addResult(&eval_pre_val, result_info);
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=advanced-test", dataset);
+        addResult(&eval_pre_test, result_info);
+
         snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-validation", dataset);
         addResult(&eval_pre_val, result_info);
         snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-test", dataset);
@@ -391,8 +426,31 @@ int main(void){
                    eval_post_test.overall_accuracy * 100.0);
 #endif
 #else
+#if BINNING_MODE != UNIFORM_BINNING
+            if (has_uniform_baseline) {
+                if (validationData && validationLabels && validationSamples > 0) {
+                    printf("Dataset %02d uniform-quantizer validation accuracy: %.2f%%\n",
+                           dataset,
+                           eval_uniform_val.overall_accuracy * 100.0);
+                }
+                printf("Dataset %02d uniform-quantizer test accuracy: %.2f%%\n",
+                       dataset,
+                       eval_uniform_test.overall_accuracy * 100.0);
+            }
+            if (validationData && validationLabels && validationSamples > 0) {
+                printf("Dataset %02d %s validation accuracy: %.2f%%\n",
+                       dataset,
+                       quantizer_get_mode_name(),
+                       eval_pre_val.overall_accuracy * 100.0);
+            }
+            printf("Dataset %02d %s test accuracy: %.2f%%\n",
+                   dataset,
+                   quantizer_get_mode_name(),
+                   eval_pre_test.overall_accuracy * 100.0);
+#else
             printf("Dataset %02d pre-opt test accuracy: %.2f%%\n", dataset, eval_pre_test.overall_accuracy * 100.0);
             printf("Dataset %02d post-opt test accuracy: %.2f%%\n", dataset, eval_post_test.overall_accuracy * 100.0);
+#endif
 #endif
         }
 
@@ -440,9 +498,11 @@ int main(void){
     }
 
     if (output_mode >= OUTPUT_BASIC) {
-#if BINNING_MODE == GA_REFINED_BINNING
+#if BINNING_MODE != UNIFORM_BINNING
         printf("Overall uniform quantizer (test): %.2f%%\n", (mean_uniform_test_overall_accuracy / 4.0) * 100.0);
         printf("Overall uniform quantizer (validation): %.2f%%\n", (mean_uniform_val_overall_accuracy / 4.0) * 100.0);
+#endif
+#if BINNING_MODE == GA_REFINED_BINNING
 #if USE_GENETIC_ITEM_MEMORY
         printf("Overall uniform quantizer + CiM GA (test): %.2f%%\n", (mean_uniform_ga_test_overall_accuracy / 4.0) * 100.0);
         printf("Overall uniform quantizer + CiM GA (validation): %.2f%%\n", (mean_uniform_ga_val_overall_accuracy / 4.0) * 100.0);
@@ -454,7 +514,7 @@ int main(void){
         printf("Overall post-optimization (validation): %.2f%%\n", (mean_post_val_overall_accuracy / 4.0) * 100.0);
     }
 
-#if BINNING_MODE == GA_REFINED_BINNING
+#if BINNING_MODE != UNIFORM_BINNING
     struct timeseries_eval_result overall_uniform_val = {0};
     overall_uniform_val.overall_accuracy = mean_uniform_val_overall_accuracy / 4.0;
     overall_uniform_val.class_average_accuracy = mean_uniform_val_class_average_accuracy / 4.0;
@@ -466,7 +526,9 @@ int main(void){
     overall_uniform_test.class_average_accuracy = mean_uniform_test_class_average_accuracy / 4.0;
     overall_uniform_test.class_vector_similarity = mean_uniform_test_class_vector_similarity / 4.0;
     addResult(&overall_uniform_test, "model=mine,scope=overall,phase=uniform-test");
+#endif
 
+#if BINNING_MODE == GA_REFINED_BINNING
 #if USE_GENETIC_ITEM_MEMORY
     struct timeseries_eval_result overall_uniform_ga_val = {0};
     overall_uniform_ga_val.overall_accuracy = mean_uniform_ga_val_overall_accuracy / 4.0;
@@ -481,6 +543,18 @@ int main(void){
     addResult(&overall_uniform_ga_test, "model=mine,scope=overall,phase=uniform-ga-test");
 #endif
 #endif
+
+    struct timeseries_eval_result overall_advanced_val = {0};
+    overall_advanced_val.overall_accuracy = mean_pre_val_overall_accuracy / 4.0;
+    overall_advanced_val.class_average_accuracy = mean_pre_val_class_average_accuracy / 4.0;
+    overall_advanced_val.class_vector_similarity = mean_pre_val_class_vector_similarity / 4.0;
+    addResult(&overall_advanced_val, "model=mine,scope=overall,phase=advanced-validation");
+
+    struct timeseries_eval_result overall_advanced_test = {0};
+    overall_advanced_test.overall_accuracy = mean_pre_test_overall_accuracy / 4.0;
+    overall_advanced_test.class_average_accuracy = mean_pre_test_class_average_accuracy / 4.0;
+    overall_advanced_test.class_vector_similarity = mean_pre_test_class_vector_similarity / 4.0;
+    addResult(&overall_advanced_test, "model=mine,scope=overall,phase=advanced-test");
 
     struct timeseries_eval_result overall_pre_val = {0};
     overall_pre_val.overall_accuracy = mean_pre_val_overall_accuracy / 4.0;
