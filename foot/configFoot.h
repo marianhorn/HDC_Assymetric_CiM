@@ -44,7 +44,7 @@
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
