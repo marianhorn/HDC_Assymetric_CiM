@@ -7,8 +7,8 @@ from collections import defaultdict
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_ADAPTIVE_DIR = os.path.join(BASE_DIR, "myModel5")
-DEFAULT_NAIVE_DIR = os.path.join(BASE_DIR, "myModel6")
+DEFAULT_ADAPTIVE_DIR = os.path.join(BASE_DIR, "myModel6")
+DEFAULT_NAIVE_DIR = os.path.join(BASE_DIR, "naiveModel")
 OUTPUT_DIR = os.path.join(BASE_DIR, "comparison_plots")
 
 np = None
@@ -285,12 +285,12 @@ def main():
     parser.add_argument(
         "--adaptive-dir",
         default=DEFAULT_ADAPTIVE_DIR,
-        help="Directory of first model run (default: myModel5).",
+        help="Directory of first model run (default: myModel6).",
     )
     parser.add_argument(
         "--naive-dir",
         default=DEFAULT_NAIVE_DIR,
-        help="Directory of second model run (default: myModel6).",
+        help="Directory of second model run (default: naiveModel).",
     )
     parser.add_argument(
         "--ratio",
