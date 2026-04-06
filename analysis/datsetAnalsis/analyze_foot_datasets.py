@@ -62,9 +62,13 @@ def plot_dataset_feature_grid(dataset_name, emg, labels, bins, show, out_path):
     num_samples, num_features = emg.shape
     classes = sorted(np.unique(labels))
 
-    ncols = 4
+    ncols = 8
     nrows = int(np.ceil(num_features / ncols))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(22, 4.5 * nrows))
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(5.0 * ncols, 3.8 * nrows),
+    )
     axes = np.array(axes).reshape(nrows, ncols)
 
     cmap = plt.get_cmap("tab10")

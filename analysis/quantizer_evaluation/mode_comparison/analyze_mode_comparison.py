@@ -14,6 +14,7 @@ RESULTS_PATH = os.path.join(BASE_DIR, "results.csv")
 SUMMARY_PATH = os.path.join(BASE_DIR, "summary_mode_comparison.csv")
 BEST_PATH = os.path.join(BASE_DIR, "best_advanced_test_by_dataset.csv")
 PLOTS_DIR = os.path.join(BASE_DIR, "plots")
+FIXED_NUM_LEVELS_FOR_VECTOR_PLOTS = [20, 30, 40]
 
 MODE_NAMES = {
     0: "uniform",
@@ -208,7 +209,7 @@ def plot_mode_comparison_over_num_levels(summary_rows, show_plots):
                 plt.close()
 
 
-def plot_mode_comparison_over_vector_dimension(summary_rows, show_plots, fixed_num_levels=20):
+def plot_mode_comparison_over_vector_dimension(summary_rows, show_plots, fixed_num_levels=30):
     if plt is None:
         return
     os.makedirs(PLOTS_DIR, exist_ok=True)
@@ -337,8 +338,17 @@ def main():
         print("matplotlib is not installed. Wrote CSV summaries but skipped plot generation.")
     else:
         plot_mode_comparison_over_num_levels(summary_rows, args.show)
-        plot_mode_comparison_over_vector_dimension(summary_rows, args.show, fixed_num_levels=20)
-        plot_baseline_vs_advanced(summary_rows, args.show, fixed_num_levels=20)
+        for fixed_num_levels in FIXED_NUM_LEVELS_FOR_VECTOR_PLOTS:
+            plot_mode_comparison_over_vector_dimension(
+                summary_rows,
+                args.show,
+                fixed_num_levels=fixed_num_levels,
+            )
+            plot_baseline_vs_advanced(
+                summary_rows,
+                args.show,
+                fixed_num_levels=fixed_num_levels,
+            )
 
     print("")
     print(f"Summary CSV: {SUMMARY_PATH}")
