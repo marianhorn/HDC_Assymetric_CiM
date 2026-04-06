@@ -11,6 +11,13 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#include <errno.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -18,6 +25,7 @@
 static const double ADAPTIVE_CHUNK_ALPHA = 0.8;
 static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.2;
 static const double ADAPTIVE_MUTATION_BETA = 0.8;
+static int g_cim_export_run_counter = 0;
 
 void init_ga_params(struct ga_params *params) {
     if (!params) {
@@ -603,10 +611,211 @@ struct ga_eval_context {
     double **testing_data;
     int *testing_labels;
     int testing_samples;
+    const char *export_label;
 };
+
+static int create_directory_if_missing(const char *path) {
+    if (!path || path[0] == '\0') {
+        return -1;
+    }
+#ifdef _WIN32
+    if (_mkdir(path) == 0 || errno == EEXIST) {
+        return 0;
+    }
+#else
+    if (mkdir(path, 0777) == 0 || errno == EEXIST) {
+        return 0;
+    }
+#endif
+    return -1;
+}
+
+static int init_cim_export_run_dir(const char *label, char *out_dir, size_t out_dir_size) {
+    if (!out_dir || out_dir_size == 0) {
+        return -1;
+    }
+    if (create_directory_if_missing("CiMs") != 0) {
+        perror("Failed to create CiMs root directory");
+        return -1;
+    }
+
+    time_t now = time(NULL);
+    struct tm time_info;
+#ifdef _WIN32
+    if (localtime_s(&time_info, &now) != 0) {
+        memset(&time_info, 0, sizeof(time_info));
+    }
+#else
+    {
+        struct tm *time_ptr = localtime(&now);
+        if (time_ptr) {
+            time_info = *time_ptr;
+        } else {
+            memset(&time_info, 0, sizeof(time_info));
+        }
+    }
+#endif
+
+    g_cim_export_run_counter++;
+    const char *safe_label = (label && label[0] != '\0') ? label : "ga";
+    int written = snprintf(out_dir,
+                           out_dir_size,
+                           "CiMs/ga_run_%04d%02d%02d_%02d%02d%02d_%02d_%s",
+                           time_info.tm_year + 1900,
+                           time_info.tm_mon + 1,
+                           time_info.tm_mday,
+                           time_info.tm_hour,
+                           time_info.tm_min,
+                           time_info.tm_sec,
+                           g_cim_export_run_counter,
+                           safe_label);
+    if (written < 0 || (size_t)written >= out_dir_size) {
+        fprintf(stderr, "GA CiM export path too long.\n");
+        return -1;
+    }
+
+    if (create_directory_if_missing(out_dir) != 0) {
+        perror("Failed to create GA CiM export run directory");
+        return -1;
+    }
+    return 0;
+}
+
+static int create_generation_export_dirs(const char *run_dir, int generation_count) {
+    if (!run_dir || generation_count < 0) {
+        return -1;
+    }
+    for (int generation = 0; generation <= generation_count; generation++) {
+        char generation_dir[512];
+        int written = snprintf(generation_dir,
+                               sizeof(generation_dir),
+                               "%s/generation_%04d",
+                               run_dir,
+                               generation);
+        if (written < 0 || (size_t)written >= sizeof(generation_dir)) {
+            fprintf(stderr, "GA generation export path too long.\n");
+            return -1;
+        }
+        if (create_directory_if_missing(generation_dir) != 0) {
+            perror("Failed to create GA generation export directory");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+#if PRECOMPUTED_ITEM_MEMORY
+static void export_precomputed_cim_csv(const struct item_memory *item_mem,
+                                       const struct ga_eval_context *ctx,
+                                       const char *run_dir,
+                                       int generation,
+                                       int candidate_index,
+                                       double accuracy,
+                                       double similarity) {
+    if (!item_mem || !ctx || !run_dir) {
+        return;
+    }
+
+    char filepath[768];
+    int written = snprintf(filepath,
+                           sizeof(filepath),
+                           "%s/generation_%04d/cim_%04d.csv",
+                           run_dir,
+                           generation,
+                           candidate_index);
+    if (written < 0 || (size_t)written >= sizeof(filepath)) {
+        fprintf(stderr, "GA CiM export file path too long.\n");
+        return;
+    }
+
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        perror("Failed to open GA CiM export file");
+        return;
+    }
+
+    fprintf(file,
+            "#ga_cim_export,mode=precomputed,generation=%d,candidate=%d,num_levels=%d,num_features=%d,num_vectors=%d,dimension=%d,accuracy=%.10f,similarity=%.10f\n",
+            generation,
+            candidate_index,
+            ctx->num_levels,
+            ctx->num_features,
+            item_mem->num_vectors,
+            VECTOR_DIMENSION,
+            accuracy,
+            similarity);
+
+    for (int i = 0; i < item_mem->num_vectors; i++) {
+        for (int bit = 0; bit < VECTOR_DIMENSION; bit++) {
+            fprintf(file, "%d", vector_get_bit(item_mem->base_vectors[i], bit));
+            if (bit < VECTOR_DIMENSION - 1) {
+                fputc(',', file);
+            }
+        }
+        fputc('\n', file);
+    }
+
+    fclose(file);
+}
+#else
+static void export_continuous_cim_csv(const struct item_memory *signal_mem,
+                                      const struct ga_eval_context *ctx,
+                                      const char *run_dir,
+                                      int generation,
+                                      int candidate_index,
+                                      double accuracy,
+                                      double similarity) {
+    if (!signal_mem || !ctx || !run_dir) {
+        return;
+    }
+
+    char filepath[768];
+    int written = snprintf(filepath,
+                           sizeof(filepath),
+                           "%s/generation_%04d/cim_%04d.csv",
+                           run_dir,
+                           generation,
+                           candidate_index);
+    if (written < 0 || (size_t)written >= sizeof(filepath)) {
+        fprintf(stderr, "GA CiM export file path too long.\n");
+        return;
+    }
+
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        perror("Failed to open GA CiM export file");
+        return;
+    }
+
+    fprintf(file,
+            "#ga_cim_export,mode=continuous,generation=%d,candidate=%d,num_levels=%d,num_vectors=%d,dimension=%d,accuracy=%.10f,similarity=%.10f\n",
+            generation,
+            candidate_index,
+            ctx->num_levels,
+            signal_mem->num_vectors,
+            VECTOR_DIMENSION,
+            accuracy,
+            similarity);
+
+    for (int i = 0; i < signal_mem->num_vectors; i++) {
+        for (int bit = 0; bit < VECTOR_DIMENSION; bit++) {
+            fprintf(file, "%d", vector_get_bit(signal_mem->base_vectors[i], bit));
+            if (bit < VECTOR_DIMENSION - 1) {
+                fputc(',', file);
+            }
+        }
+        fputc('\n', file);
+    }
+
+    fclose(file);
+}
+#endif
 
 static double evaluate_candidate(const uint16_t *B,
                                  const struct ga_eval_context *ctx,
+                                 const char *export_run_dir,
+                                 int export_generation,
+                                 int export_candidate_index,
                                  double *out_accuracy,
                                  double *out_similarity) {
     if (!ctx || !ctx->training_data || !ctx->training_labels || ctx->training_samples <= N_GRAM_SIZE) {
@@ -686,6 +895,16 @@ static double evaluate_candidate(const uint16_t *B,
     }
     double fitness = eval_result.class_average_accuracy - eval_result.class_vector_similarity;
 
+    if (export_run_dir) {
+        export_precomputed_cim_csv(&item_mem,
+                                   ctx,
+                                   export_run_dir,
+                                   export_generation,
+                                   export_candidate_index,
+                                   eval_result.class_average_accuracy,
+                                   eval_result.class_vector_similarity);
+    }
+
     free_item_memory(&item_mem);
     free_assoc_mem(&assoc_mem);
     free(b_matrix);
@@ -753,6 +972,16 @@ static double evaluate_candidate(const uint16_t *B,
     }
     if (out_similarity) {
         *out_similarity = similarity;
+    }
+
+    if (export_run_dir) {
+        export_continuous_cim_csv(&signal_mem,
+                                  ctx,
+                                  export_run_dir,
+                                  export_generation,
+                                  export_candidate_index,
+                                  accuracy,
+                                  similarity);
     }
 
     free(b_levels);
@@ -1217,6 +1446,19 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         adaptive_chunk_schedule = build_adaptive_chunk_schedule_or_die(max_total, params->generations);
         adaptive_mutation_step_schedule = build_adaptive_mutation_step_schedule_or_die(transitions, params->generations);
     }
+
+    char export_run_dir[512];
+    const char *active_export_run_dir = NULL;
+    if (init_cim_export_run_dir(ctx.export_label, export_run_dir, sizeof(export_run_dir)) == 0 &&
+        create_generation_export_dirs(export_run_dir, params->generations) == 0) {
+        active_export_run_dir = export_run_dir;
+        if (ga_output_mode >= OUTPUT_BASIC) {
+            printf("GA CiM export root: %s\n", active_export_run_dir);
+        }
+    } else {
+        fprintf(stderr, "Warning: GA CiM export disabled for this GA run.\n");
+    }
+
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
 #if PRECOMPUTED_ITEM_MEMORY
@@ -1259,6 +1501,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     for (int i = 0; i < population_size; i++) {
         (void)evaluate_candidate(&population[i * genome_length],
                                  &ctx,
+                                 active_export_run_dir,
+                                 0,
+                                 i,
                                  &accP[i],
                                  &simP[i]);
     }
@@ -1358,6 +1603,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         for (int i = 0; i < population_size; i++) {
             (void)evaluate_candidate(&offspring[i * genome_length],
                                      &ctx,
+                                     active_export_run_dir,
+                                     gen + 1,
+                                     i,
                                      &accQ[i],
                                      &simQ[i]);
         }
@@ -1499,7 +1747,8 @@ static int run_precomputed_ga_and_capture_flip_counts(int num_features,
                                                       int *testing_labels,
                                                       int testing_samples,
                                                       uint16_t *flip_counts_out,
-                                                      int **permutations_out) {
+                                                      int **permutations_out,
+                                                      const char *export_label) {
     if (!training_data || !training_labels || training_samples <= N_GRAM_SIZE || !flip_counts_out) {
         return -1;
     }
@@ -1546,6 +1795,7 @@ static int run_precomputed_ga_and_capture_flip_counts(int num_features,
     ctx.testing_data = testing_data;
     ctx.testing_labels = testing_labels;
     ctx.testing_samples = testing_samples;
+    ctx.export_label = export_label;
 
     int genome_length = (num_levels - 1) * num_features;
     memset(flip_counts_out, 0, (size_t)genome_length * sizeof(uint16_t));
@@ -1575,7 +1825,8 @@ int optimize_item_memory_get_flip_counts(double **training_data,
                                                       testing_labels,
                                                       testing_samples,
                                                       flip_counts_out,
-                                                      NULL);
+                                                      NULL,
+                                                      "preproc_ga");
 }
 
 void optimize_item_memory(struct item_memory *item_mem,
@@ -1614,7 +1865,8 @@ void optimize_item_memory(struct item_memory *item_mem,
                                                    testing_labels,
                                                    testing_samples,
                                                    flip_counts,
-                                                   &permutations) != 0) {
+                                                   &permutations,
+                                                   "final_precomputed_ga") != 0) {
         fprintf(stderr, "Failed to run precomputed GA.\n");
         free(flip_counts);
         return;
@@ -1706,6 +1958,7 @@ void optimize_item_memory(struct item_memory *signal_mem,
     ctx.testing_data = testing_data;
     ctx.testing_labels = testing_labels;
     ctx.testing_samples = testing_samples;
+    ctx.export_label = "final_continuous_ga";
 
     int genome_length = num_levels - 1;
     uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));

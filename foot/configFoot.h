@@ -44,7 +44,7 @@
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
@@ -95,7 +95,7 @@
 #endif
 
 #ifndef BINNING_MODE
-#define BINNING_MODE 2 // active value-to-level binning mode
+#define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
 #endif
 #ifndef GA_REFINED_EPSILON
 #define GA_REFINED_EPSILON 1.0 // smoothing for GA-refined transition weights
