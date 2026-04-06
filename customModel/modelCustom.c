@@ -71,6 +71,12 @@ int main(){
         evaluate_model_general_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
     addResult(&eval_result, "custom");
 
+    if (output_mode == OUTPUT_BASIC) {
+        printf("Test accuracy: %.2f%%\n", eval_result.overall_accuracy * 100.0);
+        printf("Class-average accuracy: %.2f%%\n", eval_result.class_average_accuracy * 100.0);
+        printf("Class vector similarity: %.3f\n", eval_result.class_vector_similarity);
+    }
+
     // Free allocated memory
     freeData(trainingData, trainingSamples);
     freeData(testingData, testingSamples);

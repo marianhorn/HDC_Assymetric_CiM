@@ -157,7 +157,7 @@ struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encod
     result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
     result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
-    if (output_mode >= OUTPUT_BASIC) {
+    if (output_mode >= OUTPUT_DETAILED) {
         int number_total_tests = (int)result.total;
         float accuracy = number_total_tests > 0 ? (float)result.correct / (number_total_tests) : 0.0f;
 
@@ -166,7 +166,7 @@ struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encod
         printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
 
         printf("Total: %ld of %d ngrams correctly classified\n",result.correct,number_total_tests);
-        if (output_mode >= OUTPUT_DETAILED) {
+        if (output_mode >= OUTPUT_DEBUG) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {
@@ -281,14 +281,14 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
 
-    if (output_mode >= OUTPUT_BASIC) {
+    if (output_mode >= OUTPUT_DETAILED) {
         printf("Testing accuracy: %.3f%%\n", result.overall_accuracy * 100.0);
         printf("Class-average accuracy: %.3f%%\n", result.class_average_accuracy * 100.0);
         printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
         printf("Total: %ld of %d samples correctly classified\n",
                result.correct,
                testing_samples);
-        if (output_mode >= OUTPUT_DETAILED) {
+        if (output_mode >= OUTPUT_DEBUG) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {
@@ -346,7 +346,7 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
     result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
-    if (output_mode >= OUTPUT_BASIC) {
+    if (output_mode >= OUTPUT_DETAILED) {
         int number_total_tests = (int)result.total;
         float accuracy = number_total_tests > 0 ? (float)result.correct / (number_total_tests) : 0.0f;
         float accuracyTranz = number_total_tests > 0
@@ -359,7 +359,7 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
         printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
         printf("Total: %ld of %d ngrams correctly classified\n",result.correct,number_total_tests);
         printf("Transition error: %ld\n",result.transition_error);
-        if (output_mode >= OUTPUT_DETAILED) {
+        if (output_mode >= OUTPUT_DEBUG) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {
@@ -442,7 +442,7 @@ struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
     result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;
     result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
     result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
-    if (output_mode >= OUTPUT_BASIC) {
+    if (output_mode >= OUTPUT_DETAILED) {
         int number_total_tests = (int)result.total;
         float accuracy = number_total_tests > 0 ? (float)result.correct / (number_total_tests) : 0.0f;
         printf("Testing accuracy: %.3f%%\n", accuracy * 100);
@@ -450,7 +450,7 @@ struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
         printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
 
         printf("Total: %ld of %d ngrams correctly classified\n",result.correct,number_total_tests);
-        if (output_mode >= OUTPUT_DETAILED) {
+        if (output_mode >= OUTPUT_DEBUG) {
             printf("Confusion Matrix:\n");
             printf("True\\Predicted\n");
             for (int i = 0; i < NUM_CLASSES; i++) {

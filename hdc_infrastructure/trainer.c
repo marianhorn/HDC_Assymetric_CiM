@@ -215,7 +215,7 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
 #endif
 #endif
 
-    if (output_mode >= OUTPUT_DETAILED) {
+    if (output_mode >= OUTPUT_DEBUG) {
         print_class_vectors(assoc_mem);
     }
 }
@@ -300,7 +300,7 @@ void train_model_general_data(double **training_data, int *training_labels, int 
     free(vector_counts);
     #endif
 
-    if (output_mode >= OUTPUT_DETAILED) {
+    if (output_mode >= OUTPUT_DEBUG) {
         print_class_vectors(assoc_mem);
     }
 }
