@@ -69,5 +69,6 @@ analysis/GA_evaluation/crossMutRatesOptimization/output_all.txt
 analysis/GA_evaluation/crossMutRatesOptimization/results.csv
 analysis/GA_evaluation/crossMutRatesOptimization/run_manifest.csv
 analysis/GA_evaluation/crossMutRatesOptimization/analysis_outputs/
+analysis/CiM_evaluation/plots/
 CiMs/
 __pycache__/
