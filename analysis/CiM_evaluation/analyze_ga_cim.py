@@ -82,6 +82,10 @@ def is_binary_vectors(V):
 
 def load_cim(path: Path):
     header = parse_csv_header(path)
+    if not path.exists():
+        raise FileNotFoundError(f"CiM file not found: {path}")
+    if path.stat().st_size == 0:
+        raise ValueError(f"CiM file is empty: {path}")
     data = np.loadtxt(path, delimiter=',', comments='#')
     if data.ndim == 1:
         data = data.reshape(1, -1)
