@@ -5,6 +5,7 @@
 
 static FILE *result_file = NULL;
 static int header_written = 0;
+static int init_failed = 0;
 
 static void write_csv_header(FILE *file) {
     if (!file) {
@@ -36,7 +37,7 @@ static void write_csv_escaped(FILE *file, const char *value) {
 }
 
 void result_manager_init(void) {
-    if (result_file) {
+    if (result_file || init_failed) {
         return;
     }
 
@@ -47,6 +48,7 @@ void result_manager_init(void) {
     result_file = fopen(RESULT_CSV_PATH, "a+");
     if (!result_file) {
         fprintf(stderr, "ResultManager: failed to open %s\n", RESULT_CSV_PATH);
+        init_failed = 1;
         return;
     }
 
@@ -64,8 +66,9 @@ void result_manager_close(void) {
     if (result_file) {
         fclose(result_file);
         result_file = NULL;
-        header_written = 0;
     }
+    header_written = 0;
+    init_failed = 0;
 }
 
 void addResult(const struct timeseries_eval_result *result, const char *info) {

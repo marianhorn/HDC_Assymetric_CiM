@@ -5,7 +5,7 @@
 #define VECTOR_DIMENSION 1024 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 50 // number of quantization levels
+#define NUM_LEVELS 30 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -44,10 +44,10 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 64 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 32 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 128 // GA generations
+#define GA_DEFAULT_GENERATIONS 16 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate

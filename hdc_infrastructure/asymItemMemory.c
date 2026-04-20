@@ -1398,7 +1398,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     if (init_cim_export_run_dir(ctx.export_label, export_run_dir, sizeof(export_run_dir)) == 0 &&
         create_generation_export_dirs(export_run_dir, params->generations) == 0) {
         active_export_run_dir = export_run_dir;
-        if (ga_output_mode >= OUTPUT_BASIC) {
+        if (ga_output_mode >= OUTPUT_DEBUG) {
             printf("GA CiM export root: %s\n", active_export_run_dir);
         }
     } else {
@@ -1595,10 +1595,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
             printf("  new selected individuals: %d/%d\n", new_selected_count, population_size);
         }
     }
-    if (ga_output_mode == OUTPUT_BASIC) {
-        printf("\n");
-    }
-
     int best_idx = 0;
     if (selection_mode == GA_SELECTION_PARETO) {
         int num_fronts = 0;
