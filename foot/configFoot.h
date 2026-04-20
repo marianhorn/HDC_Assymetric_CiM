@@ -14,9 +14,6 @@
 #define MAX_LEVEL 1 // max input level
 #endif
 
-#ifndef WINDOW
-#define WINDOW 100 // sliding window length
-#endif
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 3 // n-gram size
 #endif
@@ -29,13 +26,6 @@
 
 #ifndef NUM_FEATURES
 #define NUM_FEATURES 32 // number of input features
-#endif
-#ifndef NORMALIZE
-#define NORMALIZE 1 // normalize assoc memory
-#endif
-
-#ifndef CUTTING_ANGLE_THRESHOLD
-#define CUTTING_ANGLE_THRESHOLD 0.9 // cutting angle threshold
 #endif
 #ifndef PRECOMPUTED_ITEM_MEMORY
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory

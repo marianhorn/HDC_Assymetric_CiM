@@ -12,7 +12,7 @@ static void write_csv_header(FILE *file) {
     }
     fprintf(file,
             "num_levels,num_features,vector_dimension,binning_mode,bipolar_mode,precomputed_item_memory,"
-            "use_genetic_item_memory,ga_selection_mode,ga_mutation_rate,n_gram_size,window,downsample,validation_ratio,"
+            "use_genetic_item_memory,ga_selection_mode,ga_mutation_rate,n_gram_size,downsample,validation_ratio,"
             "overall_accuracy,class_average_accuracy,class_vector_similarity,correct,not_correct,transition_error,total,info\n");
 }
 
@@ -80,7 +80,7 @@ void addResult(const struct timeseries_eval_result *result, const char *info) {
     }
 
     fprintf(result_file,
-            "%d,%d,%d,%d,%d,%d,%d,%d,%.6f,%d,%d,%d,%.6f,",
+            "%d,%d,%d,%d,%d,%d,%d,%d,%.6f,%d,%d,%.6f,",
             NUM_LEVELS,
             NUM_FEATURES,
             VECTOR_DIMENSION,
@@ -99,7 +99,6 @@ void addResult(const struct timeseries_eval_result *result, const char *info) {
             -1.0,
 #endif
             N_GRAM_SIZE,
-            WINDOW,
             DOWNSAMPLE,
             (double)VALIDATION_RATIO);
 

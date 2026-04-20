@@ -27,11 +27,6 @@ struct timeseries_eval_result {
     int confusion_matrix[NUM_CLASSES][NUM_CLASSES];
 };
 
-struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encoder *enc,
-                                                                    struct associative_memory *assMem,
-                                                                    double **testingData,
-                                                                    int *testingLabels,
-                                                                    int testingSamples);
 struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *enc,
                                                                struct associative_memory *assMem,
                                                                double **testingData,
