@@ -1,81 +1,94 @@
-# HDC-Framework Horn
+# HDC Framework Horn
 
-**Computer Science Project for Master CE**  
-**Author: Marian Horn**
+## Build
+Build the foot model:
 
----
-
-## Description
-This project implements a well-structured framework for Hyperdimensional Computing (HDC). 
-
-**Evaluation Example:** EMG-Classification of foot movements for the NOE-EMY project.
-
-**Documentation:** 
-- System and function details are available in the [`/doc`](./doc/html/mainpage_8h_source.html) folder and [`Abschlussbericht.pdf`](./Abschlussbericht.pdf).
-- The development repository with all intermediate artifacts is available at: [Development Repository](https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc).
-
----
-
-## Getting Started
-
-### Clone Repository
-```bash
-git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn
-cd hdcframeworkhorn/
-```
-
-### Build and Run the Model for EMG Classification
-To build the model:
 ```bash
 make foot
 ```
 
-To train and evaluate the model for 4 different subjects:
+Build with config overrides:
+
+```bash
+make foot VECTOR_DIMENSION=2048 NUM_LEVELS=20 OUTPUT_MODE=2
+```
+
+Clean:
+
+```bash
+make clean
+```
+
+## Run
+Run the foot model:
+
 ```bash
 ./modelFoot
 ```
 
-To explore the effects of different system parameters, modify the constants in [`configFoot.h`](./foot/configFoot.h), rebuild, and rerun the model.
+Main config file:
 
----
-
-## Building Your Own HDC Model
-
-A template with dummy data is available in [`/customModel`](./customModel). This model can be run immediately with the dummy data:
-
-```bash
-make custom
-```
-```bash
-./modelCustom
+```text
+foot/configFoot.h
 ```
 
-### Customization Options
+## Config Defines
 
-#### Set System Parameters
-Set system parameters in [`configCustom.h`](./customModel/configCustom.h).
+### Main Defines
 
-#### Implement a Data Reader
-Implement a data-reading function specific to your problem and data in [`dataReaderCustom.c`](./customModel/dataReaderCustom.c). 
-- The training and testing data should be a 2D array of doubles, where each row represents a sample and each column represents a feature.
-- The training and testing labels should be a 1D array of integers, where each element corresponds to the label of a sample.
+| Define | Meaning |
+|---|---|
+| `VECTOR_DIMENSION` | Hypervector dimension. |
+| `NUM_LEVELS` | Number of quantization levels. |
+| `MIN_LEVEL` | Minimum signal value for uniform-style level mapping. |
+| `MAX_LEVEL` | Maximum signal value for uniform-style level mapping. |
+| `N_GRAM_SIZE` | Number of timestamps combined into one n-gram. |
+| `DOWNSAMPLE` | Downsampling factor applied in preprocessing. |
+| `NUM_CLASSES` | Number of target classes. |
+| `NUM_FEATURES` | Number of input features per sample. |
+| `PRECOMPUTED_ITEM_MEMORY` | Selects precomputed CiM storage. |
+| `USE_GENETIC_ITEM_MEMORY` | Enables the CiM GA optimization step. |
+| `OUTPUT_MODE` | Selects console output verbosity. |
+| `RESULT_CSV_PATH` | CSV path for result logging. |
+| `VALIDATION_RATIO` | Fraction of data used for validation. |
+| `GA_DEFAULT_POPULATION_SIZE` | GA population size. |
+| `GA_DEFAULT_GENERATIONS` | Number of GA generations. |
+| `GA_DEFAULT_CROSSOVER_RATE` | GA crossover probability. |
+| `GA_DEFAULT_MUTATION_RATE` | GA mutation probability. |
+| `GA_DEFAULT_TOURNAMENT_SIZE` | Tournament size for parent selection. |
+| `GA_DEFAULT_LOG_EVERY` | GA log interval. |
+| `GA_DEFAULT_SEED` | Default GA random seed. |
+| `GA_MAX_FLIPS_CIM` | Maximum total flip budget per CiM sequence. |
+| `GA_INIT_UNIFORM` | Selects the GA population initialization style. |
+| `GA_SELECTION_MODE` | Selects the GA selection objective. |
+| `BINNING_MODE` | Selects the quantization method. |
+| `GA_REFINED_EPSILON` | Smoothing constant for GA-refined binning. |
+| `GA_REFINED_ALPHA` | Strength parameter for GA-refined interval sizing. |
 
-#### Modify the Model
-The main file of the custom model is [`modelCustom.c`](./customModel/modelCustom.c). 
-- If working with categorical or discrete data, use the predefined functions in [`modelCustom.c`](./customModel/modelCustom.c).
-- If working on time-series classification, replace `train_model_general_data()` and `evaluate_model_general_direct()` with `train_model_timeseries()` and `evaluate_model_timeseries_direct()`.
-- For other types of data, extend the encoder to include additional encoding algorithms (e.g., for images, music, etc.). Use the following resources:
-    - [`vector.h`](./hdc_infrastructure/vector.h): Provides vector structures (binary or bipolar, depending on [`configCustom.h`](./customModel/configCustom.h)) and related functions for initialization and modification.
-    - [`operations.h`](./hdc_infrastructure/operations.h): For binding, bundling, permutation, and similarity checks.
+### `OUTPUT_MODE` Values
 
-#### Other Features
-- Include [`preprocessor.h`](./hdc_infrastructure/preprocessor.h) to downsample the data.
-- Include [`trainer.h`](./hdc_infrastructure/trainer.h) to process the training dataset, call the encoder on it, and set the associative memory.
-- Include [`evaluator.h`](./hdc_infrastructure/evaluator.h) to test the model using the testing dataset.
-- Include [`online_classifier.h`](./hdc_infrastructure/online_classifier.h) to evaluate a trained model on live data.
+| Define | Meaning |
+|---|---|
+| `OUTPUT_NONE` | No console output. |
+| `OUTPUT_BASIC` | Final results only. |
+| `OUTPUT_DETAILED` | Results plus intermediate information. |
+| `OUTPUT_DEBUG` | Maximum debug output. |
 
----
+### `BINNING_MODE` Values
 
-## Author
-**Marian Horn**  
-Email: [marian.horn@fau.de](mailto:marian.horn@fau.de)
+| Define | Meaning |
+|---|---|
+| `UNIFORM_BINNING` | Uniform value-to-level mapping. |
+| `QUANTILE_BINNING` | Per-feature quantile binning. |
+| `KMEANS_1D_BINNING` | Per-feature 1D k-means binning. |
+| `DECISION_TREE_1D_BINNING` | Per-feature supervised decision-tree binning. |
+| `CHIMERGE_BINNING` | Per-feature supervised ChiMerge binning. |
+| `GA_REFINED_BINNING` | Quantizer refined from a preprocessing GA run. |
+
+### `GA_SELECTION_MODE` Values
+
+| Define | Meaning |
+|---|---|
+| `GA_SELECTION_PARETO` | Pareto selection on accuracy and similarity. |
+| `GA_SELECTION_MULTI` | Single score from accuracy minus similarity. |
+| `GA_SELECTION_ACCURACY` | Accuracy-only selection. |
