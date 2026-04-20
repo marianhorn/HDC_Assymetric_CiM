@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "../hdc_infrastructure/assoc_mem.h"
 #include "../hdc_infrastructure/asymItemMemory.h"
@@ -13,7 +14,19 @@
 #include "configFoot.h"
 #include "dataReaderFootEMG.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 int output_mode = OUTPUT_MODE;
+
+static double now_ms(void) {
+#ifdef _OPENMP
+    return omp_get_wtime() * 1000.0;
+#else
+    return 1000.0 * (double)clock() / (double)CLOCKS_PER_SEC;
+#endif
+}
 
 int main(void) {
     if (output_mode >= OUTPUT_BASIC) {
@@ -131,8 +144,12 @@ int main(void) {
         struct timeseries_eval_result pre_test_result = {0};
         struct timeseries_eval_result post_validation_result = {0};
         struct timeseries_eval_result post_test_result = {0};
+        double preopt_training_time_ms = 0.0;
 //Train model
+        preopt_training_time_ms = now_ms();
         train_model_timeseries(training_data, training_labels, training_samples, &assoc_mem, &enc);
+        preopt_training_time_ms = now_ms() - preopt_training_time_ms;
+        printf("Dataset %02d pre-opt training time: %.3f ms\n", dataset, preopt_training_time_ms);
 //Evaluate model before GA optimization
         pre_validation_result =
             evaluate_model_timeseries_direct(&enc, &assoc_mem, validation_data, validation_labels, validation_samples);
