@@ -39,7 +39,6 @@ int classify(struct associative_memory *assoc_mem, Vector *sample_hv);
 Vector* get_class_vector(struct associative_memory *assoc_mem, int class_id);
 void free_assoc_mem(struct associative_memory *assoc_mem);
 void print_class_vectors(struct associative_memory *assoc_mem);
-void normalize(struct associative_memory *assoc_mem);
 void store_assoc_mem_to_bin(struct associative_memory *assoc_mem, const char *file_path);
 void load_assoc_mem_from_bin(struct associative_memory *assoc_mem, const char *filepath);
 void store_assoc_mem_to_csv(struct associative_memory *assoc_mem, const char *file_path);

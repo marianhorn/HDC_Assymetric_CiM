@@ -5,7 +5,7 @@
  * @details
  * This file provides functionality to initialize, manage, and manipulate item memory vectors. 
  * Item memory is a key component in HDC and stores base vectors for encoding input data. The implementation 
- * supports both bipolar and binary data representations.
+ * stores binary base vectors for encoding input data.
  * 
  * Functions in this file include initialization of item memory for discrete and continuous items, 
  * vector interpolation, storing/loading item memory to/from files, and generating orthogonal vectors.
@@ -57,9 +57,6 @@ static uint32_t item_mem_seed_from_permutation(const int *perm, int length) {
 
 static void generate_random_hv_with_rng(vector_element *data, int dimension, uint32_t *state) {
     for (int i = 0; i < dimension; i++) {
-#if BIPOLAR_MODE
-        data[i] = (item_mem_rand_range(state, 2) * 2) - 1;
-#else
         int word = i >> 6;
         int bit = i & 63;
         uint64_t mask = 1ull << bit;
@@ -68,21 +65,17 @@ static void generate_random_hv_with_rng(vector_element *data, int dimension, uin
         } else {
             data[word] &= ~mask;
         }
-#endif
     }
-#if !BIPOLAR_MODE
     int rest = dimension & 63;
     if (rest != 0) {
         data[(dimension + 63) / 64 - 1] &= ((1ull << rest) - 1ull);
     }
-#endif
 }
 /**
  * @brief Initializes item memory for discrete items, eg. features.
  * 
  * @details
- * This function generates a set of random base vectors, either bipolar (-1, 1) or binary (0, 1),
- * for encoding discrete items. The vectors are stored in the `item_memory` structure.
+ * This function generates a set of random binary base vectors for encoding discrete items.
  * 
  * @param item_mem A pointer to the item memory structure to be initialized.
  * @param num_items The number of discrete items to encode.
@@ -96,15 +89,9 @@ void init_item_memory(struct item_memory *item_mem, int num_items) {
     for (int i = 0; i < num_items; i++) {
         item_mem->base_vectors[i] = create_uninitialized_vector();
         for (int j = 0; j < VECTOR_DIMENSION; j++) {
-#if BIPOLAR_MODE
-            item_mem->base_vectors[i]->data[j] = (rand() % 2) * 2 - 1; //-1 or 1 for bipolar
-#else
             vector_set_bit(item_mem->base_vectors[i], j, rand() % 2); //0 or 1 for binary
-#endif
         }
-#if !BIPOLAR_MODE
         vector_mask_tail(item_mem->base_vectors[i]);
-#endif
     }
     if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
@@ -116,7 +103,7 @@ void init_item_memory(struct item_memory *item_mem, int num_items) {
  * @brief Generates two orthogonal vectors.
  * 
  * @details
- * This function creates two vectors that are orthogonal to each other, 
+ * This function creates two binary vectors that are orthogonal to each other, 
  * which can be used for continuous item memory or other operations.
  * 
  * @param vector1 A pointer to the first vector to be generated.
@@ -125,19 +112,12 @@ void init_item_memory(struct item_memory *item_mem, int num_items) {
  */
 void generate_orthogonal_vectors(Vector *vector1, Vector *vector2, int dimension) {
     for (int i = 0; i < dimension; i++) {
-#if BIPOLAR_MODE
-        vector1->data[i] = (rand() % 2) * 2 - 1; // -1 or 1 for bipolar
-        vector2->data[i] = -vector1->data[i]; // Orthogonal for bipolar
-#else
         int v = rand() % 2;
         vector_set_bit(vector1, i, v);
         vector_set_bit(vector2, i, !v); // Orthogonal for binary
-#endif
     }
-#if !BIPOLAR_MODE
     vector_mask_tail(vector1);
     vector_mask_tail(vector2);
-#endif
 }
 
 /**
@@ -227,11 +207,7 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
 
             for (int k = prev_target; k < target; k++) {
                 int idx = perm[k];
-#if BIPOLAR_MODE
-                curr->data[idx] = -curr->data[idx];
-#else
                 vector_flip_bit(curr, idx);
-#endif
             }
 
             prev_target = target;
@@ -313,11 +289,7 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
 
             for (int k = prev_target; k < target; k++) {
                 int idx = permutation[k];
-#if BIPOLAR_MODE
-                curr->data[idx] = -curr->data[idx];
-#else
                 vector_flip_bit(curr, idx);
-#endif
             }
 
             prev_target = target;
@@ -334,10 +306,6 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
 
 void generate_random_hv(vector_element *data, int dimension) {
     for (int i = 0; i < dimension; i++) {
-        #if BIPOLAR_MODE
-        data[i] = (rand() % 2) * 2 - 1; // Randomly assign -1 or 1 for bipolar
-
-        #else
         int word = i >> 6;
         int bit = i & 63;
         uint64_t mask = 1ull << bit;
@@ -346,14 +314,11 @@ void generate_random_hv(vector_element *data, int dimension) {
         } else {
             data[word] &= ~mask;
         }
-        #endif
     }
-#if !BIPOLAR_MODE
     int rest = dimension & 63;
     if (rest != 0) {
         data[(dimension + 63) / 64 - 1] &= ((1ull << rest) - 1ull);
     }
-#endif
 }
 /**
  * @brief Initializes binary item memory for precomputed feature-level representations.
@@ -420,11 +385,7 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
 
                 for (int k = prev_target; k < target; k++) {
                     int idx = perm[k];
-    #if BIPOLAR_MODE
-                    curr->data[idx] = -curr->data[idx];
-    #else
                     vector_flip_bit(curr, idx);
-    #endif
                 }
 
                 prev_target = target;
@@ -511,11 +472,7 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
 
                 for (int k = prev_target; k < target; k++) {
                     int idx = perm[k];
-    #if BIPOLAR_MODE
-                    curr->data[idx] = -curr->data[idx];
-    #else
                     vector_flip_bit(curr, idx);
-    #endif
                 }
 
                 prev_target = target;

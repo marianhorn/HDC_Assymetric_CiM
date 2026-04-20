@@ -56,10 +56,6 @@
 #define VALIDATION_RATIO 0.3 // validation split ratio
 #endif
 
-#ifndef BIPOLAR_MODE
-#define BIPOLAR_MODE 0 // use bipolar vectors
-#endif
-
 #ifndef GA_DEFAULT_POPULATION_SIZE
 #define GA_DEFAULT_POPULATION_SIZE 64 // GA population size
 #endif

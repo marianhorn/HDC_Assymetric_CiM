@@ -85,7 +85,7 @@ void addResult(const struct timeseries_eval_result *result, const char *info) {
             NUM_FEATURES,
             VECTOR_DIMENSION,
             BINNING_MODE,
-            BIPOLAR_MODE,
+            0,
             PRECOMPUTED_ITEM_MEMORY,
             USE_GENETIC_ITEM_MEMORY,
 #ifdef GA_SELECTION_MODE

@@ -5,13 +5,13 @@
  * @details
  * The encoder maps raw EMG signals into high-dimensional representations (hypervectors) 
  * for further processing in Hyperdimensional Computing (HDC). It supports both spatial 
- * and temporal encoding. The encoded hypervectors are used for tasks such as classification and evaluation.
+ * and temporal encoding. The encoded binary hypervectors are used for tasks such as classification and evaluation.
  *
  * Key features include:
  * - Conversion of continuous EMG signals into discrete levels.
  * - Encoding of individual timestamps (spatial encoding).
  * - Aggregation of multiple timestamps into N-gram hypervectors (temporal encoding).
- * - Compatibility with both bipolar and binary modes.
+ * - Binary-vector encoding for classification and evaluation.
  *
  * @note 
  * This file supports configurations for both precomputed and dynamically generated 
@@ -84,19 +84,6 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
     }
     bundle_multi(bound_vectors, NUM_FEATURES, result);
 #else
-#if BIPOLAR_MODE
-    for (int d = 0; d < VECTOR_DIMENSION; d++) {
-        result->data[d] = 0;
-    }
-    for (int channel = 0; channel < NUM_FEATURES; channel++) {
-        int signal_level = get_signal_level(channel, emg_sample[channel]);
-        Vector *channel_vec = enc->channel_memory->base_vectors[channel];
-        Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
-        for (int d = 0; d < VECTOR_DIMENSION; d++) {
-            result->data[d] += channel_vec->data[d] * signal_vec->data[d];
-        }
-    }
-#else
     int threshold = NUM_FEATURES / 2;
     int nbits = 0;
     while ((1 << nbits) <= NUM_FEATURES && nbits < 31) {
@@ -142,7 +129,6 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
     free(planes);
     vector_mask_tail(result);
 #endif
-#endif
 }
 
 /**
@@ -178,35 +164,6 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         return -1;
     }
 
-    #if BIPOLAR_MODE
-
-    encode_timestamp(enc, emg_data[0], result);
-
-    Vector* encoded = create_vector();
-    Vector* result_permuted = create_vector();
-    for (size_t i = 1; i < N_GRAM_SIZE; i++) {
-        encode_timestamp(enc, emg_data[i], encoded);
-        permute(result,1,result_permuted);
-        bind(result_permuted,encoded,result);
-    }
-    free_vector(encoded);
-    free_vector(result_permuted);
-
-    if (output_mode >= OUTPUT_DEBUG) {
-
-        bool vectorContainsOnlyZeroEntries = true;
-        for(int z = 0; z<VECTOR_DIMENSION; z++){
-            if(result->data[z]!=0){
-                vectorContainsOnlyZeroEntries = false;
-                break;
-            }
-        }
-        if(vectorContainsOnlyZeroEntries){
-            print_vector(result);
-            fprintf(stdout,"Encoding Error: This vector is zero\n");
-        }
-    }
-    #else
 #if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
     // Rolling-style temporal composition: XOR over slot-rotated timestamp HVs.
     vector_zero(result);
@@ -249,7 +206,6 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
             fprintf(stdout,"Encoding Error: This vector is zero\n");
         }
     }
-#endif
     return 0;
 
 }

@@ -266,8 +266,7 @@ static int map_value_with_boundaries_checked(int feature_idx, double x) {
 }
 #endif
 
-#if 1
-#if BIPOLAR_MODE || MODEL_VARIANT == MODEL_VARIANT_MARIAN
+#if MODEL_VARIANT != MODEL_VARIANT_KRISCHAN && MODEL_VARIANT != MODEL_VARIANT_FUSION
 static int get_signal_level_linear(double emg_value) {
     if (emg_value <= MIN_LEVEL) {
         return 0;
@@ -291,7 +290,7 @@ static int get_signal_level_linear(double emg_value) {
 }
 #endif
 
-#if !BIPOLAR_MODE && (MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION)
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
 static int get_signal_level_krischan(double emg_value) {
     float value = (float)emg_value;
     int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
@@ -314,17 +313,12 @@ static int get_signal_level_krischan(double emg_value) {
 #endif
 
 static int get_signal_level_uniform(double emg_value) {
-#if !BIPOLAR_MODE
 #if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
     return get_signal_level_krischan(emg_value);
 #else
     return get_signal_level_linear(emg_value);
 #endif
-#else
-    return get_signal_level_linear(emg_value);
-#endif
 }
-#endif
 
 #if BINNING_MODE == GA_REFINED_BINNING
 static void reset_ga_refined_feature_stats(void) {

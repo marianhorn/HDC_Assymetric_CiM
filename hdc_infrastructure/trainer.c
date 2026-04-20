@@ -12,10 +12,8 @@
  * - Timeseries data, encoded with n-grams and handled as temporal sequences.
  * - General data, where each sample is encoded independently.
  * 
- * The implementation supports both bipolar and binary modes:
- * - **Bipolar Mode:** Incremental bundling of hypervectors is supported.
- * - **Binary Mode:** Hypervectors are pre-bundled for each class before updating
- *   associative memory due to the nature of majority voting.
+ * The implementation uses binary vectors. Hypervectors are pre-bundled for each
+ * class before updating associative memory due to the nature of majority voting.
  *
  * The file includes mechanisms for handling stability checks on n-grams and
  * ensures proper memory management for dynamically allocated hypervectors.
@@ -42,40 +40,19 @@
  * @param assoc_mem A pointer to the associative memory structure for storing class-specific hypervectors.
  * @param enc A pointer to the encoder structure for encoding the training data.
  *
- * @note 
- * - In **bipolar mode**, incremental bundling is supported, allowing real-time updates.
- * - In **binary mode**, the hypervectors are pre-bundled for each class and then added.
- *
  * @warning 
  * - The function assumes proper memory allocation for all input pointers.
  *
  * @details 
  * - This function first verifies label stability within n-grams. 
  * - Stable n-grams are encoded into hypervectors, which are added to the associative memory.
- * - In bipolar mode, associative memory updates occur incrementally, while in binary mode, updates are applied after bundling.
+ * - Associative memory updates are applied after per-class bundling.
  */
 void train_model_timeseries(double **training_data, int *training_labels, int training_samples, struct associative_memory *assoc_mem, struct encoder *enc) {
     if (output_mode >= OUTPUT_DETAILED) {
         printf("Training HDC-Model for %d training samples.\n",training_samples);
         fflush(stdout);
     }
-    #if BIPOLAR_MODE
-
-    for (int j = 0; j < training_samples - N_GRAM_SIZE; j++) {
-        Vector* sample_hv = create_vector();
-        if (is_window_stable(&training_labels[j])) {
-            encode_timeseries(enc, &training_data[j], sample_hv);
-            add_to_assoc_mem(assoc_mem, sample_hv, training_labels[j]);
-
-        }
-        free_vector(sample_hv);
-
-    }
-    if (NORMALIZE) {
-        normalize(assoc_mem);
-    }
-    
-#else
 #if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
     int window_size = N_GRAM_SIZE;
     Vector *rolling_acc = create_vector();
@@ -213,7 +190,6 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
     free(class_bit_counts);
     free(vector_counts);
 #endif
-#endif
 
     if (output_mode >= OUTPUT_DEBUG) {
         print_class_vectors(assoc_mem);
@@ -231,14 +207,10 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
  * @param assoc_mem A pointer to the associative memory structure for storing class-specific hypervectors.
  * @param enc A pointer to the encoder structure for encoding the training data.
  *
- * @note 
- * - In **bipolar mode**, incremental bundling of hypervectors is supported.
- * - In **binary mode**, pre-bundling of class hypervectors is necessary before updates.
- *
  * @details 
  * - Each sample is individually encoded into a hypervector.
  * - Encoded hypervectors are bundled together for each class and added to associative memory.
- * - In binary mode, majority voting influences how the bundling is performed.
+ * - Majority voting influences how the bundling is performed.
  *
  * @warning The caller is responsible for proper memory allocation and cleanup of all input data.
  */
@@ -248,21 +220,6 @@ void train_model_general_data(double **training_data, int *training_labels, int 
         printf("Training HDC-Model for %d training samples.",training_samples);
         fflush(stdout);
     }
-    #if BIPOLAR_MODE
-    // Training loop
-    for (int j = 0; j < training_samples; j++) {
-        Vector* sample_hv = create_vector();
-        
-        encode_general_data(enc, training_data[j], sample_hv);
-        add_to_assoc_mem(assoc_mem, sample_hv, training_labels[j]);
-        free_vector(sample_hv);
-
-    }
-    if (NORMALIZE) {
-        normalize(assoc_mem);
-    }
-    
-    #else
     Vector*** encoded_vectors = (Vector***)malloc((training_samples) * NUM_CLASSES * sizeof(Vector*));
     int* vector_counts = (int*)calloc(NUM_CLASSES, sizeof(int)); // Array to keep track of vector count for each class
     // Allocate memory for each class' vector array
@@ -298,7 +255,6 @@ void train_model_general_data(double **training_data, int *training_labels, int 
     }
     free(encoded_vectors);
     free(vector_counts);
-    #endif
 
     if (output_mode >= OUTPUT_DEBUG) {
         print_class_vectors(assoc_mem);
