@@ -991,55 +991,6 @@ static double evaluate_candidate(const uint16_t *B,
 #endif
 }
 
-static void mutate_individual_naive(uint16_t *individual,
-                                    int gene_count,
-                                    double mutation_rate,
-                                    uint32_t *rng_state) {
-    if (!individual || gene_count <= 1) {
-        return;
-    }
-
-    for (int step = 0; step < gene_count; step++) {
-        if (rng_uniform(rng_state) < mutation_rate) {
-            int donor = -1;
-            int max_tries = gene_count * 2;
-            for (int tries = 0; tries < max_tries; tries++) {
-                int idx = rng_range(rng_state, gene_count);
-                if (individual[idx] > 0) {
-                    donor = idx;
-                    break;
-                }
-            }
-            if (donor < 0) {
-                continue;
-            }
-
-            int receiver = rng_range(rng_state, gene_count);
-            if (receiver == donor && gene_count > 1) {
-                receiver = (donor + 1 + rng_range(rng_state, gene_count - 1)) % gene_count;
-            }
-
-            individual[donor] -= 1;
-            individual[receiver] += 1;
-        }
-    }
-}
-
-static void crossover_individual_naive(const uint16_t *parent_a,
-                                       const uint16_t *parent_b,
-                                       uint16_t *child,
-                                       int genome_length,
-                                       double crossover_rate,
-                                       uint32_t *rng_state) {
-    if (rng_uniform(rng_state) < crossover_rate) {
-        for (int i = 0; i < genome_length; i++) {
-            child[i] = rng_range(rng_state, 2) == 0 ? parent_a[i] : parent_b[i];
-        }
-    } else {
-        memcpy(child, parent_a, genome_length * sizeof(uint16_t));
-    }
-}
-
 static int wrap_event_level(int level, int transitions) {
     if (transitions <= 0) {
         return level;
@@ -1364,7 +1315,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         selection_mode != GA_SELECTION_ACCURACY) {
         selection_mode = GA_SELECTION_PARETO;
     }
-    int pipeline_mode = GA_PIPELINE;
     int genome_length = ctx.num_levels - 1;
 #if PRECOMPUTED_ITEM_MEMORY
     genome_length *= ctx.num_features;
@@ -1433,19 +1383,15 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     int transitions = ctx.num_levels - 1;
     int max_total = GA_MAX_FLIPS_CIM;
     int feature_blocks = 1;
-    double *adaptive_chunk_schedule = NULL;
-    int *adaptive_mutation_step_schedule = NULL;
 #if PRECOMPUTED_ITEM_MEMORY
     feature_blocks = ctx.num_features;
 #endif
-    if (pipeline_mode == PIPELINE_CUSTOM && max_total <= 0) {
+    if (max_total <= 0) {
         fprintf(stderr, "GA custom pipeline error: GA_MAX_FLIPS_CIM must be > 0.\n");
         exit(EXIT_FAILURE);
     }
-    if (pipeline_mode == PIPELINE_CUSTOM) {
-        adaptive_chunk_schedule = build_adaptive_chunk_schedule_or_die(max_total, params->generations);
-        adaptive_mutation_step_schedule = build_adaptive_mutation_step_schedule_or_die(transitions, params->generations);
-    }
+    double *adaptive_chunk_schedule = build_adaptive_chunk_schedule_or_die(max_total, params->generations);
+    int *adaptive_mutation_step_schedule = build_adaptive_mutation_step_schedule_or_die(transitions, params->generations);
 
     char export_run_dir[512];
     const char *active_export_run_dir = NULL;
@@ -1570,30 +1516,17 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                 parent_a = fitness_tournament(fitP, population_size, params->tournament_size, &ga_state);
                 parent_b = fitness_tournament(fitP, population_size, params->tournament_size, &ga_state);
             }
-            if (pipeline_mode == PIPELINE_CUSTOM) {
-                recombine_individual_custom(&population[parent_a * genome_length],
-                                            &population[parent_b * genome_length],
-                                            &offspring[i * genome_length],
-                                            transitions,
-                                            feature_blocks,
-                                            max_total,
-                                            params->crossover_rate,
-                                            params->mutation_rate,
-                                            adaptive_chunk_schedule[gen],
-                                            adaptive_mutation_step_schedule[gen],
-                                            &ga_state);
-            } else {
-                crossover_individual_naive(&population[parent_a * genome_length],
-                                           &population[parent_b * genome_length],
-                                           &offspring[i * genome_length],
-                                           genome_length,
-                                           params->crossover_rate,
-                                           &ga_state);
-                mutate_individual_naive(&offspring[i * genome_length],
-                                        genome_length,
+            recombine_individual_custom(&population[parent_a * genome_length],
+                                        &population[parent_b * genome_length],
+                                        &offspring[i * genome_length],
+                                        transitions,
+                                        feature_blocks,
+                                        max_total,
+                                        params->crossover_rate,
                                         params->mutation_rate,
+                                        adaptive_chunk_schedule[gen],
+                                        adaptive_mutation_step_schedule[gen],
                                         &ga_state);
-            }
         }
 
         output_mode = OUTPUT_NONE;

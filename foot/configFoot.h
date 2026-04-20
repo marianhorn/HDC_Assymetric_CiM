@@ -83,10 +83,6 @@
 #ifndef GA_SELECTION_MODE
 #define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
 #endif
-#ifndef GA_PIPELINE
-#define GA_PIPELINE PIPELINE_CUSTOM // GA variation pipeline
-#endif
-
 #ifndef BINNING_MODE
 #define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
 #endif
@@ -116,8 +112,5 @@ extern int output_mode;
 #define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
 #define GA_SELECTION_MULTI 1    // GA selection: accuracy minus similarity
 #define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
-
-#define PIPELINE_NAIVE 0        // GA pipeline: existing operators
-#define PIPELINE_CUSTOM 1       // GA pipeline: custom event-list operators
 
 #endif
