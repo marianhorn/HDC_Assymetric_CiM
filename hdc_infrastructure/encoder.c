@@ -14,7 +14,7 @@
  * - Binary-vector encoding for classification and evaluation.
  *
  * @note 
- * This file supports configurations for both precomputed and dynamically generated 
+ * This file supports configurations for both precomputed and dynamically generated
  * item memories through the `PRECOMPUTED_ITEM_MEMORY` macro.
  *
  * @author Marian Horn
@@ -164,23 +164,6 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
         return -1;
     }
 
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
-    // Rolling-style temporal composition: XOR over slot-rotated timestamp HVs.
-    vector_zero(result);
-
-    Vector* encoded = create_vector();
-    Vector* encoded_permuted = create_vector();
-    for (size_t i = 0; i < N_GRAM_SIZE; i++) {
-        encode_timestamp(enc, emg_data[i], encoded);
-        permute(encoded, (int)i, encoded_permuted);
-        size_t words = vector_storage_count();
-        for (size_t w = 0; w < words; w++) {
-            result->data[w] ^= encoded_permuted->data[w];
-        }
-    }
-    free_vector(encoded);
-    free_vector(encoded_permuted);
-#else
     encode_timestamp(enc, emg_data[0], result);
 
     Vector* encoded = create_vector();
@@ -192,7 +175,6 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
     }
     free_vector(encoded);
     free_vector(result_permuted);
-#endif
     if (output_mode >= OUTPUT_DEBUG) {
         bool vectorContainsOnlyZeroEntries = true;
         for(int z = 0; z<VECTOR_DIMENSION; z++){

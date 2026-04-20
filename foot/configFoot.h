@@ -20,9 +20,6 @@
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 3 // n-gram size
 #endif
-#ifndef MODEL_VARIANT
-#define MODEL_VARIANT MODEL_VARIANT_FUSION // active default model path
-#endif
 #ifndef DOWNSAMPLE
 #define DOWNSAMPLE 1 // downsample factor
 #endif
@@ -122,9 +119,5 @@ extern int output_mode;
 
 #define PIPELINE_NAIVE 0        // GA pipeline: existing operators
 #define PIPELINE_CUSTOM 1       // GA pipeline: custom event-list operators
-
-#define MODEL_VARIANT_MARIAN 0   // Marian baseline path
-#define MODEL_VARIANT_KRISCHAN 1 // Krischan-compatible rolling path
-#define MODEL_VARIANT_FUSION 2   // Marian temporal path + Krischan quantization
 
 #endif

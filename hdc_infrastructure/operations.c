@@ -21,57 +21,6 @@
 #include <string.h>
 #include "vector.h"
 
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
-static void permute_like_krischan(Vector *vector, int offset, Vector *result) {
-    int chunks = (VECTOR_DIMENSION + 31) / 32;
-    uint32_t *in_words = (uint32_t *)calloc((size_t)chunks, sizeof(uint32_t));
-    uint32_t *out_words = (uint32_t *)calloc((size_t)chunks, sizeof(uint32_t));
-    if (!in_words || !out_words) {
-        fprintf(stderr, "Memory allocation failed in permute_like_krischan\n");
-        free(in_words);
-        free(out_words);
-        exit(EXIT_FAILURE);
-    }
-
-    // Match krischan loader bit order: index i maps to bit 31-(i%32) in chunk i/32.
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        if (vector_get_bit(vector, i)) {
-            int chunk = i / 32;
-            int bit_in_chunk = 31 - (i % 32);
-            in_words[chunk] |= (1u << bit_in_chunk);
-        }
-    }
-
-    int shift_bits = offset;
-    int total_bits = chunks * 32;
-    if (total_bits > 0) {
-        shift_bits %= total_bits;
-        if (shift_bits < 0) {
-            shift_bits += total_bits;
-        }
-    }
-
-    int word_shift = shift_bits / 32;
-    int bit_shift = shift_bits % 32;
-    // Intentional parity path with Krischan implementation, including bit_shift==0 behavior.
-    for (int i = 0; i < chunks; i++) {
-        uint32_t a = in_words[(i + word_shift) % chunks];
-        uint32_t b = in_words[(i + word_shift + 1) % chunks];
-        out_words[i] = (a >> bit_shift) | (b << (32 - bit_shift));
-    }
-
-    vector_zero(result);
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        int chunk = i / 32;
-        int bit_in_chunk = 31 - (i % 32);
-        vector_set_bit(result, i, (out_words[chunk] >> bit_in_chunk) & 1u);
-    }
-
-    free(out_words);
-    free(in_words);
-}
-#endif
-
 static void permute_binary_words(const Vector *vector, int right_shift, Vector *result) {
     int shift = right_shift % VECTOR_DIMENSION;
     if (shift < 0) {
@@ -244,9 +193,6 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
  * @note The `result` vector is modified in-place and should be initialized before calling.
  */
 void permute(Vector* vector, int offset, Vector* result) {
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
-    permute_like_krischan(vector, offset, result);
-#else
     if (offset > 0) {
         permute_binary_words(vector, offset, result);
     } else {
@@ -257,7 +203,6 @@ void permute(Vector* vector, int offset, Vector* result) {
         }
         permute_binary_words(vector, right_shift, result);
     }
-#endif
 }
 
 /**

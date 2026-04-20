@@ -215,102 +215,9 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     memset(result.confusion_matrix, 0, sizeof(result.confusion_matrix));
 
     if (output_mode >= OUTPUT_DETAILED) {
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
-        printf("Evaluating HDC-Model (rolling XOR) for %d testing samples.\n",testing_samples);
-#else
         printf("Evaluating HDC-Model for %d testing samples.\n",testing_samples);
-#endif
     }
 
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
-    int window_size = N_GRAM_SIZE;
-    Vector *rolling_acc = create_vector();
-    Vector **window_vectors = (Vector **)malloc((size_t)window_size * sizeof(Vector *));
-    if (!rolling_acc || !window_vectors) {
-        fprintf(stderr, "Failed to allocate rolling evaluation buffers.\n");
-        exit(EXIT_FAILURE);
-    }
-    for (int i = 0; i < window_size; i++) {
-        window_vectors[i] = create_vector();
-    }
-
-    int window_filled = 0;
-    int window_pos = 0;
-
-    for (int i = 0; i < testing_samples; i++) {
-        Vector *sample_hv = create_vector();
-        Vector *rotated_hv = create_vector();
-        encode_timestamp(enc, testing_data[i], sample_hv);
-        permute(sample_hv, window_pos, rotated_hv);
-
-        if (window_filled < window_size) {
-            bind(rolling_acc, rotated_hv, rolling_acc);
-            vector_copy(window_vectors[window_pos], rotated_hv);
-            window_filled++;
-        } else {
-            bind(rolling_acc, window_vectors[window_pos], rolling_acc);
-            bind(rolling_acc, rotated_hv, rolling_acc);
-            vector_copy(window_vectors[window_pos], rotated_hv);
-        }
-
-        window_pos = (window_pos + 1) % window_size;
-
-        if (i >= window_size - 1) {
-            int actual_label = testing_labels[i];
-            int predicted_label = classify(assoc_mem, rolling_acc);
-            if (predicted_label < 0) {
-                fprintf(stderr, "Label not valid, terminating...");
-                exit(EXIT_FAILURE);
-            }
-            result.confusion_matrix[actual_label][predicted_label]++;
-            if (predicted_label == actual_label) {
-                result.correct++;
-            } else {
-                result.not_correct++;
-            }
-        }
-
-        free_vector(rotated_hv);
-        free_vector(sample_hv);
-    }
-
-    // Match colleague reporting: denominator is total test samples even with warm-up skipped.
-    result.total = (size_t)testing_samples;
-    result.overall_accuracy =
-        testing_samples > 0 ? (double)result.correct / (double)testing_samples : 0.0;
-    result.class_average_accuracy = compute_class_average_accuracy(result.confusion_matrix);
-    result.class_vector_similarity = compute_class_vector_similarity(assoc_mem);
-
-    if (output_mode >= OUTPUT_DETAILED) {
-        printf("Testing accuracy: %.3f%%\n", result.overall_accuracy * 100.0);
-        printf("Class-average accuracy: %.3f%%\n", result.class_average_accuracy * 100.0);
-        printf("Class vector similarity: %.3f\n", result.class_vector_similarity);
-        printf("Total: %ld of %d samples correctly classified\n",
-               result.correct,
-               testing_samples);
-        if (output_mode >= OUTPUT_DEBUG) {
-            printf("Confusion Matrix:\n");
-            printf("True\\Predicted\n");
-            for (int i = 0; i < NUM_CLASSES; i++) {
-                printf("\t%d", i);
-            }
-            printf("\n");
-            for (int i = 0; i < NUM_CLASSES; i++) {
-                printf("%d", i);
-                for (int j = 0; j < NUM_CLASSES; j++) {
-                    printf("\t%d", result.confusion_matrix[i][j]);
-                }
-                printf("\n");
-            }
-        }
-    }
-
-    for (int i = 0; i < window_size; i++) {
-        free_vector(window_vectors[i]);
-    }
-    free(window_vectors);
-    free_vector(rolling_acc);
-#else
     //Iterate over testing data 
     for (int j = 0; j < testing_samples-N_GRAM_SIZE+1; j+=N_GRAM_SIZE) {
         int actual_label = mode(testing_labels + j, N_GRAM_SIZE);
@@ -375,7 +282,6 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
             }
         }
     }
-#endif
     return result;
 }
 

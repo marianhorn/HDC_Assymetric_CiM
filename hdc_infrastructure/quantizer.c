@@ -266,32 +266,7 @@ static int map_value_with_boundaries_checked(int feature_idx, double x) {
 }
 #endif
 
-#if MODEL_VARIANT != MODEL_VARIANT_KRISCHAN && MODEL_VARIANT != MODEL_VARIANT_FUSION
-static int get_signal_level_linear(double emg_value) {
-    if (emg_value <= MIN_LEVEL) {
-        return 0;
-    }
-    if (emg_value >= MAX_LEVEL) {
-        return NUM_LEVELS - 1;
-    }
-    if (MAX_LEVEL == MIN_LEVEL) {
-        return 0;
-    }
-
-    double normalized_value = (emg_value - MIN_LEVEL) / (MAX_LEVEL - MIN_LEVEL);
-    int level = (int)(normalized_value * (NUM_LEVELS - 1));
-    if (level < 0) {
-        level = 0;
-    }
-    if (level >= NUM_LEVELS) {
-        level = NUM_LEVELS - 1;
-    }
-    return level;
-}
-#endif
-
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
-static int get_signal_level_krischan(double emg_value) {
+static int get_signal_level_uniform(double emg_value) {
     float value = (float)emg_value;
     int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
     if (scaled < 0) {
@@ -309,15 +284,6 @@ static int get_signal_level_krischan(double emg_value) {
         level = NUM_LEVELS - 1;
     }
     return level;
-}
-#endif
-
-static int get_signal_level_uniform(double emg_value) {
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
-    return get_signal_level_krischan(emg_value);
-#else
-    return get_signal_level_linear(emg_value);
-#endif
 }
 
 #if BINNING_MODE == GA_REFINED_BINNING
