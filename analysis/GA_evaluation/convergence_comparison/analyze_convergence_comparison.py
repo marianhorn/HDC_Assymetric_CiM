@@ -173,12 +173,30 @@ def write_generation_csv(rows, path):
 def aggregate_metric_by_dataset_generation(rows, metric_key):
     grouped = defaultdict(list)
     for row in rows:
+        if row[metric_key] is None:
+            continue
         grouped[(row["dataset"], row["generation"])].append(row[metric_key])
 
     dataset_to_xy = defaultdict(lambda: {"x": [], "y": []})
     for (dataset, generation), values in sorted(grouped.items()):
         dataset_to_xy[dataset]["x"].append(generation)
         dataset_to_xy[dataset]["y"].append(float(np.mean(values)))
+    return dataset_to_xy
+
+
+def aggregate_metric_mean_std_by_dataset_generation(rows, metric_key):
+    grouped = defaultdict(list)
+    for row in rows:
+        if row[metric_key] is None:
+            continue
+        grouped[(row["dataset"], row["generation"])].append(row[metric_key])
+
+    dataset_to_xy = defaultdict(lambda: {"x": [], "mean": [], "std": []})
+    for (dataset, generation), values in sorted(grouped.items()):
+        arr = np.array(values, dtype=float)
+        dataset_to_xy[dataset]["x"].append(generation)
+        dataset_to_xy[dataset]["mean"].append(float(np.mean(arr)))
+        dataset_to_xy[dataset]["std"].append(float(np.std(arr)))
     return dataset_to_xy
 
 
@@ -193,6 +211,36 @@ def plot_metric(rows, metric_key, ylabel, title, filename, show):
         x = series[dataset]["x"]
         y = series[dataset]["y"]
         plt.plot(x, y, marker="o", linewidth=1.8, markersize=3, label=f"Dataset {dataset}")
+
+    plt.xlabel("Generation")
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    out_path = os.path.join(PLOTS_DIR, filename)
+    plt.savefig(out_path, dpi=200)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_metric_with_std(rows, metric_key, ylabel, title, filename, show):
+    series = aggregate_metric_mean_std_by_dataset_generation(rows, metric_key)
+    if not series:
+        print(f"No data for plot: {title}")
+        return
+
+    plt.figure(figsize=(9, 5))
+    for dataset in sorted(series.keys()):
+        x = np.array(series[dataset]["x"], dtype=float)
+        mean = np.array(series[dataset]["mean"], dtype=float)
+        std = np.array(series[dataset]["std"], dtype=float)
+        plt.plot(x, mean, marker="o", linewidth=1.8, markersize=3, label=f"Dataset {dataset}")
+        plt.fill_between(x, mean - std, mean + std, alpha=0.2)
 
     plt.xlabel("Generation")
     plt.ylabel(ylabel)
@@ -343,6 +391,14 @@ def main():
         ylabel="Max class vector distance (reported similarity)",
         title="Max Class Vector Distance vs Generation",
         filename="max_class_vector_distance_vs_generation.png",
+        show=args.show,
+    )
+    plot_metric_with_std(
+        rows,
+        metric_key="new_selected",
+        ylabel="Newly selected individuals",
+        title="Newly Selected Individuals vs Generation",
+        filename="new_selected_vs_generation_mean_std.png",
         show=args.show,
     )
 
