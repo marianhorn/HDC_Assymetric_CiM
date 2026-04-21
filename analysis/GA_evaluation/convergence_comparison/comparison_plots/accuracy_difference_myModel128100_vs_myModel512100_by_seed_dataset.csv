@@ -1,0 +1,6 @@
+seed,dataset,myModel128100_test_acc,myModel512100_test_acc,test_diff_myModel128100_minus_myModel512100,myModel128100_val_acc,myModel512100_val_acc,val_diff_myModel128100_minus_myModel512100
+1,1,,,,100.0,100.0,0.0
+2,1,,,,100.0,100.0,0.0
+3,1,,,,100.0,100.0,0.0
+4,1,,,,100.0,100.0,0.0
+5,1,,,,100.0,100.0,0.0

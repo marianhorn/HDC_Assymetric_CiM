@@ -5,7 +5,7 @@
 #define VECTOR_DIMENSION 1024 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 30 // number of quantization levels
+#define NUM_LEVELS 100 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -61,7 +61,7 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 128 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 512 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
 #define GA_DEFAULT_GENERATIONS 128 // GA generations

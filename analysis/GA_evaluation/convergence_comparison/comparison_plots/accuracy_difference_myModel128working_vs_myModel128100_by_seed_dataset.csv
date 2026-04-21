@@ -1,0 +1,6 @@
+seed,dataset,myModel128working_test_acc,myModel128100_test_acc,test_diff_myModel128working_minus_myModel128100,myModel128working_val_acc,myModel128100_val_acc,val_diff_myModel128working_minus_myModel128100
+1,1,,,,83.372,100.0,-16.628
+2,1,,,,82.679,100.0,-17.320999999999998
+3,1,,,,90.531,100.0,-9.468999999999994
+4,1,,,,82.448,100.0,-17.552000000000007
+5,1,,,,90.069,100.0,-9.930999999999997
