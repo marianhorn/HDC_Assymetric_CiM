@@ -1,552 +1,187 @@
-//This serves as main file.
-//Classifies Dietmars foot movements
+// Main file for foot EMG classification.
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+
 #include "../hdc_infrastructure/assoc_mem.h"
-#include "../hdc_infrastructure/item_mem.h"
-#include "../hdc_infrastructure/asymItemMemory.h"
 #include "../hdc_infrastructure/encoder.h"
-#include "../hdc_infrastructure/operations.h"
-#include "dataReaderFootEMG.h"
-#include "configFoot.h"
 #include "../hdc_infrastructure/evaluator.h"
-#include "../hdc_infrastructure/ResultManager.h"
+#include "../hdc_infrastructure/item_mem.h"
 #include "../hdc_infrastructure/quantizer.h"
-#include "../hdc_infrastructure/vector.h"
+#include "../hdc_infrastructure/ResultManager.h"
 #include "../hdc_infrastructure/trainer.h"
-#ifdef _OPENMP
-#include <omp.h>
-#endif
+#include "configFoot.h"
+#include "dataReaderFootEMG.h"
 
 int output_mode = OUTPUT_MODE;
 
-static double now_ms(void) {
-#ifdef _OPENMP
-    return omp_get_wtime() * 1000.0;
-#else
-    return 1000.0 * (double)clock() / (double)CLOCKS_PER_SEC;
-#endif
-}
-
-int main(void){
+int main(void) {
     result_manager_init();
+
     if (output_mode >= OUTPUT_BASIC) {
         printf("\nHDC-classification for EMG-signals:\n\n");
     }
 
-    double mean_post_test_overall_accuracy = 0.0;
-    double mean_post_test_class_average_accuracy = 0.0;
-    double mean_post_test_class_vector_similarity = 0.0;
-    double mean_pre_test_overall_accuracy = 0.0;
-    double mean_pre_test_class_average_accuracy = 0.0;
-    double mean_pre_test_class_vector_similarity = 0.0;
-    double mean_pre_val_overall_accuracy = 0.0;
-    double mean_pre_val_class_average_accuracy = 0.0;
-    double mean_pre_val_class_vector_similarity = 0.0;
-    double mean_post_val_overall_accuracy = 0.0;
-    double mean_post_val_class_average_accuracy = 0.0;
-    double mean_post_val_class_vector_similarity = 0.0;
-#if BINNING_MODE != UNIFORM_BINNING
-    double mean_uniform_test_overall_accuracy = 0.0;
-    double mean_uniform_test_class_average_accuracy = 0.0;
-    double mean_uniform_test_class_vector_similarity = 0.0;
-    double mean_uniform_val_overall_accuracy = 0.0;
-    double mean_uniform_val_class_average_accuracy = 0.0;
-    double mean_uniform_val_class_vector_similarity = 0.0;
-#endif
-#if BINNING_MODE == GA_REFINED_BINNING
-#if USE_GENETIC_ITEM_MEMORY
-    double mean_uniform_ga_test_overall_accuracy = 0.0;
-    double mean_uniform_ga_test_class_average_accuracy = 0.0;
-    double mean_uniform_ga_test_class_vector_similarity = 0.0;
-    double mean_uniform_ga_val_overall_accuracy = 0.0;
-    double mean_uniform_ga_val_class_average_accuracy = 0.0;
-    double mean_uniform_ga_val_class_vector_similarity = 0.0;
-    int uniform_ga_stage_datasets = 0;
-#endif
-#endif
+    double mean_validation_accuracy = 0.0;
+    double mean_validation_class_average = 0.0;
+    double mean_validation_class_similarity = 0.0;
+    double mean_test_accuracy = 0.0;
+    double mean_test_class_average = 0.0;
+    double mean_test_class_similarity = 0.0;
     size_t sum_correct = 0;
     size_t sum_not_correct = 0;
     size_t sum_transition_error = 0;
     size_t sum_total = 0;
-    double sum_training_time_ms = 0.0;
     int processed_datasets = 0;
 
-    for(int dataset = 1; dataset<2;dataset++){
+    for (int dataset = 0; dataset < 4; dataset++) {
+        double **training_data = NULL;
+        double **validation_data = NULL;
+        double **testing_data = NULL;
+        int *training_labels = NULL;
+        int *validation_labels = NULL;
+        int *testing_labels = NULL;
+        int training_samples = 0;
+        int validation_samples = 0;
+        int testing_samples = 0;
+
         quantizer_clear();
 
         if (output_mode >= OUTPUT_BASIC) {
-            printf("\n\nModel for dataset #%d\n",dataset);
+            printf("Model for dataset #%d\n", dataset);
         }
-        #if PRECOMPUTED_ITEM_MEMORY
-        struct item_memory itemMem;
-        init_precomp_item_memory(&itemMem,NUM_LEVELS,NUM_FEATURES);
+
+#if PRECOMPUTED_ITEM_MEMORY
+        struct item_memory item_mem;
+        init_precomp_item_memory(&item_mem, NUM_LEVELS, NUM_FEATURES);
 
         struct encoder enc;
-        init_encoder(&enc,&itemMem);
-        #else
+        init_encoder(&enc, &item_mem);
+#else
         struct item_memory electrodes;
-        struct item_memory intensityLevels;
+        struct item_memory intensity_levels;
         init_item_memory(&electrodes, NUM_FEATURES);
-        init_continuous_item_memory(&intensityLevels, NUM_LEVELS);
+        init_continuous_item_memory(&intensity_levels, NUM_LEVELS);
 
         struct encoder enc;
-        init_encoder(&enc,&electrodes,&intensityLevels);
-        #endif
+        init_encoder(&enc, &electrodes, &intensity_levels);
+#endif
 
-        double** trainingData;
-        double** validationData;
-        double** testingData;
-        int* trainingLabels;
-        int* validationLabels;
-        int* testingLabels;
-        int trainingSamples, validationSamples, testingSamples;
+        struct associative_memory assoc_mem;
+        init_assoc_mem(&assoc_mem);
 
-        struct associative_memory assMem;
-        init_assoc_mem(&assMem);
-
-        double validationRatio = VALIDATION_RATIO;
         getDataWithValSet(dataset,
-                          &trainingData,
-                          &validationData,
-                          &testingData,
-                          &trainingLabels,
-                          &validationLabels,
-                          &testingLabels,
-                          &trainingSamples,
-                          &validationSamples,
-                          &testingSamples,
-                          validationRatio);
+                          &training_data,
+                          &validation_data,
+                          &testing_data,
+                          &training_labels,
+                          &validation_labels,
+                          &testing_labels,
+                          &training_samples,
+                          &validation_samples,
+                          &testing_samples,
+                          VALIDATION_RATIO);
 
-        if (quantizer_fit_from_training(trainingData,
-                                        trainingLabels,
-                                        trainingSamples,
+        if (quantizer_fit_from_training(training_data,
+                                        training_labels,
+                                        training_samples,
                                         NUM_FEATURES,
                                         NUM_LEVELS) != 0) {
             fprintf(stderr, "Error: Failed to initialize quantizer for dataset %d.\n", dataset);
             return EXIT_FAILURE;
         }
 
-#if BINNING_MODE != UNIFORM_BINNING
-        struct timeseries_eval_result eval_uniform_val = {0};
-        struct timeseries_eval_result eval_uniform_test = {0};
-        int has_uniform_baseline = 0;
-#endif
+        train_model_timeseries(training_data, training_labels, training_samples, &assoc_mem, &enc);
 
-#if BINNING_MODE == GA_REFINED_BINNING
-        struct timeseries_eval_result eval_uniform_ga_val = {0};
-        struct timeseries_eval_result eval_uniform_ga_test = {0};
-        int has_uniform_ga_stage = 0;
-        {
-            struct associative_memory uniformAssMem;
-            init_assoc_mem(&uniformAssMem);
+        struct timeseries_eval_result validation_result = {0};
+        struct timeseries_eval_result test_result = {0};
+
+        if (validation_data && validation_labels && validation_samples > 0) {
             if (output_mode >= OUTPUT_DETAILED) {
-                printf("Evaluating uniform-quantizer baseline on validation/test sets.\n");
+                printf("Evaluating validation set.\n");
             }
-            train_model_timeseries(trainingData, trainingLabels, trainingSamples, &uniformAssMem, &enc);
-            if (validationData && validationLabels && validationSamples > 0) {
-                if (output_mode >= OUTPUT_DETAILED) {
-                    printf("Evaluating uniform-quantizer baseline on validation set.\n");
-                }
-                eval_uniform_val =
-                    evaluate_model_timeseries_direct(&enc, &uniformAssMem, validationData, validationLabels, validationSamples);
-            }
-            if (output_mode >= OUTPUT_DETAILED) {
-                printf("Evaluating uniform-quantizer baseline on test set.\n");
-            }
-            eval_uniform_test =
-                evaluate_model_timeseries_direct(&enc, &uniformAssMem, testingData, testingLabels, testingSamples);
-            has_uniform_baseline = 1;
-            free_assoc_mem(&uniformAssMem);
-
-#if USE_GENETIC_ITEM_MEMORY
-            if (output_mode >= OUTPUT_DETAILED) {
-                struct item_memory uniformGaItemMem;
-                init_precomp_item_memory(&uniformGaItemMem, NUM_LEVELS, NUM_FEATURES);
-                struct encoder uniformGaEnc;
-                init_encoder(&uniformGaEnc, &uniformGaItemMem);
-                struct associative_memory uniformGaAssMem;
-                init_assoc_mem(&uniformGaAssMem);
-
-                printf("Running uniform-quantizer + CiM-GA comparison stage.\n");
-                optimize_item_memory(&uniformGaItemMem,
-                                     trainingData,
-                                     trainingLabels,
-                                     trainingSamples,
-                                     validationData,
-                                     validationLabels,
-                                     validationSamples);
-                train_model_timeseries(trainingData, trainingLabels, trainingSamples, &uniformGaAssMem, &uniformGaEnc);
-                if (validationData && validationLabels && validationSamples > 0) {
-                    printf("Evaluating uniform-quantizer + CiM-GA stage on validation set.\n");
-                    eval_uniform_ga_val =
-                        evaluate_model_timeseries_direct(&uniformGaEnc, &uniformGaAssMem, validationData, validationLabels, validationSamples);
-                }
-                printf("Evaluating uniform-quantizer + CiM-GA stage on test set.\n");
-                eval_uniform_ga_test =
-                    evaluate_model_timeseries_direct(&uniformGaEnc, &uniformGaAssMem, testingData, testingLabels, testingSamples);
-                has_uniform_ga_stage = 1;
-                free_assoc_mem(&uniformGaAssMem);
-                free_item_memory(&uniformGaItemMem);
-            }
-#endif
-
-            int genome_length = NUM_FEATURES * (NUM_LEVELS - 1);
-            if (genome_length <= 0) {
-                fprintf(stderr, "Error: Invalid GA-refined quantizer genome length for dataset %d.\n", dataset);
-                return EXIT_FAILURE;
-            }
-            uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));
-            if (!flip_counts) {
-                fprintf(stderr, "Error: Failed to allocate preprocessing GA flip counts for dataset %d.\n", dataset);
-                return EXIT_FAILURE;
-            }
-
-            if (output_mode >= OUTPUT_BASIC) {
-                printf("Dataset %02d running preprocessing GA for quantizer refinement.\n", dataset);
-            }
-
-            if (optimize_item_memory_get_flip_counts(trainingData,
-                                                     trainingLabels,
-                                                     trainingSamples,
-                                                     validationData,
-                                                     validationLabels,
-                                                     validationSamples,
-                                                     flip_counts) != 0) {
-                free(flip_counts);
-                fprintf(stderr, "Error: Failed to run preprocessing GA for dataset %d.\n", dataset);
-                return EXIT_FAILURE;
-            }
-
-            if (quantizer_refine_from_flip_counts(flip_counts, genome_length) != 0) {
-                free(flip_counts);
-                fprintf(stderr, "Error: Failed to refine quantizer from GA output for dataset %d.\n", dataset);
-                return EXIT_FAILURE;
-            }
-
-            free(flip_counts);
-        }
-#elif BINNING_MODE != UNIFORM_BINNING
-        {
-            struct associative_memory uniformAssMem;
-            init_assoc_mem(&uniformAssMem);
-            quantizer_set_force_uniform_lookup(1);
-            if (output_mode >= OUTPUT_DETAILED) {
-                printf("Evaluating uniform-quantizer baseline on validation/test sets.\n");
-            }
-            train_model_timeseries(trainingData, trainingLabels, trainingSamples, &uniformAssMem, &enc);
-            if (validationData && validationLabels && validationSamples > 0) {
-                if (output_mode >= OUTPUT_DETAILED) {
-                    printf("Evaluating uniform-quantizer baseline on validation set.\n");
-                }
-                eval_uniform_val =
-                    evaluate_model_timeseries_direct(&enc, &uniformAssMem, validationData, validationLabels, validationSamples);
-            }
-            if (output_mode >= OUTPUT_DETAILED) {
-                printf("Evaluating uniform-quantizer baseline on test set.\n");
-            }
-            eval_uniform_test =
-                evaluate_model_timeseries_direct(&enc, &uniformAssMem, testingData, testingLabels, testingSamples);
-            quantizer_set_force_uniform_lookup(0);
-            has_uniform_baseline = 1;
-            free_assoc_mem(&uniformAssMem);
-        }
-#endif
-
-        if (quantizer_export_cuts_csv_for_dataset(dataset) != 0) {
-            fprintf(stderr, "Error: Failed to export quantizer cuts for dataset %d.\n", dataset);
-            return EXIT_FAILURE;
+            validation_result =
+                evaluate_model_timeseries_direct(&enc, &assoc_mem, validation_data, validation_labels, validation_samples);
         }
 
-        double train_start_ms = now_ms();
-        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        double train_end_ms = now_ms();
-        double training_time_ms = train_end_ms - train_start_ms;
+        if (output_mode >= OUTPUT_DETAILED) {
+            printf("Evaluating test set.\n");
+        }
+        test_result =
+            evaluate_model_timeseries_direct(&enc, &assoc_mem, testing_data, testing_labels, testing_samples);
 
         if (output_mode >= OUTPUT_BASIC) {
-            printf("Dataset %02d initial training time: %.3f ms\n", dataset, training_time_ms);
-        }
-
-        #if USE_GENETIC_ITEM_MEMORY
-        #else
-        sum_training_time_ms += training_time_ms;
-        #endif
-
-        struct timeseries_eval_result eval_pre_val = {0};
-        struct timeseries_eval_result eval_pre_test = {0};
-        if (output_mode >= OUTPUT_DETAILED) {
-            printf("Evaluating pre-optimization model on validation set.\n");
-        }
-        if (validationData && validationLabels && validationSamples > 0) {
-            eval_pre_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
-        }
-        if (output_mode >= OUTPUT_DETAILED) {
-            printf("Evaluating pre-optimization model on test set.\n");
-        }
-        eval_pre_test = evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-
-        #if USE_GENETIC_ITEM_MEMORY
-        #if PRECOMPUTED_ITEM_MEMORY
-        optimize_item_memory(&itemMem,
-                             trainingData,
-                             trainingLabels,
-                             trainingSamples,
-                             validationData,
-                             validationLabels,
-                             validationSamples);
-        #else
-        optimize_item_memory(&intensityLevels,
-                             &electrodes,
-                             trainingData,
-                             trainingLabels,
-                             trainingSamples,
-                             validationData,
-                             validationLabels,
-                             validationSamples);
-        #endif
-        #endif
-
-        char result_info[160];
-#if BINNING_MODE != UNIFORM_BINNING
-        if (has_uniform_baseline) {
-            snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-validation", dataset);
-            addResult(&eval_uniform_val, result_info);
-            snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-test", dataset);
-            addResult(&eval_uniform_test, result_info);
-
-            mean_uniform_val_overall_accuracy += eval_uniform_val.overall_accuracy;
-            mean_uniform_val_class_average_accuracy += eval_uniform_val.class_average_accuracy;
-            mean_uniform_val_class_vector_similarity += eval_uniform_val.class_vector_similarity;
-            mean_uniform_test_overall_accuracy += eval_uniform_test.overall_accuracy;
-            mean_uniform_test_class_average_accuracy += eval_uniform_test.class_average_accuracy;
-            mean_uniform_test_class_vector_similarity += eval_uniform_test.class_vector_similarity;
-        }
-#endif
-
-#if BINNING_MODE == GA_REFINED_BINNING
-#if USE_GENETIC_ITEM_MEMORY
-        if (has_uniform_ga_stage) {
-            snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-ga-validation", dataset);
-            addResult(&eval_uniform_ga_val, result_info);
-            snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=uniform-ga-test", dataset);
-            addResult(&eval_uniform_ga_test, result_info);
-
-            mean_uniform_ga_val_overall_accuracy += eval_uniform_ga_val.overall_accuracy;
-            mean_uniform_ga_val_class_average_accuracy += eval_uniform_ga_val.class_average_accuracy;
-            mean_uniform_ga_val_class_vector_similarity += eval_uniform_ga_val.class_vector_similarity;
-            mean_uniform_ga_test_overall_accuracy += eval_uniform_ga_test.overall_accuracy;
-            mean_uniform_ga_test_class_average_accuracy += eval_uniform_ga_test.class_average_accuracy;
-            mean_uniform_ga_test_class_vector_similarity += eval_uniform_ga_test.class_vector_similarity;
-            uniform_ga_stage_datasets++;
-        }
-#endif
-#endif
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=advanced-validation", dataset);
-        addResult(&eval_pre_val, result_info);
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=advanced-test", dataset);
-        addResult(&eval_pre_test, result_info);
-
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-validation", dataset);
-        addResult(&eval_pre_val, result_info);
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-test", dataset);
-        addResult(&eval_pre_test, result_info);
-
-        mean_pre_val_overall_accuracy += eval_pre_val.overall_accuracy;
-        mean_pre_val_class_average_accuracy += eval_pre_val.class_average_accuracy;
-        mean_pre_val_class_vector_similarity += eval_pre_val.class_vector_similarity;
-        mean_pre_test_overall_accuracy += eval_pre_test.overall_accuracy;
-        mean_pre_test_class_average_accuracy += eval_pre_test.class_average_accuracy;
-        mean_pre_test_class_vector_similarity += eval_pre_test.class_vector_similarity;
-
-        #if USE_GENETIC_ITEM_MEMORY
-        sum_training_time_ms += training_time_ms;
-        if (output_mode >= OUTPUT_DETAILED) {
-            printf("Re-training post-optimization model.\n");
-        }
-        train_start_ms = now_ms();
-        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        train_end_ms = now_ms();
-        training_time_ms = train_end_ms - train_start_ms;
-        if (output_mode >= OUTPUT_BASIC) {
-            printf("Dataset %02d post-optimization training time: %.3f ms\n", dataset, training_time_ms);
-        }
-        #endif
-
-        struct timeseries_eval_result eval_post_val = {0};
-        if (output_mode >= OUTPUT_DETAILED) {
-            printf("Evaluating post-optimization model on test set.\n");
-        }
-        struct timeseries_eval_result eval_post_test =
-            evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-
-        if (validationData && validationLabels && validationSamples > 0) {
-            if (output_mode >= OUTPUT_DETAILED) {
-                printf("Evaluating post-optimization model on validation set.\n");
-            }
-            eval_post_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
-        }
-
-        mean_post_val_overall_accuracy += eval_post_val.overall_accuracy;
-        mean_post_val_class_average_accuracy += eval_post_val.class_average_accuracy;
-        mean_post_val_class_vector_similarity += eval_post_val.class_vector_similarity;
-        mean_post_test_overall_accuracy += eval_post_test.overall_accuracy;
-        mean_post_test_class_average_accuracy += eval_post_test.class_average_accuracy;
-        mean_post_test_class_vector_similarity += eval_post_test.class_vector_similarity;
-
-        if (output_mode == OUTPUT_BASIC) {
-            printf("Dataset %02d pre-opt validation accuracy: ", dataset);
-            if (validationData && validationLabels && validationSamples > 0) {
-                printf("%.2f%%\n", eval_pre_val.overall_accuracy * 100.0);
+            printf("Dataset %02d validation accuracy: ", dataset);
+            if (validation_data && validation_labels && validation_samples > 0) {
+                printf("%.2f%%\n", validation_result.overall_accuracy * 100.0);
             } else {
                 printf("n/a\n");
             }
-
-            printf("Dataset %02d pre-opt test accuracy: %.2f%%\n",
-                   dataset,
-                   eval_pre_test.overall_accuracy * 100.0);
-
-            printf("Dataset %02d post-opt validation accuracy: ", dataset);
-            if (validationData && validationLabels && validationSamples > 0) {
-                printf("%.2f%%\n", eval_post_val.overall_accuracy * 100.0);
-            } else {
-                printf("n/a\n");
-            }
-
-            printf("Dataset %02d post-opt test accuracy: %.2f%%\n",
-                   dataset,
-                   eval_post_test.overall_accuracy * 100.0);
+            printf("Dataset %02d test accuracy: %.2f%%\n\n", dataset, test_result.overall_accuracy * 100.0);
         }
 
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-validation", dataset);
-        addResult(&eval_post_val, result_info);
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-test", dataset);
-        addResult(&eval_post_test, result_info);
+        char result_info[128];
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=validation", dataset);
+        addResult(&validation_result, result_info);
+        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=test", dataset);
+        addResult(&test_result, result_info);
 
-        sum_correct += eval_post_test.correct;
-        sum_not_correct += eval_post_test.not_correct;
-        sum_transition_error += eval_post_test.transition_error;
-        sum_total += eval_post_test.total;
+        mean_validation_accuracy += validation_result.overall_accuracy;
+        mean_validation_class_average += validation_result.class_average_accuracy;
+        mean_validation_class_similarity += validation_result.class_vector_similarity;
+        mean_test_accuracy += test_result.overall_accuracy;
+        mean_test_class_average += test_result.class_average_accuracy;
+        mean_test_class_similarity += test_result.class_vector_similarity;
+
+        sum_correct += test_result.correct;
+        sum_not_correct += test_result.not_correct;
+        sum_transition_error += test_result.transition_error;
+        sum_total += test_result.total;
         processed_datasets++;
 
-        // Free allocated memory
-        freeData(trainingData, trainingSamples);
-        if (validationData && validationSamples > 0) {
-            freeData(validationData, validationSamples);
+        freeData(training_data, training_samples);
+        if (validation_data && validation_samples > 0) {
+            freeData(validation_data, validation_samples);
         }
-        freeData(testingData, testingSamples);
-        free(trainingLabels);
-        free(validationLabels);
-        free(testingLabels);
-        free_assoc_mem(&assMem);
+        freeData(testing_data, testing_samples);
+        free(training_labels);
+        free(validation_labels);
+        free(testing_labels);
+        free_assoc_mem(&assoc_mem);
 
-        #if PRECOMPUTED_ITEM_MEMORY
-        free_item_memory(&itemMem);
-        #else
+#if PRECOMPUTED_ITEM_MEMORY
+        free_item_memory(&item_mem);
+#else
         free_item_memory(&electrodes);
-        free_item_memory(&intensityLevels);
-        #endif
-    }
-
-    struct timeseries_eval_result overall_result = {0};
-    overall_result.correct = sum_correct;
-    overall_result.not_correct = sum_not_correct;
-    overall_result.transition_error = sum_transition_error;
-    overall_result.total = sum_total;
-    double dataset_count = processed_datasets > 0 ? (double)processed_datasets : 1.0;
-    overall_result.overall_accuracy = mean_post_test_overall_accuracy / dataset_count;
-    overall_result.class_average_accuracy = mean_post_test_class_average_accuracy / dataset_count;
-    overall_result.class_vector_similarity = mean_post_test_class_vector_similarity / dataset_count;
-
-    if (output_mode >= OUTPUT_DETAILED || (output_mode == OUTPUT_BASIC && processed_datasets > 1)) {
-        printf("Mean training time per dataset: %.3f ms\n", sum_training_time_ms / dataset_count);
-    }
-
-    if (output_mode >= OUTPUT_DETAILED || (output_mode == OUTPUT_BASIC && processed_datasets > 1)) {
-#if BINNING_MODE != UNIFORM_BINNING
-        printf("Overall uniform quantizer (test): %.2f%%\n", (mean_uniform_test_overall_accuracy / dataset_count) * 100.0);
-        printf("Overall uniform quantizer (validation): %.2f%%\n", (mean_uniform_val_overall_accuracy / dataset_count) * 100.0);
+        free_item_memory(&intensity_levels);
 #endif
-#if BINNING_MODE == GA_REFINED_BINNING
-#if USE_GENETIC_ITEM_MEMORY
-        if (uniform_ga_stage_datasets > 0) {
-            double uniform_ga_count = (double)uniform_ga_stage_datasets;
-            printf("Overall uniform quantizer + CiM GA (test): %.2f%%\n", (mean_uniform_ga_test_overall_accuracy / uniform_ga_count) * 100.0);
-            printf("Overall uniform quantizer + CiM GA (validation): %.2f%%\n", (mean_uniform_ga_val_overall_accuracy / uniform_ga_count) * 100.0);
+    }
+
+    if (processed_datasets > 0) {
+        double dataset_count = (double)processed_datasets;
+        struct timeseries_eval_result overall_validation = {0};
+        struct timeseries_eval_result overall_test = {0};
+
+        overall_validation.overall_accuracy = mean_validation_accuracy / dataset_count;
+        overall_validation.class_average_accuracy = mean_validation_class_average / dataset_count;
+        overall_validation.class_vector_similarity = mean_validation_class_similarity / dataset_count;
+
+        overall_test.correct = sum_correct;
+        overall_test.not_correct = sum_not_correct;
+        overall_test.transition_error = sum_transition_error;
+        overall_test.total = sum_total;
+        overall_test.overall_accuracy = mean_test_accuracy / dataset_count;
+        overall_test.class_average_accuracy = mean_test_class_average / dataset_count;
+        overall_test.class_vector_similarity = mean_test_class_similarity / dataset_count;
+
+        if (output_mode >= OUTPUT_BASIC) {
+            printf("Overall validation accuracy: %.2f%%\n", overall_validation.overall_accuracy * 100.0);
+            printf("Overall test accuracy: %.2f%%\n", overall_test.overall_accuracy * 100.0);
         }
-#endif
-#endif
-        printf("Overall pre-optimization (test): %.2f%%\n", (mean_pre_test_overall_accuracy / dataset_count) * 100.0);
-        printf("Overall post-optimization (test): %.2f%%\n", (mean_post_test_overall_accuracy / dataset_count) * 100.0);
-        printf("Overall pre-optimization (validation): %.2f%%\n", (mean_pre_val_overall_accuracy / dataset_count) * 100.0);
-        printf("Overall post-optimization (validation): %.2f%%\n", (mean_post_val_overall_accuracy / dataset_count) * 100.0);
+
+        addResult(&overall_validation, "model=mine,scope=overall,phase=validation");
+        addResult(&overall_test, "model=mine,scope=overall,phase=test");
     }
-
-#if BINNING_MODE != UNIFORM_BINNING
-    struct timeseries_eval_result overall_uniform_val = {0};
-    overall_uniform_val.overall_accuracy = mean_uniform_val_overall_accuracy / dataset_count;
-    overall_uniform_val.class_average_accuracy = mean_uniform_val_class_average_accuracy / dataset_count;
-    overall_uniform_val.class_vector_similarity = mean_uniform_val_class_vector_similarity / dataset_count;
-    addResult(&overall_uniform_val, "model=mine,scope=overall,phase=uniform-validation");
-
-    struct timeseries_eval_result overall_uniform_test = {0};
-    overall_uniform_test.overall_accuracy = mean_uniform_test_overall_accuracy / dataset_count;
-    overall_uniform_test.class_average_accuracy = mean_uniform_test_class_average_accuracy / dataset_count;
-    overall_uniform_test.class_vector_similarity = mean_uniform_test_class_vector_similarity / dataset_count;
-    addResult(&overall_uniform_test, "model=mine,scope=overall,phase=uniform-test");
-#endif
-
-#if BINNING_MODE == GA_REFINED_BINNING
-#if USE_GENETIC_ITEM_MEMORY
-    if (uniform_ga_stage_datasets > 0) {
-        double uniform_ga_count = (double)uniform_ga_stage_datasets;
-        struct timeseries_eval_result overall_uniform_ga_val = {0};
-        overall_uniform_ga_val.overall_accuracy = mean_uniform_ga_val_overall_accuracy / uniform_ga_count;
-        overall_uniform_ga_val.class_average_accuracy = mean_uniform_ga_val_class_average_accuracy / uniform_ga_count;
-        overall_uniform_ga_val.class_vector_similarity = mean_uniform_ga_val_class_vector_similarity / uniform_ga_count;
-        addResult(&overall_uniform_ga_val, "model=mine,scope=overall,phase=uniform-ga-validation");
-
-        struct timeseries_eval_result overall_uniform_ga_test = {0};
-        overall_uniform_ga_test.overall_accuracy = mean_uniform_ga_test_overall_accuracy / uniform_ga_count;
-        overall_uniform_ga_test.class_average_accuracy = mean_uniform_ga_test_class_average_accuracy / uniform_ga_count;
-        overall_uniform_ga_test.class_vector_similarity = mean_uniform_ga_test_class_vector_similarity / uniform_ga_count;
-        addResult(&overall_uniform_ga_test, "model=mine,scope=overall,phase=uniform-ga-test");
-    }
-#endif
-#endif
-
-    struct timeseries_eval_result overall_advanced_val = {0};
-    overall_advanced_val.overall_accuracy = mean_pre_val_overall_accuracy / dataset_count;
-    overall_advanced_val.class_average_accuracy = mean_pre_val_class_average_accuracy / dataset_count;
-    overall_advanced_val.class_vector_similarity = mean_pre_val_class_vector_similarity / dataset_count;
-    addResult(&overall_advanced_val, "model=mine,scope=overall,phase=advanced-validation");
-
-    struct timeseries_eval_result overall_advanced_test = {0};
-    overall_advanced_test.overall_accuracy = mean_pre_test_overall_accuracy / dataset_count;
-    overall_advanced_test.class_average_accuracy = mean_pre_test_class_average_accuracy / dataset_count;
-    overall_advanced_test.class_vector_similarity = mean_pre_test_class_vector_similarity / dataset_count;
-    addResult(&overall_advanced_test, "model=mine,scope=overall,phase=advanced-test");
-
-    struct timeseries_eval_result overall_pre_val = {0};
-    overall_pre_val.overall_accuracy = mean_pre_val_overall_accuracy / dataset_count;
-    overall_pre_val.class_average_accuracy = mean_pre_val_class_average_accuracy / dataset_count;
-    overall_pre_val.class_vector_similarity = mean_pre_val_class_vector_similarity / dataset_count;
-    addResult(&overall_pre_val, "model=mine,scope=overall,phase=preopt-validation");
-
-    struct timeseries_eval_result overall_pre_test = {0};
-    overall_pre_test.overall_accuracy = mean_pre_test_overall_accuracy / dataset_count;
-    overall_pre_test.class_average_accuracy = mean_pre_test_class_average_accuracy / dataset_count;
-    overall_pre_test.class_vector_similarity = mean_pre_test_class_vector_similarity / dataset_count;
-    addResult(&overall_pre_test, "model=mine,scope=overall,phase=preopt-test");
-
-    addResult(&overall_result, "model=mine,scope=overall,phase=postopt-test");
-
-    struct timeseries_eval_result overall_post_val = {0};
-    overall_post_val.overall_accuracy = mean_post_val_overall_accuracy / dataset_count;
-    overall_post_val.class_average_accuracy = mean_post_val_class_average_accuracy / dataset_count;
-    overall_post_val.class_vector_similarity = mean_post_val_class_vector_similarity / dataset_count;
-    addResult(&overall_post_val, "model=mine,scope=overall,phase=postopt-validation");
 
     quantizer_clear();
     result_manager_close();

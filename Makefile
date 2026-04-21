@@ -23,6 +23,9 @@ RESULT_CSV_PATH ?=
 ifneq ($(strip $(RESULT_CSV_PATH)),)
 	CFLAGS += -DRESULT_CSV_PATH=\"$(RESULT_CSV_PATH)\"
 endif
+ifdef ITEM_MEM_SEED
+	CFLAGS += -DITEM_MEM_SEED=$(ITEM_MEM_SEED)
+endif
 
 # Optional config overrides (set VAR=value)
 ifdef VECTOR_DIMENSION

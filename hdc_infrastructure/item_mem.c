@@ -377,7 +377,10 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
     for (int i = 0; i < num_levels*num_features; i++) {
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
-    uint32_t rng_state = 1u;
+    uint32_t rng_state = (uint32_t)ITEM_MEM_SEED;
+    if (rng_state == 0u) {
+        rng_state = 1u;
+    }
     // Total flip budget K.
     int total_flips = GA_MAX_FLIPS_CIM;
 

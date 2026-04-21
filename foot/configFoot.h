@@ -52,6 +52,9 @@
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
 #endif
+#ifndef ITEM_MEM_SEED
+#define ITEM_MEM_SEED 1 // seed for deterministic item-memory initialization
+#endif
 #ifndef VALIDATION_RATIO
 #define VALIDATION_RATIO 0.3 // validation split ratio
 #endif
@@ -61,7 +64,7 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 512 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 128 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
 #define GA_DEFAULT_GENERATIONS 128 // GA generations
