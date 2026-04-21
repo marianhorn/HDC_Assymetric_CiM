@@ -1537,7 +1537,8 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                 int end = front_offsets[1];
                 for (int i = start; i < end; i++) {
                     int idx = fronts[i];
-                    if (accP[idx] > best_acc) {
+                    if (accP[idx] > best_acc ||
+                        (accP[idx] == best_acc && simP[idx] < best_sim)) {
                         best_acc = accP[idx];
                         best_sim = simP[idx];
                         best_gen = gen;
@@ -1671,9 +1672,13 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         int num_fronts = 0;
         non_dominated_sort(accP, simP, population_size, rankP, fronts, front_offsets, &num_fronts);
         double best_final_acc = -1.0;
+        double best_final_sim = 1e9;
         for (int i = 0; i < population_size; i++) {
-            if (rankP[i] == 0 && accP[i] > best_final_acc) {
+            if (rankP[i] == 0 &&
+                (accP[i] > best_final_acc ||
+                 (accP[i] == best_final_acc && simP[i] < best_final_sim))) {
                 best_final_acc = accP[i];
+                best_final_sim = simP[i];
                 best_idx = i;
             }
         }
