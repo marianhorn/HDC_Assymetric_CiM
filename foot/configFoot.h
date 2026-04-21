@@ -47,7 +47,7 @@
 #define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
-#define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
+#define OUTPUT_MODE OUTPUT_DETAILED // output verbosity level
 #endif
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
@@ -61,10 +61,10 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 16 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 128 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 16 // GA generations
+#define GA_DEFAULT_GENERATIONS 128 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate

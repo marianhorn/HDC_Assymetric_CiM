@@ -685,21 +685,19 @@ static int create_generation_export_dirs(const char *run_dir, int generation_cou
     if (!run_dir || generation_count < 0) {
         return -1;
     }
-    for (int generation = 0; generation <= generation_count; generation++) {
-        char generation_dir[512];
-        int written = snprintf(generation_dir,
-                               sizeof(generation_dir),
-                               "%s/generation_%04d",
-                               run_dir,
-                               generation);
-        if (written < 0 || (size_t)written >= sizeof(generation_dir)) {
-            fprintf(stderr, "GA generation export path too long.\n");
-            return -1;
-        }
-        if (create_directory_if_missing(generation_dir) != 0) {
-            perror("Failed to create GA generation export directory");
-            return -1;
-        }
+    char generation_dir[512];
+    int written = snprintf(generation_dir,
+                           sizeof(generation_dir),
+                           "%s/generation_%04d",
+                           run_dir,
+                           generation_count);
+    if (written < 0 || (size_t)written >= sizeof(generation_dir)) {
+        fprintf(stderr, "GA generation export path too long.\n");
+        return -1;
+    }
+    if (create_directory_if_missing(generation_dir) != 0) {
+        perror("Failed to create GA generation export directory");
+        return -1;
     }
     return 0;
 }
@@ -1501,7 +1499,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     for (int i = 0; i < population_size; i++) {
         (void)evaluate_candidate(&population[i * genome_length],
                                  &ctx,
-                                 active_export_run_dir,
+                                 NULL,
                                  0,
                                  i,
                                  &accP[i],
@@ -1601,9 +1599,11 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 #pragma omp parallel for schedule(dynamic)
 #endif
         for (int i = 0; i < population_size; i++) {
+            const char *export_dir_for_generation =
+                (active_export_run_dir && (gen + 1 == params->generations)) ? active_export_run_dir : NULL;
             (void)evaluate_candidate(&offspring[i * genome_length],
                                      &ctx,
-                                     active_export_run_dir,
+                                     export_dir_for_generation,
                                      gen + 1,
                                      i,
                                      &accQ[i],

@@ -74,7 +74,7 @@ int main(void){
     double sum_training_time_ms = 0.0;
     int processed_datasets = 0;
 
-    for(int dataset = 0; dataset<4;dataset++){
+    for(int dataset = 1; dataset<2;dataset++){
         quantizer_clear();
 
         if (output_mode >= OUTPUT_BASIC) {
