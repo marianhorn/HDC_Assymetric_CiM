@@ -12,9 +12,13 @@ from datetime import datetime
 DEFAULT_SEEDS = [1, 2, 3]
 DEFAULT_GA_CROSSOVER_ALPHAS = [x * 0.25 for x in range(0, 9)]
 DEFAULT_GA_MUTATION_BETAS = [x * 0.25 for x in range(0, 9)]
-DEFAULT_GA_CROSSOVER_CHUNK_WIDTHS = [0.1, 0.2, 0.3, 0.4]
-DEFAULT_GA_CROSSOVER_RATES = [0.50 + x * 0.05 for x in range(0, 11)]
-DEFAULT_GA_MUTATION_RATES = [0.00 + x * 0.05 for x in range(0, 11)]
+DEFAULT_GA_CROSSOVER_CHUNK_WIDTH = 0.2
+DEFAULT_GA_CROSSOVER_RATE = 0.7
+DEFAULT_GA_MUTATION_RATE = 0.2
+DEFAULT_GA_CROSSOVER_ALPHA = 0.8
+DEFAULT_GA_MUTATION_BETA = 0.8
+DEFAULT_GA_CROSSOVER_RATES = [0.50 + x * 0.1 for x in range(0, 6)]
+DEFAULT_GA_MUTATION_RATES = [0.00 + x * 0.1 for x in range(0, 6)]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", "..", ".."))
@@ -224,32 +228,61 @@ def format_value(value):
     return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
-def build_configurations(crossover_alphas, mutation_betas, chunk_widths, crossover_rates, mutation_rates):
+def build_alpha_beta_configurations(crossover_alphas, mutation_betas, chunk_width, crossover_rate, mutation_rate):
     configs = []
     for ga_crossover_alpha in crossover_alphas:
         for ga_mutation_beta in mutation_betas:
-            for ga_chunk_width in chunk_widths:
-                for crossover_rate in crossover_rates:
-                    for mutation_rate in mutation_rates:
-                        label = (
-                            f"a{format_value(ga_crossover_alpha)}_"
-                            f"b{format_value(ga_mutation_beta)}_"
-                            f"w{format_value(ga_chunk_width)}_"
-                            f"cx{format_value(crossover_rate)}_"
-                            f"mut{format_value(mutation_rate)}"
-                        )
-                        configs.append(
-                            {
-                                "label": label,
-                                "overrides": [
-                                    ("GA_CROSSOVER_ALPHA", format_value(ga_crossover_alpha)),
-                                    ("GA_MUTATION_BETA", format_value(ga_mutation_beta)),
-                                    ("GA_CROSSOVER_CHUNK_WIDTH", format_value(ga_chunk_width)),
-                                    ("GA_DEFAULT_CROSSOVER_RATE", format_value(crossover_rate)),
-                                    ("GA_DEFAULT_MUTATION_RATE", format_value(mutation_rate)),
-                                ],
-                            }
-                        )
+            label = os.path.join(
+                "alpha_beta",
+                (
+                    f"a{format_value(ga_crossover_alpha)}_"
+                    f"b{format_value(ga_mutation_beta)}_"
+                    f"w{format_value(chunk_width)}_"
+                    f"cx{format_value(crossover_rate)}_"
+                    f"mut{format_value(mutation_rate)}"
+                ),
+            )
+            configs.append(
+                {
+                    "label": label,
+                    "overrides": [
+                        ("GA_CROSSOVER_ALPHA", format_value(ga_crossover_alpha)),
+                        ("GA_MUTATION_BETA", format_value(ga_mutation_beta)),
+                        ("GA_CROSSOVER_CHUNK_WIDTH", format_value(chunk_width)),
+                        ("GA_DEFAULT_CROSSOVER_RATE", format_value(crossover_rate)),
+                        ("GA_DEFAULT_MUTATION_RATE", format_value(mutation_rate)),
+                    ],
+                }
+            )
+    return configs
+
+
+def build_rate_configurations(crossover_rates, mutation_rates, crossover_alpha, mutation_beta, chunk_width):
+    configs = []
+    for crossover_rate in crossover_rates:
+        for mutation_rate in mutation_rates:
+            label = os.path.join(
+                "rates",
+                (
+                    f"a{format_value(crossover_alpha)}_"
+                    f"b{format_value(mutation_beta)}_"
+                    f"w{format_value(chunk_width)}_"
+                    f"cx{format_value(crossover_rate)}_"
+                    f"mut{format_value(mutation_rate)}"
+                ),
+            )
+            configs.append(
+                {
+                    "label": label,
+                    "overrides": [
+                        ("GA_CROSSOVER_ALPHA", format_value(crossover_alpha)),
+                        ("GA_MUTATION_BETA", format_value(mutation_beta)),
+                        ("GA_CROSSOVER_CHUNK_WIDTH", format_value(chunk_width)),
+                        ("GA_DEFAULT_CROSSOVER_RATE", format_value(crossover_rate)),
+                        ("GA_DEFAULT_MUTATION_RATE", format_value(mutation_rate)),
+                    ],
+                }
+            )
     return configs
 
 
@@ -354,19 +387,44 @@ def main():
         help="Comma-separated GA_MUTATION_BETA values.",
     )
     parser.add_argument(
-        "--ga-crossover-chunk-widths",
-        default=",".join(format_value(x) for x in DEFAULT_GA_CROSSOVER_CHUNK_WIDTHS),
-        help="Comma-separated GA_CROSSOVER_CHUNK_WIDTH values.",
+        "--fixed-ga-crossover-chunk-width",
+        type=float,
+        default=DEFAULT_GA_CROSSOVER_CHUNK_WIDTH,
+        help="Fixed GA_CROSSOVER_CHUNK_WIDTH used in both grids.",
+    )
+    parser.add_argument(
+        "--fixed-ga-crossover-rate",
+        type=float,
+        default=DEFAULT_GA_CROSSOVER_RATE,
+        help="Fixed GA_DEFAULT_CROSSOVER_RATE used in the alpha/beta grid.",
+    )
+    parser.add_argument(
+        "--fixed-ga-mutation-rate",
+        type=float,
+        default=DEFAULT_GA_MUTATION_RATE,
+        help="Fixed GA_DEFAULT_MUTATION_RATE used in the alpha/beta grid.",
+    )
+    parser.add_argument(
+        "--fixed-ga-crossover-alpha",
+        type=float,
+        default=DEFAULT_GA_CROSSOVER_ALPHA,
+        help="Fixed GA_CROSSOVER_ALPHA used in the rates grid.",
+    )
+    parser.add_argument(
+        "--fixed-ga-mutation-beta",
+        type=float,
+        default=DEFAULT_GA_MUTATION_BETA,
+        help="Fixed GA_MUTATION_BETA used in the rates grid.",
     )
     parser.add_argument(
         "--ga-crossover-rates",
         default=",".join(format_value(x) for x in DEFAULT_GA_CROSSOVER_RATES),
-        help="Comma-separated GA_DEFAULT_CROSSOVER_RATE values.",
+        help="Comma-separated GA_DEFAULT_CROSSOVER_RATE values for the rates grid.",
     )
     parser.add_argument(
         "--ga-mutation-rates",
         default=",".join(format_value(x) for x in DEFAULT_GA_MUTATION_RATES),
-        help="Comma-separated GA_DEFAULT_MUTATION_RATE values.",
+        help="Comma-separated GA_DEFAULT_MUTATION_RATE values for the rates grid.",
     )
     parser.add_argument(
         "--output-mode",
@@ -400,20 +458,30 @@ def main():
     if len(seeds) != 3:
         raise ValueError("This script is intended to run exactly 3 seeds.")
 
-    configs = build_configurations(
+    alpha_beta_configs = build_alpha_beta_configurations(
         parse_float_list(args.ga_crossover_alphas),
         parse_float_list(args.ga_mutation_betas),
-        parse_float_list(args.ga_crossover_chunk_widths),
+        args.fixed_ga_crossover_chunk_width,
+        args.fixed_ga_crossover_rate,
+        args.fixed_ga_mutation_rate,
+    )
+    rate_configs = build_rate_configurations(
         parse_float_list(args.ga_crossover_rates),
         parse_float_list(args.ga_mutation_rates),
+        args.fixed_ga_crossover_alpha,
+        args.fixed_ga_mutation_beta,
+        args.fixed_ga_crossover_chunk_width,
     )
+    configs = alpha_beta_configs + rate_configs
     make_cmd_name = choose_make_command()
     os.makedirs(RUNS_DIR, exist_ok=True)
 
     print(f"Repo root: {REPO_ROOT}")
     print(f"Runs folder: {RUNS_DIR}")
     print(f"Seeds: {seeds}")
-    print(f"Configurations: {len(configs)}")
+    print(f"Alpha/Beta configurations: {len(alpha_beta_configs)}")
+    print(f"Rate configurations: {len(rate_configs)}")
+    print(f"Total configurations: {len(configs)}")
 
     for config in configs:
         rows, plots_dir = run_configuration(
