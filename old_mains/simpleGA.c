@@ -31,7 +31,7 @@ int main(void) {
     double mean_post_test_accuracy = 0.0;
     int processed_datasets = 0;
 
-    for (int dataset = 0; dataset < 4; dataset++) {
+    for (int dataset = 0; dataset < 1; dataset++) {
         double **trainingData = NULL;
         double **validationData = NULL;
         double **testingData = NULL;
