@@ -352,7 +352,7 @@ static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) 
 
     double sum_weights = 0.0;
     for (int level = 0; level < transitions; level++) {
-        double weight = (double)flip_counts[level] + (double)GA_REFINED_EPSILON;
+        double weight = (double)flip_counts[level] + (double)GA_BINNING_EPSILON;
         if (!isfinite(weight) || weight <= 0.0) {
             weight = 1.0;
         }
@@ -395,7 +395,7 @@ static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) 
         if (!isfinite(importance) || importance <= 0.0) {
             importance = 1.0;
         }
-        double width = 1.0 / pow(importance, (double)GA_REFINED_ALPHA);
+        double width = 1.0 / pow(importance, (double)GA_BINNING_ALPHA);
         if (!isfinite(width) || width <= 0.0) {
             width = 1.0;
         }
@@ -1906,8 +1906,8 @@ int quantizer_export_cuts_csv(const char *filepath) {
             g_total_refinements,
             g_non_finite_replacements,
             g_total_zero_width_intervals,
-            (double)GA_REFINED_EPSILON,
-            (double)GA_REFINED_ALPHA,
+            (double)GA_BINNING_EPSILON,
+            (double)GA_BINNING_ALPHA,
             g_ga_refined_ready);
     fprintf(file, "feature,refinement_count,empty_bin_count,zero_width_interval_count");
     for (int k = 0; k < cut_count; k++) {

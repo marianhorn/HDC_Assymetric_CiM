@@ -22,9 +22,6 @@
 #include <omp.h>
 #endif
 
-static const double ADAPTIVE_CHUNK_ALPHA = 0.8;
-static const double ADAPTIVE_CHUNK_REL_WIDTH = 0.2;
-static const double ADAPTIVE_MUTATION_BETA = 0.8;
 static int g_cim_export_run_counter = 0;
 
 void init_ga_params(struct ga_params *params) {
@@ -1078,7 +1075,7 @@ static double *build_adaptive_chunk_schedule_or_die(int event_count, int generat
     double ratio = (double)mu_max / (double)mu_min;
     for (int g = 0; g < generations; g++) {
         double t = generations > 1 ? (double)g / (double)(generations - 1) : 1.0;
-        double exponent = pow(t, ADAPTIVE_CHUNK_ALPHA);
+        double exponent = pow(t, GA_CROSSOVER_ALPHA);
         double mu = (double)mu_min * pow(ratio, exponent);
         if (mu < 1.0) {
             mu = 1.0;
@@ -1104,7 +1101,7 @@ static int *build_adaptive_mutation_step_schedule_or_die(int transitions, int ge
     double base = 1.0 / (double)transitions;
     for (int g = 0; g < generations; g++) {
         double t = generations > 1 ? (double)g / (double)(generations - 1) : 1.0;
-        double exponent = pow(t, ADAPTIVE_MUTATION_BETA);
+        double exponent = pow(t, GA_MUTATION_BETA);
         double max_step_f = (double)transitions * pow(base, exponent);
         int max_step = round_positive_to_int(max_step_f);
         if (max_step < 1) {
@@ -1128,12 +1125,12 @@ static int sample_adaptive_chunk_size(double mean_chunk_size, int remaining, uin
         exit(EXIT_FAILURE);
     }
 
-    int c_min = (int)floor(mean_chunk_size * (1.0 - ADAPTIVE_CHUNK_REL_WIDTH));
+    int c_min = (int)floor(mean_chunk_size * (1.0 - GA_CROSSOVER_CHUNK_WIDTH));
     if (c_min < 1) {
         c_min = 1;
     }
 
-    int c_max = (int)floor(mean_chunk_size * (1.0 + ADAPTIVE_CHUNK_REL_WIDTH));
+    int c_max = (int)floor(mean_chunk_size * (1.0 + GA_CROSSOVER_CHUNK_WIDTH));
     if (c_max < c_min) {
         c_max = c_min;
     }

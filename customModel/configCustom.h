@@ -193,11 +193,20 @@
 #ifndef BINNING_MODE
 #define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
 #endif
-#ifndef GA_REFINED_EPSILON
-#define GA_REFINED_EPSILON 1.0 // smoothing for GA-refined transition weights
+#ifndef GA_BINNING_EPSILON
+#define GA_BINNING_EPSILON 1.0 // smoothing for GA-refined transition weights
 #endif
-#ifndef GA_REFINED_ALPHA
-#define GA_REFINED_ALPHA 1.0 // inverse-width strength for GA-refined quantizer
+#ifndef GA_BINNING_ALPHA
+#define GA_BINNING_ALPHA 1.0 // inverse-width strength for GA-refined quantizer
+#endif
+#ifndef GA_CROSSOVER_ALPHA
+#define GA_CROSSOVER_ALPHA 0.8 // schedule curvature for custom crossover chunk size
+#endif
+#ifndef GA_CROSSOVER_CHUNK_WIDTH
+#define GA_CROSSOVER_CHUNK_WIDTH 0.2 // relative random width around scheduled chunk size
+#endif
+#ifndef GA_MUTATION_BETA
+#define GA_MUTATION_BETA 0.8 // schedule curvature for custom mutation step size
 #endif
 
 extern int output_mode;
