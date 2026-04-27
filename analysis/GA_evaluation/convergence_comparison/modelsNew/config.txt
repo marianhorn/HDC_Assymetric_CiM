@@ -1,0 +1,2 @@
+Vector dimension 1024, mutation rate 0,2, crossover 0.7
+Uniform init, Ngram 3

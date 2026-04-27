@@ -1,5 +1,5 @@
 === GA convergence comparison run ===
-timestamp=2026-04-21T15:11:22.699305
+timestamp=2026-04-21T16:14:08.502938
 seed=3
 use_openmp=1
 output_mode=2
@@ -31,7 +31,7 @@ Initializing associative memory for 5 classes.
 Reading data.
 Loaded data: training 3040 x 32, validation 1300 x 32, testing 870 x 32
 Training HDC-Model for 3040 training samples.
-Dataset 00 initial training time: 47.478 ms
+Dataset 00 initial training time: 46.661 ms
 Evaluating pre-optimization model on validation set.
 Evaluating HDC-Model for 1300 testing samples.
 Testing accuracy: 86.374%
@@ -48,7 +48,7 @@ Class-average accuracy: 97.931%
 Class vector similarity: 0.265
 Total: 284 of 290 ngrams correctly classified
 Transition error: 0
-GA CiM export root: CiMs/ga_run_20260421_151125_01_final_precomputed_ga
+GA CiM export root: CiMs/ga_run_20260421_161408_01_final_precomputed_ga
 GA evaluating with 16 threads
 GA generation 1/128
   individual 1/128 accuracy: 89.409%, similarity: 0.304
@@ -16694,7 +16694,7 @@ GA winner: generation 125, individual 4 (acc 92.863%, sim 0.241)
 Initializing precomputed item memory (B-driven) with 100 levels for 32 features.
 Re-training post-optimization model.
 Training HDC-Model for 3040 training samples.
-Dataset 00 post-optimization training time: 51.147 ms
+Dataset 00 post-optimization training time: 49.815 ms
 Evaluating post-optimization model on test set.
 Evaluating HDC-Model for 870 testing samples.
 Testing accuracy: 98.966%
@@ -16711,7 +16711,7 @@ Class-average accuracy: 92.863%
 Class vector similarity: 0.241
 Total: 402 of 433 ngrams correctly classified
 Transition error: 0
-Mean training time per dataset: 47.478 ms
+Mean training time per dataset: 46.661 ms
 Overall pre-optimization (test): 97.93%
 Overall post-optimization (test): 98.97%
 Overall pre-optimization (validation): 86.37%

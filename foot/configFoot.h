@@ -64,10 +64,10 @@
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 128 // GA population size
+#define GA_DEFAULT_POPULATION_SIZE 512 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 128 // GA generations
+#define GA_DEFAULT_GENERATIONS 512 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate
