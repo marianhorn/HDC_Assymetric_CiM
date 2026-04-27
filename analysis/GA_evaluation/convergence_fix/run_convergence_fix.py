@@ -34,10 +34,6 @@ DATASET_RE = re.compile(r"Model for dataset #(\d+)")
 GEN_RE = re.compile(r"GA generation (\d+)/(\d+)")
 NEW_SEL_RE = re.compile(r"new selected individuals:\s*(\d+)/(\d+)")
 
-np = None
-plt = None
-
-
 def parse_seeds(seed_text):
     parts = [s.strip() for s in seed_text.split(",") if s.strip()]
     if not parts:
@@ -179,49 +175,6 @@ def write_generation_csv(rows, path):
             writer.writerow(row)
 
 
-def aggregate_mean_std_by_dataset_generation(rows):
-    grouped = defaultdict(list)
-    for row in rows:
-        grouped[(row["dataset"], row["generation"])].append(row["new_selected"])
-
-    dataset_to_xy = defaultdict(lambda: {"x": [], "mean": [], "std": []})
-    for (dataset, generation), values in sorted(grouped.items()):
-        arr = np.array(values, dtype=float)
-        dataset_to_xy[dataset]["x"].append(generation)
-        dataset_to_xy[dataset]["mean"].append(float(np.mean(arr)))
-        dataset_to_xy[dataset]["std"].append(float(np.std(arr)))
-    return dataset_to_xy
-
-
-def plot_new_selected(rows, plots_dir, config_label, show):
-    series = aggregate_mean_std_by_dataset_generation(rows)
-    if not series:
-        raise RuntimeError(f"No new-selected data found for plot: {config_label}")
-
-    plt.figure(figsize=(9, 5))
-    for dataset in sorted(series.keys()):
-        x = np.array(series[dataset]["x"], dtype=float)
-        mean = np.array(series[dataset]["mean"], dtype=float)
-        std = np.array(series[dataset]["std"], dtype=float)
-        plt.plot(x, mean, marker="o", linewidth=1.8, markersize=3, label=f"Dataset {dataset}")
-        plt.fill_between(x, mean - std, mean + std, alpha=0.2)
-
-    plt.xlabel("Generation")
-    plt.ylabel("Newly selected individuals")
-    plt.title(f"{config_label}: newly selected individuals vs generation")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-
-    out_path = os.path.join(plots_dir, "new_selected_vs_generation_mean_std.png")
-    plt.savefig(out_path, dpi=200)
-    if show:
-        plt.show()
-    else:
-        plt.close()
-    return out_path
-
-
 def format_value(value):
     if abs(value - round(value)) < 1e-12:
         return str(int(round(value)))
@@ -292,7 +245,6 @@ def run_configuration(config, seeds, make_cmd_name, output_mode, skip_clean):
 
     config_dir = os.path.join(RUNS_DIR, label)
     logs_dir = os.path.join(config_dir, "logs")
-    plots_dir = os.path.join(config_dir, "plots")
     combined_output_path = os.path.join(config_dir, "output_all.txt")
     results_path = os.path.join(config_dir, "results.csv")
     metrics_csv = os.path.join(config_dir, "generation_metrics.csv")
@@ -300,8 +252,10 @@ def run_configuration(config, seeds, make_cmd_name, output_mode, skip_clean):
 
     os.makedirs(config_dir, exist_ok=True)
     ensure_clean_dir(logs_dir, skip_clean)
-    ensure_clean_dir(plots_dir, skip_clean)
     if not skip_clean:
+        plots_dir = os.path.join(config_dir, "plots")
+        if os.path.isdir(plots_dir):
+            shutil.rmtree(plots_dir)
         for path in [combined_output_path, results_path, metrics_csv, manifest_path]:
             if os.path.exists(path):
                 os.remove(path)
@@ -360,15 +314,13 @@ def run_configuration(config, seeds, make_cmd_name, output_mode, skip_clean):
     runs = collect_runs(logs_dir)
     rows = build_generation_rows(runs)
     write_generation_csv(rows, metrics_csv)
-    return rows, plots_dir
+    return metrics_csv
 
 
 def main():
-    global np, plt
-
     parser = argparse.ArgumentParser(
         description=(
-            "Run fixed GA convergence experiments for 3 seeds and plot mean/std of newly selected individuals."
+            "Run fixed GA convergence experiments for 3 seeds and save logs/results/metrics."
         )
     )
     parser.add_argument(
@@ -437,22 +389,7 @@ def main():
         action="store_true",
         help="Do not delete old logs/results for the selected configuration folders.",
     )
-    parser.add_argument(
-        "--show",
-        action="store_true",
-        help="Show plots interactively in addition to saving them.",
-    )
     args = parser.parse_args()
-
-    try:
-        import numpy as np_mod
-        import matplotlib.pyplot as plt_mod
-    except Exception as exc:
-        raise RuntimeError(
-            "Missing Python dependencies. Install with: pip install numpy matplotlib"
-        ) from exc
-    np = np_mod
-    plt = plt_mod
 
     seeds = parse_seeds(args.seeds)
     if len(seeds) != 3:
@@ -484,16 +421,14 @@ def main():
     print(f"Total configurations: {len(configs)}")
 
     for config in configs:
-        rows, plots_dir = run_configuration(
+        metrics_csv = run_configuration(
             config,
             seeds,
             make_cmd_name,
             args.output_mode,
             args.skip_clean,
         )
-        plot_path = plot_new_selected(rows, plots_dir, config["label"], args.show)
-        print(f"Saved plot: {plot_path}")
-        print(f"Saved metrics: {os.path.join(os.path.dirname(plots_dir), 'generation_metrics.csv')}")
+        print(f"Saved metrics: {metrics_csv}")
 
 
 if __name__ == "__main__":
