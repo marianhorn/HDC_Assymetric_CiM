@@ -14,6 +14,10 @@
 #define TREE_1D_THRESHOLD_EPS 1e-12
 #define CHIMERGE_THRESHOLD_EPS 1e-12
 
+#if BIPOLAR_MODE != 0 || MODEL_VARIANT != MODEL_VARIANT_FUSION
+#error "quantizer: only BIPOLAR_MODE=0 and MODEL_VARIANT_FUSION are supported in the current branch. For deprecated versions go back in git history to end of April."
+#endif
+
 #if BINNING_MODE == GA_REFINED_BINNING && (!defined(FOOT_EMG) || !PRECOMPUTED_ITEM_MEMORY)
 #error "GA_REFINED_BINNING requires FOOT_EMG with PRECOMPUTED_ITEM_MEMORY=1."
 #endif
@@ -35,35 +39,43 @@ typedef struct {
     int sample_count;
 } chimerge_interval_t;
 
-static double *g_boundaries = NULL;
-static double *g_centers = NULL;
-static int *g_refinement_counts = NULL;
-static int *g_duplicate_center_counts = NULL;
-static int *g_zero_width_interval_counts = NULL;
-static int *g_empty_bin_counts = NULL;
-static int *g_iteration_counts = NULL;
-static int *g_training_occupancy = NULL;
-static int *g_tree_split_counts = NULL;
-static int *g_fallback_threshold_counts = NULL;
-static int *g_initial_interval_counts = NULL;
+typedef struct {
+    double *boundaries;
+    double *centers;
+    int num_features;
+    int num_levels;
+    int fitted;
+    int non_finite_replacements;
 #if BINNING_MODE == GA_REFINED_BINNING
-static uint16_t *g_ga_refined_flip_counts = NULL;
-static double *g_ga_refined_transition_weights = NULL;
-static double **g_training_data_ref = NULL;
-static int g_training_samples_ref = 0;
-static int g_ga_refined_ready = 0;
+    uint16_t *ga_refined_flip_counts;
+    double *ga_refined_transition_weights;
+    double **training_data_ref;
+    int training_samples_ref;
+    int ga_refined_ready;
 #endif
-static int g_num_features = 0;
-static int g_num_levels = 0;
-static int g_fitted = 0;
-static int g_force_uniform_lookup = 0;
-static int g_non_finite_replacements = 0;
-static int g_total_refinements = 0;
-static int g_total_duplicate_centers = 0;
-static int g_total_zero_width_intervals = 0;
-static int g_total_empty_bins = 0;
-static int g_total_tree_splits = 0;
-static int g_total_fallback_thresholds = 0;
+} quantizer_state_t;
+
+typedef struct {
+    int *refinement_counts;
+    int *duplicate_center_counts;
+    int *zero_width_interval_counts;
+    int *empty_bin_counts;
+    int *iteration_counts;
+    int *training_occupancy;
+    int *tree_split_counts;
+    int *fallback_threshold_counts;
+    int *initial_interval_counts;
+    int total_refinements;
+    int total_duplicate_centers;
+    int total_zero_width_intervals;
+    int total_empty_bins;
+    int total_tree_splits;
+    int total_fallback_thresholds;
+} quantizer_statistics_t;
+
+static quantizer_state_t g_quantizer_state = {0};
+static quantizer_statistics_t g_quantizer_statistics = {0};
+
 
 static size_t boundary_count_total_for(int num_features, int num_levels) {
     if (num_features <= 0 || num_levels <= 1) {
@@ -81,13 +93,13 @@ static size_t center_count_total_for(int num_features, int num_levels) {
 
 #if BINNING_MODE == KMEANS_1D_BINNING
 static int center_index(int feature_idx, int center_idx) {
-    return feature_idx * g_num_levels + center_idx;
+    return feature_idx * g_quantizer_state.num_levels + center_idx;
 }
 #endif
 
 #if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int occupancy_index(int feature_idx, int level_idx) {
-    return feature_idx * g_num_levels + level_idx;
+    return feature_idx * g_quantizer_state.num_levels + level_idx;
 }
 #endif
 
@@ -99,7 +111,7 @@ static void fill_with_nan(double *data, size_t count) {
 
 #if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int boundary_index(int feature_idx, int cut_idx) {
-    return feature_idx * (g_num_levels - 1) + cut_idx;
+    return feature_idx * (g_quantizer_state.num_levels - 1) + cut_idx;
 }
 #endif
 
@@ -145,42 +157,42 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
     size_t center_count = center_count_total_for(num_features, num_levels);
 
     if (boundary_count > 0) {
-        g_boundaries = (double *)malloc(boundary_count * sizeof(double));
+        g_quantizer_state.boundaries = (double *)malloc(boundary_count * sizeof(double));
     }
     if (center_count > 0) {
-        g_centers = (double *)malloc(center_count * sizeof(double));
-        g_training_occupancy = (int *)calloc(center_count, sizeof(int));
+        g_quantizer_state.centers = (double *)malloc(center_count * sizeof(double));
+        g_quantizer_statistics.training_occupancy = (int *)calloc(center_count, sizeof(int));
     }
 
-    g_refinement_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_duplicate_center_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_zero_width_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_empty_bin_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_iteration_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_tree_split_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_fallback_threshold_counts = (int *)calloc((size_t)num_features, sizeof(int));
-    g_initial_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.refinement_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.duplicate_center_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.zero_width_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.empty_bin_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.iteration_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.tree_split_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.fallback_threshold_counts = (int *)calloc((size_t)num_features, sizeof(int));
+    g_quantizer_statistics.initial_interval_counts = (int *)calloc((size_t)num_features, sizeof(int));
 #if BINNING_MODE == GA_REFINED_BINNING
     if (boundary_count > 0) {
-        g_ga_refined_flip_counts = (uint16_t *)calloc(boundary_count, sizeof(uint16_t));
-        g_ga_refined_transition_weights = (double *)malloc(boundary_count * sizeof(double));
+        g_quantizer_state.ga_refined_flip_counts = (uint16_t *)calloc(boundary_count, sizeof(uint16_t));
+        g_quantizer_state.ga_refined_transition_weights = (double *)malloc(boundary_count * sizeof(double));
     }
 #endif
 
-    if ((boundary_count > 0 && g_boundaries == NULL) ||
-        (center_count > 0 && g_centers == NULL) ||
-        (center_count > 0 && g_training_occupancy == NULL) ||
-        g_refinement_counts == NULL ||
-        g_duplicate_center_counts == NULL ||
-        g_zero_width_interval_counts == NULL ||
-        g_empty_bin_counts == NULL ||
-        g_iteration_counts == NULL ||
-        g_tree_split_counts == NULL ||
-        g_fallback_threshold_counts == NULL ||
-        g_initial_interval_counts == NULL
+    if ((boundary_count > 0 && g_quantizer_state.boundaries == NULL) ||
+        (center_count > 0 && g_quantizer_state.centers == NULL) ||
+        (center_count > 0 && g_quantizer_statistics.training_occupancy == NULL) ||
+        g_quantizer_statistics.refinement_counts == NULL ||
+        g_quantizer_statistics.duplicate_center_counts == NULL ||
+        g_quantizer_statistics.zero_width_interval_counts == NULL ||
+        g_quantizer_statistics.empty_bin_counts == NULL ||
+        g_quantizer_statistics.iteration_counts == NULL ||
+        g_quantizer_statistics.tree_split_counts == NULL ||
+        g_quantizer_statistics.fallback_threshold_counts == NULL ||
+        g_quantizer_statistics.initial_interval_counts == NULL
 #if BINNING_MODE == GA_REFINED_BINNING
-        || (boundary_count > 0 && g_ga_refined_flip_counts == NULL)
-        || (boundary_count > 0 && g_ga_refined_transition_weights == NULL)
+        || (boundary_count > 0 && g_quantizer_state.ga_refined_flip_counts == NULL)
+        || (boundary_count > 0 && g_quantizer_state.ga_refined_transition_weights == NULL)
 #endif
         ) {
         fprintf(stderr, "quantizer: failed to allocate state buffers.\n");
@@ -188,14 +200,14 @@ static int allocate_quantizer_state(int num_features, int num_levels) {
     }
 
     if (boundary_count > 0) {
-        fill_with_nan(g_boundaries, boundary_count);
+        fill_with_nan(g_quantizer_state.boundaries, boundary_count);
     }
     if (center_count > 0) {
-        fill_with_nan(g_centers, center_count);
+        fill_with_nan(g_quantizer_state.centers, center_count);
     }
 #if BINNING_MODE == GA_REFINED_BINNING
     if (boundary_count > 0) {
-        fill_with_nan(g_ga_refined_transition_weights, boundary_count);
+        fill_with_nan(g_quantizer_state.ga_refined_transition_weights, boundary_count);
     }
 #endif
 
@@ -220,24 +232,52 @@ static const char *quantizer_mode_name(void) {
 #endif
 }
 
+#if BINNING_MODE == QUANTILE_BINNING
+static int fit_quantile_feature(int feature_idx, const double *sorted_values, int sample_count);
+#endif
+#if BINNING_MODE == KMEANS_1D_BINNING
+static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int sample_count);
+static void print_kmeans_diagnostics(void);
+#endif
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
+static int fit_decision_tree_feature(int feature_idx,
+                                     const feature_sample_t *sorted_samples,
+                                     const double *sorted_values,
+                                     int sample_count);
+static void print_decision_tree_diagnostics(void);
+#endif
+#if BINNING_MODE == CHIMERGE_BINNING
+static int fit_chimerge_feature(int feature_idx,
+                                const feature_sample_t *sorted_samples,
+                                const double *sorted_values,
+                                int sample_count);
+static void print_chimerge_diagnostics(void);
+#endif
+#if BINNING_MODE == GA_REFINED_BINNING
+static void print_ga_refined_diagnostics(void);
+#endif
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
+static void compute_training_occupancy(double **training_data, int training_samples);
+#endif
+
 #if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int map_value_with_boundaries_unchecked(int feature_idx, double x) {
-    if (g_num_levels <= 1) {
+    if (g_quantizer_state.num_levels <= 1) {
         return 0;
     }
-    if (g_boundaries == NULL) {
+    if (g_quantizer_state.boundaries == NULL) {
         fprintf(stderr, "quantizer: boundaries requested before allocation.\n");
         exit(EXIT_FAILURE);
     }
 
-    int cut_count = g_num_levels - 1;
-    const double *boundaries = &g_boundaries[feature_idx * cut_count];
+    int cut_count = g_quantizer_state.num_levels - 1;
+    const double *boundaries = &g_quantizer_state.boundaries[feature_idx * cut_count];
 
     if (isnan(x) || x <= boundaries[0]) {
         return 0;
     }
     if (x > boundaries[cut_count - 1]) {
-        return g_num_levels - 1;
+        return g_quantizer_state.num_levels - 1;
     }
 
     int lo = 0;
@@ -254,46 +294,21 @@ static int map_value_with_boundaries_unchecked(int feature_idx, double x) {
 }
 
 static int map_value_with_boundaries_checked(int feature_idx, double x) {
-    if (!g_fitted) {
+    if (!g_quantizer_state.fitted) {
         fprintf(stderr, "quantizer: map called before fit.\n");
         exit(EXIT_FAILURE);
     }
-    if (feature_idx < 0 || feature_idx >= g_num_features) {
-        fprintf(stderr, "quantizer: feature index %d out of range [0,%d).\n", feature_idx, g_num_features);
+    if (feature_idx < 0 || feature_idx >= g_quantizer_state.num_features) {
+        fprintf(stderr, "quantizer: feature index %d out of range [0,%d).\n", feature_idx, g_quantizer_state.num_features);
         exit(EXIT_FAILURE);
     }
     return map_value_with_boundaries_unchecked(feature_idx, x);
 }
 #endif
 
-#if 1
-#if BIPOLAR_MODE || MODEL_VARIANT == MODEL_VARIANT_MARIAN
-static int get_signal_level_linear(double emg_value) {
-    if (emg_value <= MIN_LEVEL) {
-        return 0;
-    }
-    if (emg_value >= MAX_LEVEL) {
-        return NUM_LEVELS - 1;
-    }
-    if (MAX_LEVEL == MIN_LEVEL) {
-        return 0;
-    }
 
-    double normalized_value = (emg_value - MIN_LEVEL) / (MAX_LEVEL - MIN_LEVEL);
-    int level = (int)(normalized_value * (NUM_LEVELS - 1));
-    if (level < 0) {
-        level = 0;
-    }
-    if (level >= NUM_LEVELS) {
-        level = NUM_LEVELS - 1;
-    }
-    return level;
-}
-#endif
-
-#if !BIPOLAR_MODE && (MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION)
-static int get_signal_level_krischan(double emg_value) {
-    float value = (float)emg_value;
+static int get_signal_level_uniform(double emg_value) {
+        float value = (float)emg_value;
     int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
     if (scaled < 0) {
         scaled = 0;
@@ -311,41 +326,27 @@ static int get_signal_level_krischan(double emg_value) {
     }
     return level;
 }
-#endif
-
-static int get_signal_level_uniform(double emg_value) {
-#if !BIPOLAR_MODE
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN || MODEL_VARIANT == MODEL_VARIANT_FUSION
-    return get_signal_level_krischan(emg_value);
-#else
-    return get_signal_level_linear(emg_value);
-#endif
-#else
-    return get_signal_level_linear(emg_value);
-#endif
-}
-#endif
 
 #if BINNING_MODE == GA_REFINED_BINNING
 static void reset_ga_refined_feature_stats(void) {
-    memset(g_refinement_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_duplicate_center_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_zero_width_interval_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_empty_bin_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_iteration_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_tree_split_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_fallback_threshold_counts, 0, (size_t)g_num_features * sizeof(int));
-    memset(g_initial_interval_counts, 0, (size_t)g_num_features * sizeof(int));
-    g_total_refinements = 0;
-    g_total_duplicate_centers = 0;
-    g_total_zero_width_intervals = 0;
-    g_total_empty_bins = 0;
-    g_total_tree_splits = 0;
-    g_total_fallback_thresholds = 0;
+    memset(g_quantizer_statistics.refinement_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.duplicate_center_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.zero_width_interval_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.empty_bin_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.iteration_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.tree_split_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.fallback_threshold_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    memset(g_quantizer_statistics.initial_interval_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
+    g_quantizer_statistics.total_refinements = 0;
+    g_quantizer_statistics.total_duplicate_centers = 0;
+    g_quantizer_statistics.total_zero_width_intervals = 0;
+    g_quantizer_statistics.total_empty_bins = 0;
+    g_quantizer_statistics.total_tree_splits = 0;
+    g_quantizer_statistics.total_fallback_thresholds = 0;
 }
 
 static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) {
-    int transitions = g_num_levels - 1;
+    int transitions = g_quantizer_state.num_levels - 1;
     if (transitions <= 0) {
         return 0;
     }
@@ -356,23 +357,23 @@ static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) 
         if (!isfinite(weight) || weight <= 0.0) {
             weight = 1.0;
         }
-        g_ga_refined_transition_weights[boundary_index(feature_idx, level)] = weight;
+        g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, level)] = weight;
         sum_weights += weight;
-        g_ga_refined_flip_counts[boundary_index(feature_idx, level)] = flip_counts[level];
+        g_quantizer_state.ga_refined_flip_counts[boundary_index(feature_idx, level)] = flip_counts[level];
     }
     if (sum_weights <= 0.0) {
         sum_weights = (double)transitions;
         for (int level = 0; level < transitions; level++) {
-            g_ga_refined_transition_weights[boundary_index(feature_idx, level)] = 1.0 / (double)transitions;
+            g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, level)] = 1.0 / (double)transitions;
         }
     } else {
         for (int level = 0; level < transitions; level++) {
-            g_ga_refined_transition_weights[boundary_index(feature_idx, level)] /= sum_weights;
+            g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, level)] /= sum_weights;
         }
     }
 
-    double *bin_importance = (double *)malloc((size_t)g_num_levels * sizeof(double));
-    double *bin_widths = (double *)malloc((size_t)g_num_levels * sizeof(double));
+    double *bin_importance = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
+    double *bin_widths = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
     if (!bin_importance || !bin_widths) {
         fprintf(stderr, "quantizer: failed to allocate GA-refined buffers.\n");
         free(bin_importance);
@@ -380,17 +381,17 @@ static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) 
         return -1;
     }
 
-    bin_importance[0] = g_ga_refined_transition_weights[boundary_index(feature_idx, 0)];
-    bin_importance[g_num_levels - 1] =
-        g_ga_refined_transition_weights[boundary_index(feature_idx, transitions - 1)];
-    for (int level = 1; level < g_num_levels - 1; level++) {
-        double left = g_ga_refined_transition_weights[boundary_index(feature_idx, level - 1)];
-        double right = g_ga_refined_transition_weights[boundary_index(feature_idx, level)];
+    bin_importance[0] = g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, 0)];
+    bin_importance[g_quantizer_state.num_levels - 1] =
+        g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, transitions - 1)];
+    for (int level = 1; level < g_quantizer_state.num_levels - 1; level++) {
+        double left = g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, level - 1)];
+        double right = g_quantizer_state.ga_refined_transition_weights[boundary_index(feature_idx, level)];
         bin_importance[level] = 0.5 * (left + right);
     }
 
     double width_sum = 0.0;
-    for (int level = 0; level < g_num_levels; level++) {
+    for (int level = 0; level < g_quantizer_state.num_levels; level++) {
         double importance = bin_importance[level];
         if (!isfinite(importance) || importance <= 0.0) {
             importance = 1.0;
@@ -419,14 +420,14 @@ static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) 
             boundary = nextafter(previous_boundary, INFINITY);
             refinements++;
         }
-        g_boundaries[boundary_index(feature_idx, level)] = boundary;
+        g_quantizer_state.boundaries[boundary_index(feature_idx, level)] = boundary;
         previous_boundary = boundary;
     }
 
-    g_refinement_counts[feature_idx] = refinements;
-    g_zero_width_interval_counts[feature_idx] = zero_width_intervals;
-    g_total_refinements += refinements;
-    g_total_zero_width_intervals += zero_width_intervals;
+    g_quantizer_statistics.refinement_counts[feature_idx] = refinements;
+    g_quantizer_statistics.zero_width_interval_counts[feature_idx] = zero_width_intervals;
+    g_quantizer_statistics.total_refinements += refinements;
+    g_quantizer_statistics.total_zero_width_intervals += zero_width_intervals;
 
     free(bin_widths);
     free(bin_importance);
@@ -435,34 +436,34 @@ static int fit_ga_refined_feature(int feature_idx, const uint16_t *flip_counts) 
 
 static void print_ga_refined_diagnostics(void) {
     if (output_mode >= OUTPUT_DETAILED) {
-        for (int feature = 0; feature < g_num_features; feature++) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             fprintf(stdout,
                     "quantizer: ga-refined feature %d: refinements=%d, empty_bins=%d, zero_width_intervals=%d\n",
                     feature,
-                    g_refinement_counts[feature],
-                    g_empty_bin_counts[feature],
-                    g_zero_width_interval_counts[feature]);
+                    g_quantizer_statistics.refinement_counts[feature],
+                    g_quantizer_statistics.empty_bin_counts[feature],
+                    g_quantizer_statistics.zero_width_interval_counts[feature]);
         }
     }
 
     if (output_mode >= OUTPUT_DEBUG) {
-        int transitions = g_num_levels - 1;
-        for (int feature = 0; feature < g_num_features; feature++) {
+        int transitions = g_quantizer_state.num_levels - 1;
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             fprintf(stdout, "quantizer: feature %d flip-counts:", feature);
             for (int level = 0; level < transitions; level++) {
-                fprintf(stdout, " %u", (unsigned)g_ga_refined_flip_counts[boundary_index(feature, level)]);
+                fprintf(stdout, " %u", (unsigned)g_quantizer_state.ga_refined_flip_counts[boundary_index(feature, level)]);
             }
             fprintf(stdout, "\n");
 
             fprintf(stdout, "quantizer: feature %d transition weights:", feature);
             for (int level = 0; level < transitions; level++) {
-                fprintf(stdout, " %.17g", g_ga_refined_transition_weights[boundary_index(feature, level)]);
+                fprintf(stdout, " %.17g", g_quantizer_state.ga_refined_transition_weights[boundary_index(feature, level)]);
             }
             fprintf(stdout, "\n");
 
             fprintf(stdout, "quantizer: feature %d boundaries:", feature);
             for (int level = 0; level < transitions; level++) {
-                fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, level)]);
+                fprintf(stdout, " %.17g", g_quantizer_state.boundaries[boundary_index(feature, level)]);
             }
             fprintf(stdout, "\n");
         }
@@ -472,15 +473,15 @@ static void print_ga_refined_diagnostics(void) {
 
 #if BINNING_MODE == QUANTILE_BINNING
 static int fit_quantile_feature(int feature_idx, const double *sorted_values, int sample_count) {
-    if (g_num_levels <= 1) {
-        g_iteration_counts[feature_idx] = 1;
+    if (g_quantizer_state.num_levels <= 1) {
+        g_quantizer_statistics.iteration_counts[feature_idx] = 1;
         return 0;
     }
 
-    int cut_count = g_num_levels - 1;
-    for (int k = 1; k < g_num_levels; k++) {
-        double q = (double)k / (double)g_num_levels;
-        g_boundaries[boundary_index(feature_idx, k - 1)] =
+    int cut_count = g_quantizer_state.num_levels - 1;
+    for (int k = 1; k < g_quantizer_state.num_levels; k++) {
+        double q = (double)k / (double)g_quantizer_state.num_levels;
+        g_quantizer_state.boundaries[boundary_index(feature_idx, k - 1)] =
             interpolate_sorted_value(sorted_values, sample_count, q);
     }
 
@@ -488,15 +489,15 @@ static int fit_quantile_feature(int feature_idx, const double *sorted_values, in
     for (int k = 1; k < cut_count; k++) {
         int prev_idx = boundary_index(feature_idx, k - 1);
         int curr_idx = boundary_index(feature_idx, k);
-        if (g_boundaries[curr_idx] <= g_boundaries[prev_idx]) {
-            g_boundaries[curr_idx] = nextafter(g_boundaries[prev_idx], INFINITY);
+        if (g_quantizer_state.boundaries[curr_idx] <= g_quantizer_state.boundaries[prev_idx]) {
+            g_quantizer_state.boundaries[curr_idx] = nextafter(g_quantizer_state.boundaries[prev_idx], INFINITY);
             refinements++;
         }
     }
 
-    g_refinement_counts[feature_idx] = refinements;
-    g_total_refinements += refinements;
-    g_iteration_counts[feature_idx] = 1;
+    g_quantizer_statistics.refinement_counts[feature_idx] = refinements;
+    g_quantizer_statistics.total_refinements += refinements;
+    g_quantizer_statistics.iteration_counts[feature_idx] = 1;
 
     if (refinements > 0 && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr,
@@ -560,35 +561,35 @@ static void analyze_kmeans_feature(int feature_idx) {
     int duplicate_count = 0;
     int zero_width_count = 0;
 
-    for (int i = 0; i < g_num_levels - 1; i++) {
-        double left = g_centers[center_index(feature_idx, i)];
-        double right = g_centers[center_index(feature_idx, i + 1)];
+    for (int i = 0; i < g_quantizer_state.num_levels - 1; i++) {
+        double left = g_quantizer_state.centers[center_index(feature_idx, i)];
+        double right = g_quantizer_state.centers[center_index(feature_idx, i + 1)];
         if (fabs(right - left) <= KMEANS_1D_TOLERANCE) {
             duplicate_count++;
         }
     }
 
-    for (int i = 1; i < g_num_levels - 1; i++) {
-        double left = g_boundaries[boundary_index(feature_idx, i - 1)];
-        double right = g_boundaries[boundary_index(feature_idx, i)];
+    for (int i = 1; i < g_quantizer_state.num_levels - 1; i++) {
+        double left = g_quantizer_state.boundaries[boundary_index(feature_idx, i - 1)];
+        double right = g_quantizer_state.boundaries[boundary_index(feature_idx, i)];
         if (fabs(right - left) <= KMEANS_1D_TOLERANCE) {
             zero_width_count++;
         }
     }
 
-    g_duplicate_center_counts[feature_idx] = duplicate_count;
-    g_zero_width_interval_counts[feature_idx] = zero_width_count;
-    g_total_duplicate_centers += duplicate_count;
-    g_total_zero_width_intervals += zero_width_count;
+    g_quantizer_statistics.duplicate_center_counts[feature_idx] = duplicate_count;
+    g_quantizer_statistics.zero_width_interval_counts[feature_idx] = zero_width_count;
+    g_quantizer_statistics.total_duplicate_centers += duplicate_count;
+    g_quantizer_statistics.total_zero_width_intervals += zero_width_count;
 }
 
 static int verify_kmeans_lookup_for_feature(int feature_idx,
                                             const double *values,
                                             int sample_count) {
-    const double *centers = &g_centers[feature_idx * g_num_levels];
+    const double *centers = &g_quantizer_state.centers[feature_idx * g_quantizer_state.num_levels];
     for (int i = 0; i < sample_count; i++) {
         int boundary_level = map_value_with_boundaries_unchecked(feature_idx, values[i]);
-        int center_level = nearest_center_index(centers, g_num_levels, values[i]);
+        int center_level = nearest_center_index(centers, g_quantizer_state.num_levels, values[i]);
         if (boundary_level != center_level) {
             fprintf(stderr,
                     "quantizer: k-means lookup mismatch for feature %d at sample %d (boundary=%d, center=%d).\n",
@@ -603,7 +604,7 @@ static int verify_kmeans_lookup_for_feature(int feature_idx,
 }
 
 static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int sample_count) {
-    double *working_centers = NULL;
+    double *working_quantizer_state.centers = NULL;
     double *next_centers = NULL;
     double *sums = NULL;
     double *errors = NULL;
@@ -611,27 +612,27 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
     unsigned char *claimed = NULL;
     int iterations_used = 0;
 
-    if (g_num_levels <= 1) {
+    if (g_quantizer_state.num_levels <= 1) {
         double mean = 0.0;
         for (int i = 0; i < sample_count; i++) {
             mean += sorted_values[i];
         }
         mean /= (double)sample_count;
-        g_centers[center_index(feature_idx, 0)] = mean;
-        g_iteration_counts[feature_idx] = 1;
+        g_quantizer_state.centers[center_index(feature_idx, 0)] = mean;
+        g_quantizer_statistics.iteration_counts[feature_idx] = 1;
         return 0;
     }
 
-    working_centers = (double *)malloc((size_t)g_num_levels * sizeof(double));
-    next_centers = (double *)malloc((size_t)g_num_levels * sizeof(double));
-    sums = (double *)malloc((size_t)g_num_levels * sizeof(double));
+    working_quantizer_state.centers = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
+    next_centers = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
+    sums = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
     errors = (double *)malloc((size_t)sample_count * sizeof(double));
-    counts = (int *)malloc((size_t)g_num_levels * sizeof(int));
+    counts = (int *)malloc((size_t)g_quantizer_state.num_levels * sizeof(int));
     claimed = (unsigned char *)malloc((size_t)sample_count * sizeof(unsigned char));
 
-    if (!working_centers || !next_centers || !sums || !errors || !counts || !claimed) {
+    if (!working_quantizer_state.centers || !next_centers || !sums || !errors || !counts || !claimed) {
         fprintf(stderr, "quantizer: failed to allocate k-means work buffers.\n");
-        free(working_centers);
+        free(working_quantizer_state.centers);
         free(next_centers);
         free(sums);
         free(errors);
@@ -640,18 +641,18 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         return -1;
     }
 
-    for (int i = 0; i < g_num_levels; i++) {
-        double q = ((double)i + 0.5) / (double)g_num_levels;
-        working_centers[i] = interpolate_sorted_value(sorted_values, sample_count, q);
+    for (int i = 0; i < g_quantizer_state.num_levels; i++) {
+        double q = ((double)i + 0.5) / (double)g_quantizer_state.num_levels;
+        working_quantizer_state.centers[i] = interpolate_sorted_value(sorted_values, sample_count, q);
     }
 
     for (int iter = 0; iter < KMEANS_1D_MAX_ITERATIONS; iter++) {
-        memset(counts, 0, (size_t)g_num_levels * sizeof(int));
-        memset(sums, 0, (size_t)g_num_levels * sizeof(double));
+        memset(counts, 0, (size_t)g_quantizer_state.num_levels * sizeof(int));
+        memset(sums, 0, (size_t)g_quantizer_state.num_levels * sizeof(double));
 
         for (int i = 0; i < sample_count; i++) {
-            int cluster_idx = nearest_center_index(working_centers, g_num_levels, sorted_values[i]);
-            double delta = sorted_values[i] - working_centers[cluster_idx];
+            int cluster_idx = nearest_center_index(working_quantizer_state.centers, g_quantizer_state.num_levels, sorted_values[i]);
+            double delta = sorted_values[i] - working_quantizer_state.centers[cluster_idx];
             counts[cluster_idx] += 1;
             sums[cluster_idx] += sorted_values[i];
             errors[i] = delta * delta;
@@ -661,7 +662,7 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         int had_empty_cluster = 0;
         double max_shift = 0.0;
 
-        for (int cluster = 0; cluster < g_num_levels; cluster++) {
+        for (int cluster = 0; cluster < g_quantizer_state.num_levels; cluster++) {
             if (counts[cluster] > 0) {
                 next_centers[cluster] = sums[cluster] / (double)counts[cluster];
             } else {
@@ -671,14 +672,14 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
                 had_empty_cluster = 1;
             }
 
-            double shift = fabs(next_centers[cluster] - working_centers[cluster]);
+            double shift = fabs(next_centers[cluster] - working_quantizer_state.centers[cluster]);
             if (shift > max_shift) {
                 max_shift = shift;
             }
         }
 
-        for (int cluster = 0; cluster < g_num_levels; cluster++) {
-            working_centers[cluster] = next_centers[cluster];
+        for (int cluster = 0; cluster < g_quantizer_state.num_levels; cluster++) {
+            working_quantizer_state.centers[cluster] = next_centers[cluster];
         }
 
         iterations_used = iter + 1;
@@ -687,20 +688,20 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         }
     }
 
-    qsort(working_centers, (size_t)g_num_levels, sizeof(double), compare_doubles);
-    for (int i = 0; i < g_num_levels; i++) {
-        g_centers[center_index(feature_idx, i)] = working_centers[i];
+    qsort(working_quantizer_state.centers, (size_t)g_quantizer_state.num_levels, sizeof(double), compare_doubles);
+    for (int i = 0; i < g_quantizer_state.num_levels; i++) {
+        g_quantizer_state.centers[center_index(feature_idx, i)] = working_quantizer_state.centers[i];
     }
-    for (int i = 0; i < g_num_levels - 1; i++) {
-        double left = g_centers[center_index(feature_idx, i)];
-        double right = g_centers[center_index(feature_idx, i + 1)];
-        g_boundaries[boundary_index(feature_idx, i)] = 0.5 * (left + right);
+    for (int i = 0; i < g_quantizer_state.num_levels - 1; i++) {
+        double left = g_quantizer_state.centers[center_index(feature_idx, i)];
+        double right = g_quantizer_state.centers[center_index(feature_idx, i + 1)];
+        g_quantizer_state.boundaries[boundary_index(feature_idx, i)] = 0.5 * (left + right);
     }
 
-    g_iteration_counts[feature_idx] = iterations_used;
+    g_quantizer_statistics.iteration_counts[feature_idx] = iterations_used;
     analyze_kmeans_feature(feature_idx);
     if (verify_kmeans_lookup_for_feature(feature_idx, sorted_values, sample_count) != 0) {
-        free(working_centers);
+        free(working_quantizer_state.centers);
         free(next_centers);
         free(sums);
         free(errors);
@@ -709,7 +710,7 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         return -1;
     }
 
-    free(working_centers);
+    free(working_quantizer_state.centers);
     free(next_centers);
     free(sums);
     free(errors);
@@ -718,7 +719,7 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
     return 0;
 }
 #endif
-#if BINNING_MODE == DECISION_TREE_1D_BINNING
+#if BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static int compare_feature_samples(const void *a, const void *b) {
     const feature_sample_t *sa = (const feature_sample_t *)a;
     const feature_sample_t *sb = (const feature_sample_t *)b;
@@ -736,7 +737,9 @@ static int compare_feature_samples(const void *a, const void *b) {
     }
     return 0;
 }
+#endif
 
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
 static double gini_impurity(const int *counts, int total) {
     if (total <= 0) {
         return 0.0;
@@ -774,7 +777,7 @@ static int finalize_decision_tree_boundaries(int feature_idx,
                                              int tree_threshold_count,
                                              const double *sorted_values,
                                              int sample_count) {
-    int cut_count = g_num_levels - 1;
+    int cut_count = g_quantizer_state.num_levels - 1;
     int fallback_count = 0;
     int refinements = 0;
     int unique_tree_count = 0;
@@ -783,10 +786,10 @@ static int finalize_decision_tree_boundaries(int feature_idx,
     double *selected = NULL;
 
     if (cut_count <= 0) {
-        g_tree_split_counts[feature_idx] = tree_threshold_count;
-        g_fallback_threshold_counts[feature_idx] = 0;
-        g_refinement_counts[feature_idx] = 0;
-        g_total_tree_splits += tree_threshold_count;
+        g_quantizer_statistics.tree_split_counts[feature_idx] = tree_threshold_count;
+        g_quantizer_statistics.fallback_threshold_counts[feature_idx] = 0;
+        g_quantizer_statistics.refinement_counts[feature_idx] = 0;
+        g_quantizer_statistics.total_tree_splits += tree_threshold_count;
         return 0;
     }
 
@@ -808,8 +811,8 @@ static int finalize_decision_tree_boundaries(int feature_idx,
         qsort(sorted_tree, (size_t)tree_threshold_count, sizeof(double), compare_doubles);
     }
 
-    for (int k = 1; k < g_num_levels; k++) {
-        double q = (double)k / (double)g_num_levels;
+    for (int k = 1; k < g_quantizer_state.num_levels; k++) {
+        double q = (double)k / (double)g_quantizer_state.num_levels;
         quantile_thresholds[k - 1] = interpolate_sorted_value(sorted_values, sample_count, q);
     }
 
@@ -857,15 +860,15 @@ static int finalize_decision_tree_boundaries(int feature_idx,
     }
 
     for (int i = 0; i < cut_count; i++) {
-        g_boundaries[boundary_index(feature_idx, i)] = selected[i];
+        g_quantizer_state.boundaries[boundary_index(feature_idx, i)] = selected[i];
     }
 
-    g_tree_split_counts[feature_idx] = tree_threshold_count;
-    g_fallback_threshold_counts[feature_idx] = fallback_count;
-    g_refinement_counts[feature_idx] = refinements;
-    g_total_tree_splits += tree_threshold_count;
-    g_total_fallback_thresholds += fallback_count;
-    g_total_refinements += refinements;
+    g_quantizer_statistics.tree_split_counts[feature_idx] = tree_threshold_count;
+    g_quantizer_statistics.fallback_threshold_counts[feature_idx] = fallback_count;
+    g_quantizer_statistics.refinement_counts[feature_idx] = refinements;
+    g_quantizer_statistics.total_tree_splits += tree_threshold_count;
+    g_quantizer_statistics.total_fallback_thresholds += fallback_count;
+    g_quantizer_statistics.total_refinements += refinements;
 
     free(sorted_tree);
     free(quantile_thresholds);
@@ -942,16 +945,16 @@ static int fit_decision_tree_feature(int feature_idx,
     int leaf_count = 1;
     int tree_threshold_count = 0;
 
-    if (g_num_levels <= 1) {
-        g_tree_split_counts[feature_idx] = 0;
-        g_fallback_threshold_counts[feature_idx] = 0;
-        g_refinement_counts[feature_idx] = 0;
+    if (g_quantizer_state.num_levels <= 1) {
+        g_quantizer_statistics.tree_split_counts[feature_idx] = 0;
+        g_quantizer_statistics.fallback_threshold_counts[feature_idx] = 0;
+        g_quantizer_statistics.refinement_counts[feature_idx] = 0;
         return 0;
     }
 
     prefix_counts = (int *)calloc((size_t)(sample_count + 1) * (size_t)NUM_CLASSES, sizeof(int));
-    leaves = (tree_leaf_t *)malloc((size_t)g_num_levels * sizeof(tree_leaf_t));
-    tree_thresholds = (double *)malloc((size_t)(g_num_levels - 1) * sizeof(double));
+    leaves = (tree_leaf_t *)malloc((size_t)g_quantizer_state.num_levels * sizeof(tree_leaf_t));
+    tree_thresholds = (double *)malloc((size_t)(g_quantizer_state.num_levels - 1) * sizeof(double));
     if (!prefix_counts || !leaves || !tree_thresholds) {
         fprintf(stderr, "quantizer: failed to allocate decision-tree fit buffers.\n");
         free(prefix_counts);
@@ -970,7 +973,7 @@ static int fit_decision_tree_feature(int feature_idx,
     leaves[0].start = 0;
     leaves[0].end = sample_count;
 
-    while (leaf_count < g_num_levels) {
+    while (leaf_count < g_quantizer_state.num_levels) {
         int best_leaf_idx = -1;
         int best_split_pos = -1;
         double best_threshold = 0.0;
@@ -1028,24 +1031,6 @@ static int fit_decision_tree_feature(int feature_idx,
 }
 #endif
 #if BINNING_MODE == CHIMERGE_BINNING
-static int compare_feature_samples(const void *a, const void *b) {
-    const feature_sample_t *sa = (const feature_sample_t *)a;
-    const feature_sample_t *sb = (const feature_sample_t *)b;
-    if (sa->value < sb->value) {
-        return -1;
-    }
-    if (sa->value > sb->value) {
-        return 1;
-    }
-    if (sa->label < sb->label) {
-        return -1;
-    }
-    if (sa->label > sb->label) {
-        return 1;
-    }
-    return 0;
-}
-
 static double compute_chimerge_score(const chimerge_interval_t *left,
                                      const chimerge_interval_t *right) {
     double grand_total = (double)(left->sample_count + right->sample_count);
@@ -1081,15 +1066,15 @@ static int finalize_chimerge_boundaries(int feature_idx,
                                         int interval_count,
                                         const double *sorted_values,
                                         int sample_count) {
-    int cut_count = g_num_levels - 1;
+    int cut_count = g_quantizer_state.num_levels - 1;
     int meaningful_count = (interval_count > 0) ? (interval_count - 1) : 0;
     int fallback_count = 0;
     int refinements = 0;
     double *selected = NULL;
 
     if (cut_count <= 0) {
-        g_fallback_threshold_counts[feature_idx] = 0;
-        g_refinement_counts[feature_idx] = 0;
+        g_quantizer_statistics.fallback_threshold_counts[feature_idx] = 0;
+        g_quantizer_statistics.refinement_counts[feature_idx] = 0;
         return 0;
     }
 
@@ -1124,13 +1109,13 @@ static int finalize_chimerge_boundaries(int feature_idx,
     }
 
     for (int i = 0; i < cut_count; i++) {
-        g_boundaries[boundary_index(feature_idx, i)] = selected[i];
+        g_quantizer_state.boundaries[boundary_index(feature_idx, i)] = selected[i];
     }
 
-    g_fallback_threshold_counts[feature_idx] = fallback_count;
-    g_refinement_counts[feature_idx] = refinements;
-    g_total_fallback_thresholds += fallback_count;
-    g_total_refinements += refinements;
+    g_quantizer_statistics.fallback_threshold_counts[feature_idx] = fallback_count;
+    g_quantizer_statistics.refinement_counts[feature_idx] = refinements;
+    g_quantizer_statistics.total_fallback_thresholds += fallback_count;
+    g_quantizer_statistics.total_refinements += refinements;
 
     free(selected);
     return 0;
@@ -1143,10 +1128,10 @@ static int fit_chimerge_feature(int feature_idx,
     chimerge_interval_t *intervals = NULL;
     int interval_count = 0;
 
-    if (g_num_levels <= 1) {
-        g_initial_interval_counts[feature_idx] = 1;
-        g_fallback_threshold_counts[feature_idx] = 0;
-        g_refinement_counts[feature_idx] = 0;
+    if (g_quantizer_state.num_levels <= 1) {
+        g_quantizer_statistics.initial_interval_counts[feature_idx] = 1;
+        g_quantizer_statistics.fallback_threshold_counts[feature_idx] = 0;
+        g_quantizer_statistics.refinement_counts[feature_idx] = 0;
         return 0;
     }
 
@@ -1173,16 +1158,16 @@ static int fit_chimerge_feature(int feature_idx,
         interval->sample_count += 1;
     }
 
-    g_initial_interval_counts[feature_idx] = interval_count;
-    if (interval_count < g_num_levels && output_mode >= OUTPUT_BASIC) {
+    g_quantizer_statistics.initial_interval_counts[feature_idx] = interval_count;
+    if (interval_count < g_quantizer_state.num_levels && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr,
                 "quantizer: feature %d has only %d distinct value intervals for %d target bins; ChiMerge fallback will be used.\n",
                 feature_idx,
                 interval_count,
-                g_num_levels);
+                g_quantizer_state.num_levels);
     }
 
-    while (interval_count > g_num_levels) {
+    while (interval_count > g_quantizer_state.num_levels) {
         int best_pair_idx = 0;
         double best_score = compute_chimerge_score(&intervals[0], &intervals[1]);
 
@@ -1220,30 +1205,30 @@ static int fit_chimerge_feature(int feature_idx,
 
 #if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static void compute_training_occupancy(double **training_data, int training_samples) {
-    if (g_training_occupancy == NULL || g_num_features <= 0 || g_num_levels <= 0) {
+    if (g_quantizer_statistics.training_occupancy == NULL || g_quantizer_state.num_features <= 0 || g_quantizer_state.num_levels <= 0) {
         return;
     }
 
-    memset(g_training_occupancy, 0, center_count_total_for(g_num_features, g_num_levels) * sizeof(int));
-    memset(g_empty_bin_counts, 0, (size_t)g_num_features * sizeof(int));
+    memset(g_quantizer_statistics.training_occupancy, 0, center_count_total_for(g_quantizer_state.num_features, g_quantizer_state.num_levels) * sizeof(int));
+    memset(g_quantizer_statistics.empty_bin_counts, 0, (size_t)g_quantizer_state.num_features * sizeof(int));
 
     for (int sample = 0; sample < training_samples; sample++) {
-        for (int feature = 0; feature < g_num_features; feature++) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             int level = get_signal_level(feature, training_data[sample][feature]);
-            g_training_occupancy[occupancy_index(feature, level)] += 1;
+            g_quantizer_statistics.training_occupancy[occupancy_index(feature, level)] += 1;
         }
     }
 
-    g_total_empty_bins = 0;
-    for (int feature = 0; feature < g_num_features; feature++) {
+    g_quantizer_statistics.total_empty_bins = 0;
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
         int empty_bins = 0;
-        for (int level = 0; level < g_num_levels; level++) {
-            if (g_training_occupancy[occupancy_index(feature, level)] == 0) {
+        for (int level = 0; level < g_quantizer_state.num_levels; level++) {
+            if (g_quantizer_statistics.training_occupancy[occupancy_index(feature, level)] == 0) {
                 empty_bins++;
             }
         }
-        g_empty_bin_counts[feature] = empty_bins;
-        g_total_empty_bins += empty_bins;
+        g_quantizer_statistics.empty_bin_counts[feature] = empty_bins;
+        g_quantizer_statistics.total_empty_bins += empty_bins;
     }
 }
 #endif
@@ -1251,36 +1236,36 @@ static void compute_training_occupancy(double **training_data, int training_samp
 #if BINNING_MODE == KMEANS_1D_BINNING
 static void print_kmeans_diagnostics(void) {
     if (output_mode >= OUTPUT_DETAILED) {
-        for (int feature = 0; feature < g_num_features; feature++) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             fprintf(stdout,
                     "quantizer: kmeans feature %d: iter=%d, empty_bins=%d, duplicate_centers=%d, zero_width_intervals=%d\n",
                     feature,
-                    g_iteration_counts[feature],
-                    g_empty_bin_counts[feature],
-                    g_duplicate_center_counts[feature],
-                    g_zero_width_interval_counts[feature]);
+                    g_quantizer_statistics.iteration_counts[feature],
+                    g_quantizer_statistics.empty_bin_counts[feature],
+                    g_quantizer_statistics.duplicate_center_counts[feature],
+                    g_quantizer_statistics.zero_width_interval_counts[feature]);
         }
     }
 
     if (output_mode >= OUTPUT_DEBUG) {
-        for (int feature = 0; feature < g_num_features; feature++) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             fprintf(stdout, "quantizer: feature %d centers:", feature);
-            for (int i = 0; i < g_num_levels; i++) {
-                fprintf(stdout, " %.17g", g_centers[center_index(feature, i)]);
+            for (int i = 0; i < g_quantizer_state.num_levels; i++) {
+                fprintf(stdout, " %.17g", g_quantizer_state.centers[center_index(feature, i)]);
             }
             fprintf(stdout, "\n");
 
-            if (g_num_levels > 1) {
+            if (g_quantizer_state.num_levels > 1) {
                 fprintf(stdout, "quantizer: feature %d boundaries:", feature);
-                for (int i = 0; i < g_num_levels - 1; i++) {
-                    fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, i)]);
+                for (int i = 0; i < g_quantizer_state.num_levels - 1; i++) {
+                    fprintf(stdout, " %.17g", g_quantizer_state.boundaries[boundary_index(feature, i)]);
                 }
                 fprintf(stdout, "\n");
             }
 
             fprintf(stdout, "quantizer: feature %d occupancy:", feature);
-            for (int level = 0; level < g_num_levels; level++) {
-                fprintf(stdout, " %d", g_training_occupancy[occupancy_index(feature, level)]);
+            for (int level = 0; level < g_quantizer_state.num_levels; level++) {
+                fprintf(stdout, " %d", g_quantizer_statistics.training_occupancy[occupancy_index(feature, level)]);
             }
             fprintf(stdout, "\n");
         }
@@ -1291,30 +1276,30 @@ static void print_kmeans_diagnostics(void) {
 #if BINNING_MODE == DECISION_TREE_1D_BINNING
 static void print_decision_tree_diagnostics(void) {
     if (output_mode >= OUTPUT_DETAILED) {
-        for (int feature = 0; feature < g_num_features; feature++) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             fprintf(stdout,
                     "quantizer: tree feature %d: splits=%d, fallback_thresholds=%d, empty_bins=%d, refinements=%d\n",
                     feature,
-                    g_tree_split_counts[feature],
-                    g_fallback_threshold_counts[feature],
-                    g_empty_bin_counts[feature],
-                    g_refinement_counts[feature]);
+                    g_quantizer_statistics.tree_split_counts[feature],
+                    g_quantizer_statistics.fallback_threshold_counts[feature],
+                    g_quantizer_statistics.empty_bin_counts[feature],
+                    g_quantizer_statistics.refinement_counts[feature]);
         }
     }
 
     if (output_mode >= OUTPUT_DEBUG) {
-        for (int feature = 0; feature < g_num_features; feature++) {
-            if (g_num_levels > 1) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
+            if (g_quantizer_state.num_levels > 1) {
                 fprintf(stdout, "quantizer: feature %d boundaries:", feature);
-                for (int i = 0; i < g_num_levels - 1; i++) {
-                    fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, i)]);
+                for (int i = 0; i < g_quantizer_state.num_levels - 1; i++) {
+                    fprintf(stdout, " %.17g", g_quantizer_state.boundaries[boundary_index(feature, i)]);
                 }
                 fprintf(stdout, "\n");
             }
 
             fprintf(stdout, "quantizer: feature %d occupancy:", feature);
-            for (int level = 0; level < g_num_levels; level++) {
-                fprintf(stdout, " %d", g_training_occupancy[occupancy_index(feature, level)]);
+            for (int level = 0; level < g_quantizer_state.num_levels; level++) {
+                fprintf(stdout, " %d", g_quantizer_statistics.training_occupancy[occupancy_index(feature, level)]);
             }
             fprintf(stdout, "\n");
         }
@@ -1325,30 +1310,30 @@ static void print_decision_tree_diagnostics(void) {
 #if BINNING_MODE == CHIMERGE_BINNING
 static void print_chimerge_diagnostics(void) {
     if (output_mode >= OUTPUT_DETAILED) {
-        for (int feature = 0; feature < g_num_features; feature++) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
             fprintf(stdout,
                     "quantizer: chimerge feature %d: initial_intervals=%d, fallback_thresholds=%d, empty_bins=%d, refinements=%d\n",
                     feature,
-                    g_initial_interval_counts[feature],
-                    g_fallback_threshold_counts[feature],
-                    g_empty_bin_counts[feature],
-                    g_refinement_counts[feature]);
+                    g_quantizer_statistics.initial_interval_counts[feature],
+                    g_quantizer_statistics.fallback_threshold_counts[feature],
+                    g_quantizer_statistics.empty_bin_counts[feature],
+                    g_quantizer_statistics.refinement_counts[feature]);
         }
     }
 
     if (output_mode >= OUTPUT_DEBUG) {
-        for (int feature = 0; feature < g_num_features; feature++) {
-            if (g_num_levels > 1) {
+        for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
+            if (g_quantizer_state.num_levels > 1) {
                 fprintf(stdout, "quantizer: feature %d boundaries:", feature);
-                for (int i = 0; i < g_num_levels - 1; i++) {
-                    fprintf(stdout, " %.17g", g_boundaries[boundary_index(feature, i)]);
+                for (int i = 0; i < g_quantizer_state.num_levels - 1; i++) {
+                    fprintf(stdout, " %.17g", g_quantizer_state.boundaries[boundary_index(feature, i)]);
                 }
                 fprintf(stdout, "\n");
             }
 
             fprintf(stdout, "quantizer: feature %d occupancy:", feature);
-            for (int level = 0; level < g_num_levels; level++) {
-                fprintf(stdout, " %d", g_training_occupancy[occupancy_index(feature, level)]);
+            for (int level = 0; level < g_quantizer_state.num_levels; level++) {
+                fprintf(stdout, " %d", g_quantizer_statistics.training_occupancy[occupancy_index(feature, level)]);
             }
             fprintf(stdout, "\n");
         }
@@ -1356,55 +1341,308 @@ static void print_chimerge_diagnostics(void) {
 }
 #endif
 
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+static int prepare_sorted_feature_values(double **training_data,
+                                         int training_samples,
+                                         int feature_idx,
+                                         double *sorted_values) {
+    for (int sample = 0; sample < training_samples; sample++) {
+        double value = training_data[sample][feature_idx];
+        if (!isfinite(value)) {
+            value = 0.0;
+            g_quantizer_state.non_finite_replacements++;
+        }
+        sorted_values[sample] = value;
+    }
+
+    qsort(sorted_values, (size_t)training_samples, sizeof(double), compare_doubles);
+    return 0;
+}
+#endif
+
+#if BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+static int prepare_sorted_feature_samples(double **training_data,
+                                          const int *training_labels,
+                                          int training_samples,
+                                          int feature_idx,
+                                          feature_sample_t *sorted_samples,
+                                          double *sorted_values) {
+    for (int sample = 0; sample < training_samples; sample++) {
+        double value = training_data[sample][feature_idx];
+        int label = training_labels[sample];
+        if (label < 0 || label >= NUM_CLASSES) {
+            fprintf(stderr,
+                    "quantizer: label %d at sample %d is out of range [0,%d).\n",
+                    label,
+                    sample,
+                    NUM_CLASSES);
+            return -1;
+        }
+        if (!isfinite(value)) {
+            value = 0.0;
+            g_quantizer_state.non_finite_replacements++;
+        }
+        sorted_samples[sample].value = value;
+        sorted_samples[sample].label = label;
+    }
+
+    qsort(sorted_samples, (size_t)training_samples, sizeof(feature_sample_t), compare_feature_samples);
+    for (int sample = 0; sample < training_samples; sample++) {
+        sorted_values[sample] = sorted_samples[sample].value;
+    }
+    return 0;
+}
+#endif
+
+static int finalize_quantizer_fit(double **training_data, int training_samples) {
+    g_quantizer_state.fitted = 1;
+
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
+    compute_training_occupancy(training_data, training_samples);
+#else
+    (void)training_data;
+    (void)training_samples;
+#endif
+    return 0;
+}
+
+static void print_quantizer_fit_summary(void) {
+    if (g_quantizer_state.non_finite_replacements > 0 && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr,
+                "quantizer: replaced %d non-finite training values with 0.0 during fit.\n",
+                g_quantizer_state.non_finite_replacements);
+    }
+
+#if BINNING_MODE == QUANTILE_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (total refinements: %d).\n",
+                quantizer_mode_name(),
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels,
+                g_quantizer_statistics.total_refinements);
+    }
+#elif BINNING_MODE == KMEANS_1D_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (duplicate centers: %d, zero-width intervals: %d, empty bins: %d).\n",
+                quantizer_mode_name(),
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels,
+                g_quantizer_statistics.total_duplicate_centers,
+                g_quantizer_statistics.total_zero_width_intervals,
+                g_quantizer_statistics.total_empty_bins);
+    }
+    print_kmeans_diagnostics();
+#elif BINNING_MODE == DECISION_TREE_1D_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (tree splits: %d, fallback thresholds: %d, refinements: %d, empty bins: %d).\n",
+                quantizer_mode_name(),
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels,
+                g_quantizer_statistics.total_tree_splits,
+                g_quantizer_statistics.total_fallback_thresholds,
+                g_quantizer_statistics.total_refinements,
+                g_quantizer_statistics.total_empty_bins);
+    }
+    print_decision_tree_diagnostics();
+#elif BINNING_MODE == CHIMERGE_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (fallback thresholds: %d, refinements: %d, empty bins: %d).\n",
+                quantizer_mode_name(),
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels,
+                g_quantizer_statistics.total_fallback_thresholds,
+                g_quantizer_statistics.total_refinements,
+                g_quantizer_statistics.total_empty_bins);
+    }
+    print_chimerge_diagnostics();
+#elif BINNING_MODE == GA_REFINED_BINNING
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: fitted %s boundaries for %d features, %d levels (refinements: %d, empty bins: %d, zero-width intervals: %d).\n",
+                quantizer_mode_name(),
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels,
+                g_quantizer_statistics.total_refinements,
+                g_quantizer_statistics.total_empty_bins,
+                g_quantizer_statistics.total_zero_width_intervals);
+    }
+    print_ga_refined_diagnostics();
+#endif
+}
+
+static int fit_uniform_quantizer(double **training_data,
+                                 const int *training_labels,
+                                 int training_samples) {
+    (void)training_data;
+    (void)training_labels;
+    (void)training_samples;
+    g_quantizer_state.fitted = 1;
+    return 0;
+}
+
+#if BINNING_MODE == GA_REFINED_BINNING
+static int fit_ga_refined_quantizer_init(double **training_data, int training_samples) {
+    if (!training_data || training_samples <= 0) {
+        fprintf(stderr, "quantizer: invalid fit input for GA-refined mode.\n");
+        return -1;
+    }
+
+    g_quantizer_state.training_data_ref = training_data;
+    g_quantizer_state.training_samples_ref = training_samples;
+    g_quantizer_state.ga_refined_ready = 0;
+    g_quantizer_state.fitted = 1;
+    if (output_mode >= OUTPUT_DETAILED) {
+        fprintf(stdout,
+                "quantizer: initialized %s mode with temporary uniform lookup for %d features, %d levels.\n",
+                quantizer_mode_name(),
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels);
+    }
+    return 0;
+}
+#endif
+
+#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
+static int fit_unsupervised_boundary_quantizer(double **training_data, int training_samples) {
+    double *sorted_values = NULL;
+
+    if (!training_data || training_samples <= 0) {
+        fprintf(stderr, "quantizer: invalid fit input.\n");
+        return -1;
+    }
+
+    sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
+    if (sorted_values == NULL) {
+        fprintf(stderr, "quantizer: failed to allocate training buffer.\n");
+        return -1;
+    }
+
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
+        prepare_sorted_feature_values(training_data, training_samples, feature, sorted_values);
+#if BINNING_MODE == QUANTILE_BINNING
+        if (fit_quantile_feature(feature, sorted_values, training_samples) != 0) {
+#else
+        if (fit_kmeans_feature(feature, sorted_values, training_samples) != 0) {
+#endif
+            free(sorted_values);
+            return -1;
+        }
+    }
+
+    free(sorted_values);
+    return 0;
+}
+#endif
+
+#if BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
+static int fit_supervised_boundary_quantizer(double **training_data,
+                                             const int *training_labels,
+                                             int training_samples) {
+    feature_sample_t *sorted_samples = NULL;
+    double *sorted_values = NULL;
+
+    if (!training_data || !training_labels || training_samples <= 0) {
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
+        fprintf(stderr, "quantizer: invalid fit input for decision-tree mode.\n");
+#else
+        fprintf(stderr, "quantizer: invalid fit input for ChiMerge mode.\n");
+#endif
+        return -1;
+    }
+
+    sorted_samples = (feature_sample_t *)malloc((size_t)training_samples * sizeof(feature_sample_t));
+    sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
+    if (sorted_samples == NULL || sorted_values == NULL) {
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
+        fprintf(stderr, "quantizer: failed to allocate decision-tree training buffers.\n");
+#else
+        fprintf(stderr, "quantizer: failed to allocate ChiMerge training buffers.\n");
+#endif
+        free(sorted_samples);
+        free(sorted_values);
+        return -1;
+    }
+
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
+        if (prepare_sorted_feature_samples(training_data,
+                                           training_labels,
+                                           training_samples,
+                                           feature,
+                                           sorted_samples,
+                                           sorted_values) != 0) {
+            free(sorted_samples);
+            free(sorted_values);
+            return -1;
+        }
+#if BINNING_MODE == DECISION_TREE_1D_BINNING
+        if (fit_decision_tree_feature(feature, sorted_samples, sorted_values, training_samples) != 0) {
+#else
+        if (fit_chimerge_feature(feature, sorted_samples, sorted_values, training_samples) != 0) {
+#endif
+            free(sorted_samples);
+            free(sorted_values);
+            return -1;
+        }
+    }
+
+    free(sorted_samples);
+    free(sorted_values);
+    return 0;
+}
+#endif
+
 void quantizer_clear(void) {
-    free(g_boundaries);
-    free(g_centers);
-    free(g_refinement_counts);
-    free(g_duplicate_center_counts);
-    free(g_zero_width_interval_counts);
-    free(g_empty_bin_counts);
-    free(g_iteration_counts);
-    free(g_training_occupancy);
-    free(g_tree_split_counts);
-    free(g_fallback_threshold_counts);
-    free(g_initial_interval_counts);
+    free(g_quantizer_state.boundaries);
+    free(g_quantizer_state.centers);
+    free(g_quantizer_statistics.refinement_counts);
+    free(g_quantizer_statistics.duplicate_center_counts);
+    free(g_quantizer_statistics.zero_width_interval_counts);
+    free(g_quantizer_statistics.empty_bin_counts);
+    free(g_quantizer_statistics.iteration_counts);
+    free(g_quantizer_statistics.training_occupancy);
+    free(g_quantizer_statistics.tree_split_counts);
+    free(g_quantizer_statistics.fallback_threshold_counts);
+    free(g_quantizer_statistics.initial_interval_counts);
 #if BINNING_MODE == GA_REFINED_BINNING
-    free(g_ga_refined_flip_counts);
-    free(g_ga_refined_transition_weights);
+    free(g_quantizer_state.ga_refined_flip_counts);
+    free(g_quantizer_state.ga_refined_transition_weights);
 #endif
-    g_boundaries = NULL;
-    g_centers = NULL;
-    g_refinement_counts = NULL;
-    g_duplicate_center_counts = NULL;
-    g_zero_width_interval_counts = NULL;
-    g_empty_bin_counts = NULL;
-    g_iteration_counts = NULL;
-    g_training_occupancy = NULL;
-    g_tree_split_counts = NULL;
-    g_fallback_threshold_counts = NULL;
-    g_initial_interval_counts = NULL;
+    g_quantizer_state.boundaries = NULL;
+    g_quantizer_state.centers = NULL;
+    g_quantizer_statistics.refinement_counts = NULL;
+    g_quantizer_statistics.duplicate_center_counts = NULL;
+    g_quantizer_statistics.zero_width_interval_counts = NULL;
+    g_quantizer_statistics.empty_bin_counts = NULL;
+    g_quantizer_statistics.iteration_counts = NULL;
+    g_quantizer_statistics.training_occupancy = NULL;
+    g_quantizer_statistics.tree_split_counts = NULL;
+    g_quantizer_statistics.fallback_threshold_counts = NULL;
+    g_quantizer_statistics.initial_interval_counts = NULL;
 #if BINNING_MODE == GA_REFINED_BINNING
-    g_ga_refined_flip_counts = NULL;
-    g_ga_refined_transition_weights = NULL;
-    g_training_data_ref = NULL;
-    g_training_samples_ref = 0;
-    g_ga_refined_ready = 0;
+    g_quantizer_state.ga_refined_flip_counts = NULL;
+    g_quantizer_state.ga_refined_transition_weights = NULL;
+    g_quantizer_state.training_data_ref = NULL;
+    g_quantizer_state.training_samples_ref = 0;
+    g_quantizer_state.ga_refined_ready = 0;
 #endif
-    g_num_features = 0;
-    g_num_levels = 0;
-    g_fitted = 0;
-    g_force_uniform_lookup = 0;
-    g_non_finite_replacements = 0;
-    g_total_refinements = 0;
-    g_total_duplicate_centers = 0;
-    g_total_zero_width_intervals = 0;
-    g_total_empty_bins = 0;
-    g_total_tree_splits = 0;
-    g_total_fallback_thresholds = 0;
+    g_quantizer_state.num_features = 0;
+    g_quantizer_state.num_levels = 0;
+    g_quantizer_state.fitted = 0;
+    g_quantizer_state.non_finite_replacements = 0;
+    g_quantizer_statistics.total_refinements = 0;
+    g_quantizer_statistics.total_duplicate_centers = 0;
+    g_quantizer_statistics.total_zero_width_intervals = 0;
+    g_quantizer_statistics.total_empty_bins = 0;
+    g_quantizer_statistics.total_tree_splits = 0;
+    g_quantizer_statistics.total_fallback_thresholds = 0;
 }
 
 int quantizer_is_fitted(void) {
-    return g_fitted;
+    return g_quantizer_state.fitted;
 }
 int quantizer_fit_from_training(double **training_data,
                                 const int *training_labels,
@@ -1418,9 +1656,8 @@ int quantizer_fit_from_training(double **training_data,
         return -1;
     }
 
-    g_num_features = num_features;
-    g_num_levels = num_levels;
-    g_force_uniform_lookup = 0;
+    g_quantizer_state.num_features = num_features;
+    g_quantizer_state.num_levels = num_levels;
 
     if (allocate_quantizer_state(num_features, num_levels) != 0) {
         quantizer_clear();
@@ -1428,276 +1665,51 @@ int quantizer_fit_from_training(double **training_data,
     }
 
 #if BINNING_MODE == UNIFORM_BINNING
-    (void)training_data;
-    (void)training_labels;
-    (void)training_samples;
-    g_fitted = 1;
-    return 0;
-#elif BINNING_MODE == GA_REFINED_BINNING
-    (void)training_labels;
-    if (!training_data || training_samples <= 0) {
-        fprintf(stderr, "quantizer: invalid fit input for GA-refined mode.\n");
+    if (fit_uniform_quantizer(training_data, training_labels, training_samples) != 0) {
         quantizer_clear();
         return -1;
     }
-
-    g_training_data_ref = training_data;
-    g_training_samples_ref = training_samples;
-    g_ga_refined_ready = 0;
-    g_fitted = 1;
-    if (output_mode >= OUTPUT_DETAILED) {
-        fprintf(stdout,
-                "quantizer: initialized %s mode with temporary uniform lookup for %d features, %d levels.\n",
-                quantizer_mode_name(),
-                g_num_features,
-                g_num_levels);
+    return 0;
+#elif BINNING_MODE == GA_REFINED_BINNING
+    (void)training_labels;
+    if (fit_ga_refined_quantizer_init(training_data, training_samples) != 0) {
+        quantizer_clear();
+        return -1;
     }
     return 0;
 #elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING
     (void)training_labels;
-    if (!training_data || training_samples <= 0) {
-        fprintf(stderr, "quantizer: invalid fit input.\n");
+    if (fit_unsupervised_boundary_quantizer(training_data, training_samples) != 0) {
         quantizer_clear();
         return -1;
     }
-
-    double *sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
-    if (sorted_values == NULL) {
-        fprintf(stderr, "quantizer: failed to allocate training buffer.\n");
-        quantizer_clear();
-        return -1;
-    }
-
-    for (int feature = 0; feature < num_features; feature++) {
-        for (int sample = 0; sample < training_samples; sample++) {
-            double value = training_data[sample][feature];
-            if (!isfinite(value)) {
-                value = 0.0;
-                g_non_finite_replacements++;
-            }
-            sorted_values[sample] = value;
-        }
-
-        qsort(sorted_values, (size_t)training_samples, sizeof(double), compare_doubles);
-
-#if BINNING_MODE == QUANTILE_BINNING
-        if (fit_quantile_feature(feature, sorted_values, training_samples) != 0) {
-            free(sorted_values);
-            quantizer_clear();
-            return -1;
-        }
-#elif BINNING_MODE == KMEANS_1D_BINNING
-        if (fit_kmeans_feature(feature, sorted_values, training_samples) != 0) {
-            free(sorted_values);
-            quantizer_clear();
-            return -1;
-        }
-#endif
-    }
-
-    free(sorted_values);
 #elif BINNING_MODE == DECISION_TREE_1D_BINNING
-    if (!training_data || !training_labels || training_samples <= 0) {
-        fprintf(stderr, "quantizer: invalid fit input for decision-tree mode.\n");
+    if (fit_supervised_boundary_quantizer(training_data, training_labels, training_samples) != 0) {
         quantizer_clear();
         return -1;
     }
-
-    feature_sample_t *sorted_samples = (feature_sample_t *)malloc((size_t)training_samples * sizeof(feature_sample_t));
-    double *sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
-    if (sorted_samples == NULL || sorted_values == NULL) {
-        fprintf(stderr, "quantizer: failed to allocate decision-tree training buffers.\n");
-        free(sorted_samples);
-        free(sorted_values);
-        quantizer_clear();
-        return -1;
-    }
-
-    for (int feature = 0; feature < num_features; feature++) {
-        for (int sample = 0; sample < training_samples; sample++) {
-            double value = training_data[sample][feature];
-            int label = training_labels[sample];
-            if (label < 0 || label >= NUM_CLASSES) {
-                fprintf(stderr,
-                        "quantizer: label %d at sample %d is out of range [0,%d).\n",
-                        label,
-                        sample,
-                        NUM_CLASSES);
-                free(sorted_samples);
-                free(sorted_values);
-                quantizer_clear();
-                return -1;
-            }
-            if (!isfinite(value)) {
-                value = 0.0;
-                g_non_finite_replacements++;
-            }
-            sorted_samples[sample].value = value;
-            sorted_samples[sample].label = label;
-        }
-
-        qsort(sorted_samples, (size_t)training_samples, sizeof(feature_sample_t), compare_feature_samples);
-        for (int sample = 0; sample < training_samples; sample++) {
-            sorted_values[sample] = sorted_samples[sample].value;
-        }
-
-        if (fit_decision_tree_feature(feature, sorted_samples, sorted_values, training_samples) != 0) {
-            free(sorted_samples);
-            free(sorted_values);
-            quantizer_clear();
-            return -1;
-        }
-    }
-
-    free(sorted_samples);
-    free(sorted_values);
 #elif BINNING_MODE == CHIMERGE_BINNING
-    if (!training_data || !training_labels || training_samples <= 0) {
-        fprintf(stderr, "quantizer: invalid fit input for ChiMerge mode.\n");
+    if (fit_supervised_boundary_quantizer(training_data, training_labels, training_samples) != 0) {
         quantizer_clear();
         return -1;
     }
-
-    feature_sample_t *sorted_samples = (feature_sample_t *)malloc((size_t)training_samples * sizeof(feature_sample_t));
-    double *sorted_values = (double *)malloc((size_t)training_samples * sizeof(double));
-    if (sorted_samples == NULL || sorted_values == NULL) {
-        fprintf(stderr, "quantizer: failed to allocate ChiMerge training buffers.\n");
-        free(sorted_samples);
-        free(sorted_values);
-        quantizer_clear();
-        return -1;
-    }
-
-    for (int feature = 0; feature < num_features; feature++) {
-        for (int sample = 0; sample < training_samples; sample++) {
-            double value = training_data[sample][feature];
-            int label = training_labels[sample];
-            if (label < 0 || label >= NUM_CLASSES) {
-                fprintf(stderr,
-                        "quantizer: label %d at sample %d is out of range [0,%d).\n",
-                        label,
-                        sample,
-                        NUM_CLASSES);
-                free(sorted_samples);
-                free(sorted_values);
-                quantizer_clear();
-                return -1;
-            }
-            if (!isfinite(value)) {
-                value = 0.0;
-                g_non_finite_replacements++;
-            }
-            sorted_samples[sample].value = value;
-            sorted_samples[sample].label = label;
-        }
-
-        qsort(sorted_samples, (size_t)training_samples, sizeof(feature_sample_t), compare_feature_samples);
-        for (int sample = 0; sample < training_samples; sample++) {
-            sorted_values[sample] = sorted_samples[sample].value;
-        }
-
-        if (fit_chimerge_feature(feature, sorted_samples, sorted_values, training_samples) != 0) {
-            free(sorted_samples);
-            free(sorted_values);
-            quantizer_clear();
-            return -1;
-        }
-    }
-
-    free(sorted_samples);
-    free(sorted_values);
 #else
 #error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, CHIMERGE_BINNING, or GA_REFINED_BINNING."
 #endif
 
-    g_fitted = 1;
-
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
-    compute_training_occupancy(training_data, training_samples);
-#endif
-
-    if (g_non_finite_replacements > 0 && output_mode >= OUTPUT_BASIC) {
-        fprintf(stderr,
-                "quantizer: replaced %d non-finite training values with 0.0 during fit.\n",
-                g_non_finite_replacements);
-    }
-
-#if BINNING_MODE == QUANTILE_BINNING
-    if (output_mode >= OUTPUT_DETAILED) {
-        fprintf(stdout,
-                "quantizer: fitted %s boundaries for %d features, %d levels (total refinements: %d).\n",
-                quantizer_mode_name(),
-                g_num_features,
-                g_num_levels,
-                g_total_refinements);
-    }
-#elif BINNING_MODE == KMEANS_1D_BINNING
-    if (output_mode >= OUTPUT_DETAILED) {
-        fprintf(stdout,
-                "quantizer: fitted %s boundaries for %d features, %d levels (duplicate centers: %d, zero-width intervals: %d, empty bins: %d).\n",
-                quantizer_mode_name(),
-                g_num_features,
-                g_num_levels,
-                g_total_duplicate_centers,
-                g_total_zero_width_intervals,
-                g_total_empty_bins);
-    }
-    print_kmeans_diagnostics();
-#elif BINNING_MODE == DECISION_TREE_1D_BINNING
-    if (output_mode >= OUTPUT_DETAILED) {
-        fprintf(stdout,
-                "quantizer: fitted %s boundaries for %d features, %d levels (tree splits: %d, fallback thresholds: %d, refinements: %d, empty bins: %d).\n",
-                quantizer_mode_name(),
-                g_num_features,
-                g_num_levels,
-                g_total_tree_splits,
-                g_total_fallback_thresholds,
-                g_total_refinements,
-                g_total_empty_bins);
-    }
-    print_decision_tree_diagnostics();
-#elif BINNING_MODE == CHIMERGE_BINNING
-    if (output_mode >= OUTPUT_DETAILED) {
-        fprintf(stdout,
-                "quantizer: fitted %s boundaries for %d features, %d levels (fallback thresholds: %d, refinements: %d, empty bins: %d).\n",
-                quantizer_mode_name(),
-                g_num_features,
-                g_num_levels,
-                g_total_fallback_thresholds,
-                g_total_refinements,
-                g_total_empty_bins);
-    }
-    print_chimerge_diagnostics();
-#elif BINNING_MODE == GA_REFINED_BINNING
-    if (output_mode >= OUTPUT_DETAILED) {
-        fprintf(stdout,
-                "quantizer: fitted %s boundaries for %d features, %d levels (refinements: %d, empty bins: %d, zero-width intervals: %d).\n",
-                quantizer_mode_name(),
-                g_num_features,
-                g_num_levels,
-                g_total_refinements,
-                g_total_empty_bins,
-                g_total_zero_width_intervals);
-    }
-    print_ga_refined_diagnostics();
-#endif
-
+    finalize_quantizer_fit(training_data, training_samples);
+    print_quantizer_fit_summary();
     return 0;
 }
 
+#if BINNING_MODE == GA_REFINED_BINNING
 int quantizer_refine_from_flip_counts(const uint16_t *flip_counts, int genome_length) {
-#if BINNING_MODE != GA_REFINED_BINNING
-    (void)flip_counts;
-    (void)genome_length;
-    fprintf(stderr, "quantizer: refine_from_flip_counts is only available in GA_REFINED_BINNING.\n");
-    return -1;
-#else
-    if (!g_fitted) {
+    if (!g_quantizer_state.fitted) {
         fprintf(stderr, "quantizer: GA-refined thresholds requested before fit.\n");
         return -1;
     }
 
-    int expected_length = g_num_features * (g_num_levels - 1);
+    int expected_length = g_quantizer_state.num_features * (g_quantizer_state.num_levels - 1);
     if (!flip_counts || genome_length != expected_length) {
         fprintf(stderr,
                 "quantizer: invalid GA-refined flip-count input (got %d, expected %d).\n",
@@ -1707,44 +1719,39 @@ int quantizer_refine_from_flip_counts(const uint16_t *flip_counts, int genome_le
     }
 
     reset_ga_refined_feature_stats();
-    if (g_training_occupancy != NULL) {
-        memset(g_training_occupancy, 0, (size_t)g_num_features * (size_t)g_num_levels * sizeof(int));
+    if (g_quantizer_statistics.training_occupancy != NULL) {
+        memset(g_quantizer_statistics.training_occupancy, 0, (size_t)g_quantizer_state.num_features * (size_t)g_quantizer_state.num_levels * sizeof(int));
     }
 
-    int transitions = g_num_levels - 1;
-    for (int feature = 0; feature < g_num_features; feature++) {
+    int transitions = g_quantizer_state.num_levels - 1;
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
         if (fit_ga_refined_feature(feature, flip_counts + (size_t)feature * transitions) != 0) {
             return -1;
         }
     }
 
-    g_ga_refined_ready = 1;
-    if (g_training_data_ref && g_training_samples_ref > 0) {
-        compute_training_occupancy(g_training_data_ref, g_training_samples_ref);
+    g_quantizer_state.ga_refined_ready = 1;
+    if (g_quantizer_state.training_data_ref && g_quantizer_state.training_samples_ref > 0) {
+        compute_training_occupancy(g_quantizer_state.training_data_ref, g_quantizer_state.training_samples_ref);
     }
 
     if (output_mode >= OUTPUT_DETAILED) {
         fprintf(stdout,
                 "quantizer: installed GA-refined thresholds for %d features, %d levels.\n",
-                g_num_features,
-                g_num_levels);
+                g_quantizer_state.num_features,
+                g_quantizer_state.num_levels);
     }
     print_ga_refined_diagnostics();
     return 0;
-#endif
 }
+#endif
 
 int get_signal_level(int feature_idx, double emg_value) {
-    if (g_force_uniform_lookup) {
-        (void)feature_idx;
-        return get_signal_level_uniform(emg_value);
-    }
-
 #if BINNING_MODE == UNIFORM_BINNING
     (void)feature_idx;
     return get_signal_level_uniform(emg_value);
 #elif BINNING_MODE == GA_REFINED_BINNING
-    if (!g_ga_refined_ready) {
+    if (!g_quantizer_state.ga_refined_ready) {
         (void)feature_idx;
         return get_signal_level_uniform(emg_value);
     }
@@ -1756,10 +1763,6 @@ int get_signal_level(int feature_idx, double emg_value) {
 #endif
 }
 
-void quantizer_set_force_uniform_lookup(int enabled) {
-    g_force_uniform_lookup = enabled ? 1 : 0;
-}
-
 const char *quantizer_get_mode_name(void) {
     return quantizer_mode_name();
 }
@@ -1768,7 +1771,7 @@ static int quantizer_export_centers_csv(const char *filepath) {
     if (!filepath || filepath[0] == '\0') {
         return -1;
     }
-    if (!g_fitted) {
+    if (!g_quantizer_state.fitted) {
         fprintf(stderr, "quantizer: center export requested before fit.\n");
         return -1;
     }
@@ -1782,18 +1785,18 @@ static int quantizer_export_centers_csv(const char *filepath) {
     fprintf(file,
             "#quantizer_centers,mode=%s,num_features=%d,num_levels=%d\n",
             quantizer_mode_name(),
-            g_num_features,
-            g_num_levels);
+            g_quantizer_state.num_features,
+            g_quantizer_state.num_levels);
     fprintf(file, "feature");
-    for (int k = 0; k < g_num_levels; k++) {
+    for (int k = 0; k < g_quantizer_state.num_levels; k++) {
         fprintf(file, ",center_%03d", k);
     }
     fprintf(file, "\n");
 
-    for (int feature = 0; feature < g_num_features; feature++) {
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
         fprintf(file, "%d", feature);
-        for (int k = 0; k < g_num_levels; k++) {
-            fprintf(file, ",%.17g", g_centers[center_index(feature, k)]);
+        for (int k = 0; k < g_quantizer_state.num_levels; k++) {
+            fprintf(file, ",%.17g", g_quantizer_state.centers[center_index(feature, k)]);
         }
         fprintf(file, "\n");
     }
@@ -1845,7 +1848,7 @@ int quantizer_export_cuts_csv(const char *filepath) {
     if (!filepath || filepath[0] == '\0') {
         return -1;
     }
-    if (!g_fitted) {
+    if (!g_quantizer_state.fitted) {
         fprintf(stderr, "quantizer: export requested before fit.\n");
         return -1;
     }
@@ -1860,55 +1863,55 @@ int quantizer_export_cuts_csv(const char *filepath) {
     fprintf(file,
             "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=0,non_finite_replacements=0,total_tree_splits=0,total_fallback_thresholds=0\n",
             quantizer_mode_name(),
-            g_num_features,
-            g_num_levels);
+            g_quantizer_state.num_features,
+            g_quantizer_state.num_levels);
     fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count,initial_interval_count\n");
-    for (int feature = 0; feature < g_num_features; feature++) {
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
         fprintf(file, "%d,0,0,0,0\n", feature);
     }
 #elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
-    int cut_count = g_num_levels - 1;
+    int cut_count = g_quantizer_state.num_levels - 1;
     fprintf(file,
             "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=%d,non_finite_replacements=%d,total_tree_splits=%d,total_fallback_thresholds=%d\n",
             quantizer_mode_name(),
-            g_num_features,
-            g_num_levels,
-            g_total_refinements,
-            g_non_finite_replacements,
-            g_total_tree_splits,
-            g_total_fallback_thresholds);
+            g_quantizer_state.num_features,
+            g_quantizer_state.num_levels,
+            g_quantizer_statistics.total_refinements,
+            g_quantizer_state.non_finite_replacements,
+            g_quantizer_statistics.total_tree_splits,
+            g_quantizer_statistics.total_fallback_thresholds);
     fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count,initial_interval_count");
     for (int k = 0; k < cut_count; k++) {
         fprintf(file, ",cut_%03d", k);
     }
     fprintf(file, "\n");
 
-    for (int feature = 0; feature < g_num_features; feature++) {
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
         fprintf(file,
                 "%d,%d,%d,%d,%d",
                 feature,
-                g_refinement_counts[feature],
-                g_tree_split_counts[feature],
-                g_fallback_threshold_counts[feature],
-                g_initial_interval_counts[feature]);
+                g_quantizer_statistics.refinement_counts[feature],
+                g_quantizer_statistics.tree_split_counts[feature],
+                g_quantizer_statistics.fallback_threshold_counts[feature],
+                g_quantizer_statistics.initial_interval_counts[feature]);
         for (int k = 0; k < cut_count; k++) {
-            fprintf(file, ",%.17g", g_boundaries[boundary_index(feature, k)]);
+            fprintf(file, ",%.17g", g_quantizer_state.boundaries[boundary_index(feature, k)]);
         }
         fprintf(file, "\n");
     }
 #elif BINNING_MODE == GA_REFINED_BINNING
-    int cut_count = g_num_levels - 1;
+    int cut_count = g_quantizer_state.num_levels - 1;
     fprintf(file,
             "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=%d,non_finite_replacements=%d,total_zero_width_intervals=%d,epsilon=%.17g,alpha=%.17g,refined_ready=%d\n",
             quantizer_mode_name(),
-            g_num_features,
-            g_num_levels,
-            g_total_refinements,
-            g_non_finite_replacements,
-            g_total_zero_width_intervals,
+            g_quantizer_state.num_features,
+            g_quantizer_state.num_levels,
+            g_quantizer_statistics.total_refinements,
+            g_quantizer_state.non_finite_replacements,
+            g_quantizer_statistics.total_zero_width_intervals,
             (double)GA_BINNING_EPSILON,
             (double)GA_BINNING_ALPHA,
-            g_ga_refined_ready);
+            g_quantizer_state.ga_refined_ready);
     fprintf(file, "feature,refinement_count,empty_bin_count,zero_width_interval_count");
     for (int k = 0; k < cut_count; k++) {
         fprintf(file, ",flip_%03d", k);
@@ -1921,21 +1924,21 @@ int quantizer_export_cuts_csv(const char *filepath) {
     }
     fprintf(file, "\n");
 
-    for (int feature = 0; feature < g_num_features; feature++) {
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
         fprintf(file,
                 "%d,%d,%d,%d",
                 feature,
-                g_refinement_counts[feature],
-                g_empty_bin_counts[feature],
-                g_zero_width_interval_counts[feature]);
+                g_quantizer_statistics.refinement_counts[feature],
+                g_quantizer_statistics.empty_bin_counts[feature],
+                g_quantizer_statistics.zero_width_interval_counts[feature]);
         for (int k = 0; k < cut_count; k++) {
-            fprintf(file, ",%u", (unsigned)g_ga_refined_flip_counts[boundary_index(feature, k)]);
+            fprintf(file, ",%u", (unsigned)g_quantizer_state.ga_refined_flip_counts[boundary_index(feature, k)]);
         }
         for (int k = 0; k < cut_count; k++) {
-            fprintf(file, ",%.17g", g_ga_refined_transition_weights[boundary_index(feature, k)]);
+            fprintf(file, ",%.17g", g_quantizer_state.ga_refined_transition_weights[boundary_index(feature, k)]);
         }
         for (int k = 0; k < cut_count; k++) {
-            fprintf(file, ",%.17g", g_boundaries[boundary_index(feature, k)]);
+            fprintf(file, ",%.17g", g_quantizer_state.boundaries[boundary_index(feature, k)]);
         }
         fprintf(file, "\n");
     }
