@@ -109,11 +109,9 @@ static void fill_with_nan(double *data, size_t count) {
     }
 }
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int boundary_index(int feature_idx, int cut_idx) {
     return feature_idx * (g_quantizer_state.num_levels - 1) + cut_idx;
 }
-#endif
 
 #if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
 static int compare_doubles(const void *a, const void *b) {
@@ -260,7 +258,7 @@ static void print_ga_refined_diagnostics(void);
 static void compute_training_occupancy(double **training_data, int training_samples);
 #endif
 
-#if BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
+#if BINNING_MODE == UNIFORM_BINNING || BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING || BINNING_MODE == GA_REFINED_BINNING
 static int map_value_with_boundaries_unchecked(int feature_idx, double x) {
     if (g_quantizer_state.num_levels <= 1) {
         return 0;
@@ -306,26 +304,24 @@ static int map_value_with_boundaries_checked(int feature_idx, double x) {
 }
 #endif
 
-
-static int get_signal_level_uniform(double emg_value) {
-        float value = (float)emg_value;
-    int scaled = (int)ceilf(value * 10000.0f + 10000.0f);
-    if (scaled < 0) {
-        scaled = 0;
-    }
-    if (scaled > 20000) {
-        scaled = 20000;
+#if BINNING_MODE == UNIFORM_BINNING || BINNING_MODE == GA_REFINED_BINNING
+static int install_uniform_boundaries(void) {
+    int cut_count = g_quantizer_state.num_levels - 1;
+    if (cut_count <= 0 || g_quantizer_state.boundaries == NULL) {
+        return 0;
     }
 
-    int level = (scaled * (NUM_LEVELS - 1) + 10000) / 20000;
-    if (level < 0) {
-        level = 0;
+    for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
+        for (int level = 0; level < cut_count; level++) {
+            long long numerator = 20000LL * (long long)(level + 1) - 10000LL;
+            long long threshold_scaled = (numerator + (long long)cut_count - 1LL) / (long long)cut_count;
+            double boundary = ((double)(threshold_scaled - 1LL) - 10000.0) / 10000.0;
+            g_quantizer_state.boundaries[boundary_index(feature, level)] = boundary;
+        }
     }
-    if (level >= NUM_LEVELS) {
-        level = NUM_LEVELS - 1;
-    }
-    return level;
+    return 0;
 }
+#endif
 
 #if BINNING_MODE == GA_REFINED_BINNING
 static void reset_ga_refined_feature_stats(void) {
@@ -1480,6 +1476,9 @@ static int fit_uniform_quantizer(double **training_data,
     (void)training_data;
     (void)training_labels;
     (void)training_samples;
+    if (install_uniform_boundaries() != 0) {
+        return -1;
+    }
     g_quantizer_state.fitted = 1;
     return 0;
 }
@@ -1494,6 +1493,9 @@ static int fit_ga_refined_quantizer_init(double **training_data, int training_sa
     g_quantizer_state.training_data_ref = training_data;
     g_quantizer_state.training_samples_ref = training_samples;
     g_quantizer_state.ga_refined_ready = 0;
+    if (install_uniform_boundaries() != 0) {
+        return -1;
+    }
     g_quantizer_state.fitted = 1;
     if (output_mode >= OUTPUT_DETAILED) {
         fprintf(stdout,
@@ -1747,20 +1749,7 @@ int quantizer_refine_from_flip_counts(const uint16_t *flip_counts, int genome_le
 #endif
 
 int get_signal_level(int feature_idx, double emg_value) {
-#if BINNING_MODE == UNIFORM_BINNING
-    (void)feature_idx;
-    return get_signal_level_uniform(emg_value);
-#elif BINNING_MODE == GA_REFINED_BINNING
-    if (!g_quantizer_state.ga_refined_ready) {
-        (void)feature_idx;
-        return get_signal_level_uniform(emg_value);
-    }
     return map_value_with_boundaries_checked(feature_idx, emg_value);
-#elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
-    return map_value_with_boundaries_checked(feature_idx, emg_value);
-#else
-#error "Unsupported BINNING_MODE. Use UNIFORM_BINNING, QUANTILE_BINNING, KMEANS_1D_BINNING, DECISION_TREE_1D_BINNING, CHIMERGE_BINNING, or GA_REFINED_BINNING."
-#endif
 }
 
 const char *quantizer_get_mode_name(void) {
@@ -1860,14 +1849,23 @@ int quantizer_export_cuts_csv(const char *filepath) {
     }
 
 #if BINNING_MODE == UNIFORM_BINNING
+    int cut_count = g_quantizer_state.num_levels - 1;
     fprintf(file,
             "#quantizer,mode=%s,num_features=%d,num_levels=%d,total_refinements=0,non_finite_replacements=0,total_tree_splits=0,total_fallback_thresholds=0\n",
             quantizer_mode_name(),
             g_quantizer_state.num_features,
             g_quantizer_state.num_levels);
-    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count,initial_interval_count\n");
+    fprintf(file, "feature,refinement_count,tree_split_count,fallback_threshold_count,initial_interval_count");
+    for (int k = 0; k < cut_count; k++) {
+        fprintf(file, ",cut_%03d", k);
+    }
+    fprintf(file, "\n");
     for (int feature = 0; feature < g_quantizer_state.num_features; feature++) {
-        fprintf(file, "%d,0,0,0,0\n", feature);
+        fprintf(file, "%d,0,0,0,0", feature);
+        for (int k = 0; k < cut_count; k++) {
+            fprintf(file, ",%.17g", g_quantizer_state.boundaries[boundary_index(feature, k)]);
+        }
+        fprintf(file, "\n");
     }
 #elif BINNING_MODE == QUANTILE_BINNING || BINNING_MODE == KMEANS_1D_BINNING || BINNING_MODE == DECISION_TREE_1D_BINNING || BINNING_MODE == CHIMERGE_BINNING
     int cut_count = g_quantizer_state.num_levels - 1;
