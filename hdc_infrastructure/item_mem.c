@@ -712,6 +712,52 @@ void store_precomp_item_mem_to_csv(struct item_memory *item_mem,
     fclose(file);
     printf("Item memory successfully stored to %s\n", filepath);
 }
+
+void store_precomp_item_mem_to_systemc_text(struct item_memory *item_mem,
+                                            const char *filepath,
+                                            int num_levels,
+                                            int num_features) {
+    if (num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "store_precomp_item_mem_to_systemc_text: invalid dimensions.\n");
+        return;
+    }
+    if (!item_mem || !filepath || filepath[0] == '\0') {
+        fprintf(stderr, "store_precomp_item_mem_to_systemc_text: invalid arguments.\n");
+        return;
+    }
+    int expected = num_levels * num_features;
+    if (item_mem->num_vectors != expected) {
+        fprintf(stderr, "store_precomp_item_mem_to_systemc_text: expected %d vectors, got %d.\n",
+                expected, item_mem->num_vectors);
+    }
+
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        perror("Failed to open file for writing SystemC precomp item memory text");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(file,
+            "#systemc_precomp_cim num_levels=%d num_features=%d num_vectors=%d dimension=%d layout=level_major_feature_minor\n",
+            num_levels,
+            num_features,
+            expected,
+            VECTOR_DIMENSION);
+
+    for (int level = 0; level < num_levels; level++) {
+        for (int feature = 0; feature < num_features; feature++) {
+            int index = level * num_features + feature;
+            fprintf(file, "%d %d ", level, feature);
+            for (int bit = 0; bit < VECTOR_DIMENSION; bit++) {
+                fputc(vector_get_bit(item_mem->base_vectors[index], bit) ? '1' : '0', file);
+            }
+            fputc('\n', file);
+        }
+    }
+
+    fclose(file);
+    printf("SystemC precomputed item memory successfully stored to %s\n", filepath);
+}
 /**
  * @brief Loads item memory vectors from a binary file.
  * 

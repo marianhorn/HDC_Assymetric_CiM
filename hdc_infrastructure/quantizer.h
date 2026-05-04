@@ -25,6 +25,7 @@ int get_signal_level(int feature_idx, double emg_value);
 const char *quantizer_get_mode_name(void);
 int quantizer_export_cuts_csv_for_dataset(int dataset);
 int quantizer_export_cuts_csv(const char *filepath);
+int quantizer_export_systemc_text(const char *filepath);
 void quantizer_clear(void);
 int quantizer_is_fitted(void);
 
