@@ -71,3 +71,4 @@ analysis/CiM_evaluation/plots/
 CiMs/
 __pycache__/
 systemc_hdc/build/
+systemc_hdc/systemc_hdc_tb
