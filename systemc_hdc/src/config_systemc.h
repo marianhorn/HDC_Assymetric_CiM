@@ -10,7 +10,7 @@
 #endif
 
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 50
+#define NUM_LEVELS 30
 #endif
 
 #ifndef NUM_CLASSES

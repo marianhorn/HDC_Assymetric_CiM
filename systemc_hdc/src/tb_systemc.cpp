@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include "controller.h"
+#include "foot_dataset_loader.h"
 
 using namespace hdc_systemc;
 
@@ -314,6 +315,22 @@ int sc_main(int, char *[]) {
     std::cout << "SystemC HDC controller/memory/accelerator checks passed." << std::endl;
     print_eval_result("Training", training_result);
     print_eval_result("Eval", eval_result);
+
+    Controller file_controller("file_controller");
+    file_controller.load_cim_file("import/cim_dataset00.txt");
+    file_controller.load_quantizer_file("import/quantizer_dataset00.txt");
+
+    const FootDataset real_dataset = load_foot_dataset_by_id(0);
+    file_controller.train_dataset(real_dataset.training.raw_data(),
+                                  real_dataset.training.raw_labels(),
+                                  real_dataset.training.samples);
+    const EvaluationResult real_test_result =
+        file_controller.evaluate_dataset(real_dataset.testing.raw_data(),
+                                         real_dataset.testing.raw_labels(),
+                                         real_dataset.testing.samples);
+
+    std::cout << "Real file import path executed on dataset00." << std::endl;
+    print_eval_result("Real test", real_test_result);
 
     return EXIT_SUCCESS;
 }

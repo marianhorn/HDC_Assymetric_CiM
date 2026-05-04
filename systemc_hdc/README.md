@@ -19,6 +19,7 @@ This folder contains a standalone SystemC implementation of the current `foot` p
 - `src/hdc_memory.h/.cpp`: CiM storage, quantizer boundaries, associative memory
 - `src/hdc_accelerator.h/.cpp`: timestamp encoding, fusion n-gram encoding, Hamming distances
 - `src/controller.h/.cpp`: training/evaluation flow and orchestration
+- `src/foot_dataset_loader.h/.cpp`: simple loader for the existing `foot/data/datasetXX/*.csv` files
 - `src/tb_systemc.cpp`: small untimed reference testbench
 - `system_architecture.md`: target hardware-style architecture description
 - `Makefile`: standalone build entry
@@ -29,6 +30,12 @@ This folder contains a standalone SystemC implementation of the current `foot` p
 - `Controller` now exposes file-based import calls:
   - `load_cim_file(...)`
   - `load_quantizer_file(...)`
+- `tb_systemc.cpp` now also runs one real-data smoke path:
+  - imports `import/cim_dataset00.txt`
+  - imports `import/quantizer_dataset00.txt`
+  - loads `foot/data/dataset00/*.csv`
+  - trains on training split
+  - evaluates on testing split
 - The accelerator takes 3 already-quantized timestamps and implements fusion encoding plus Hamming-distance classification.
 - The timestamp encoder uses the same majority rule as `bundle_multi`: output bit is `1` if ones `>= NUM_FEATURES / 2`.
 - The associative-memory vectors are written by the controller after training and read by the accelerator during classification.

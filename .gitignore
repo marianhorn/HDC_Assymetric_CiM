@@ -70,3 +70,4 @@ analysis/GA_evaluation/crossMutRatesOptimization/analysis_outputs/
 analysis/CiM_evaluation/plots/
 CiMs/
 __pycache__/
+systemc_hdc/build/

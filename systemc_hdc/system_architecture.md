@@ -172,6 +172,24 @@ The exact file format is still open, but the memory layout should match:
 
 ---
 
+## Dataset Loader
+
+For the current project state, raw dataset CSV parsing lives in a small helper module:
+- `foot_dataset_loader.h/.cpp`
+
+Role:
+- load `foot/data/datasetXX/training_emg.csv`
+- load `foot/data/datasetXX/training_labels.csv`
+- load `foot/data/datasetXX/testing_emg.csv`
+- load `foot/data/datasetXX/testing_labels.csv`
+
+Reason:
+- CSV parsing is not HDC datapath logic
+- it should not live in `Controller`, `HDC_Memory`, or `HDC_Accelerator`
+- this keeps the architecture modular while still supporting real-data SystemC tests
+
+---
+
 ## `HDC_Accelerator`
 
 ### External behavior
