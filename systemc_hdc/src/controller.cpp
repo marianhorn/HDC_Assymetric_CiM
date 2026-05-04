@@ -30,8 +30,16 @@ void Controller::load_cim(const hv_t *flat_cim) {
     m_memory.load_cim_flat(flat_cim);
 }
 
+void Controller::load_cim_file(const char *path) {
+    m_memory.load_cim_text(path);
+}
+
 void Controller::load_quantizer_boundaries(const double *flat_boundaries) {
     m_memory.load_quantizer_boundaries(flat_boundaries);
+}
+
+void Controller::load_quantizer_file(const char *path) {
+    m_memory.load_quantizer_text(path);
 }
 
 void Controller::reset_assoc_mem() {

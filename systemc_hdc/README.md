@@ -26,6 +26,9 @@ This folder contains a standalone SystemC implementation of the current `foot` p
 ## Notes
 - The implementation mirrors the current C behavior for the binary fusion `foot` path.
 - Quantization is stored in memory as learned per-feature boundaries, but imported rather than learned inside SystemC.
+- `Controller` now exposes file-based import calls:
+  - `load_cim_file(...)`
+  - `load_quantizer_file(...)`
 - The accelerator takes 3 already-quantized timestamps and implements fusion encoding plus Hamming-distance classification.
 - The timestamp encoder uses the same majority rule as `bundle_multi`: output bit is `1` if ones `>= NUM_FEATURES / 2`.
 - The associative-memory vectors are written by the controller after training and read by the accelerator during classification.

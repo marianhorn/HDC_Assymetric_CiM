@@ -1,4 +1,7 @@
 #include "hdc_memory.h"
+#include <fstream>
+#include <sstream>
+#include <string>
 
 namespace hdc_systemc {
 
@@ -14,6 +17,17 @@ void copy_hv(const hv_t &src, hv_t &dst) {
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
         dst[d] = src[d];
     }
+}
+
+bool is_comment_or_empty(const std::string &line) {
+    for (std::string::size_type i = 0; i < line.size(); ++i) {
+        const char c = line[i];
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            continue;
+        }
+        return c == '#';
+    }
+    return true;
 }
 
 } // namespace
@@ -48,6 +62,73 @@ void HDC_Memory::load_cim_flat(const hv_t *flat_cim) {
     m_cim_loaded = true;
 }
 
+void HDC_Memory::load_cim_text(const char *path) {
+    if (path == 0 || path[0] == '\0') {
+        SC_REPORT_FATAL("HDC_Memory", "CiM path must not be null or empty");
+    }
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        SC_REPORT_FATAL("HDC_Memory", "failed to open CiM text file");
+    }
+
+    bool loaded_entries[NUM_LEVELS * NUM_FEATURES];
+    for (int i = 0; i < NUM_LEVELS * NUM_FEATURES; ++i) {
+        loaded_entries[i] = false;
+        clear_hv(m_cim[i]);
+    }
+
+    std::string line;
+    int loaded_count = 0;
+    while (std::getline(file, line)) {
+        if (is_comment_or_empty(line)) {
+            continue;
+        }
+
+        std::istringstream iss(line);
+        int level = -1;
+        int feature = -1;
+        std::string bits;
+        if (!(iss >> level >> feature >> bits)) {
+            SC_REPORT_FATAL("HDC_Memory", "invalid CiM text line");
+        }
+        if (level < 0 || level >= NUM_LEVELS) {
+            SC_REPORT_FATAL("HDC_Memory", "CiM level out of range");
+        }
+        if (feature < 0 || feature >= NUM_FEATURES) {
+            SC_REPORT_FATAL("HDC_Memory", "CiM feature out of range");
+        }
+        if (static_cast<int>(bits.size()) != VECTOR_DIMENSION) {
+            SC_REPORT_FATAL("HDC_Memory", "CiM bitstring length mismatch");
+        }
+
+        const int index = level * NUM_FEATURES + feature;
+        if (loaded_entries[index]) {
+            SC_REPORT_FATAL("HDC_Memory", "duplicate CiM entry in text file");
+        }
+
+        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+            const char bit = bits[static_cast<std::string::size_type>(d)];
+            if (bit == '0') {
+                m_cim[index][d] = sc_dt::SC_LOGIC_0;
+            } else if (bit == '1') {
+                m_cim[index][d] = sc_dt::SC_LOGIC_1;
+            } else {
+                SC_REPORT_FATAL("HDC_Memory", "invalid CiM bit character");
+            }
+        }
+
+        loaded_entries[index] = true;
+        ++loaded_count;
+    }
+
+    if (loaded_count != NUM_LEVELS * NUM_FEATURES) {
+        SC_REPORT_FATAL("HDC_Memory", "CiM text file does not contain all entries");
+    }
+
+    m_cim_loaded = true;
+}
+
 void HDC_Memory::load_quantizer_boundaries(const double *flat_boundaries) {
     if (NUM_LEVELS <= 1) {
         m_quantizer_loaded = true;
@@ -61,6 +142,63 @@ void HDC_Memory::load_quantizer_boundaries(const double *flat_boundaries) {
     for (int i = 0; i < count; ++i) {
         m_quantizer_boundaries[i] = flat_boundaries[i];
     }
+    m_quantizer_loaded = true;
+}
+
+void HDC_Memory::load_quantizer_text(const char *path) {
+    if (path == 0 || path[0] == '\0') {
+        SC_REPORT_FATAL("HDC_Memory", "quantizer path must not be null or empty");
+    }
+    if (NUM_LEVELS <= 1) {
+        m_quantizer_loaded = true;
+        return;
+    }
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        SC_REPORT_FATAL("HDC_Memory", "failed to open quantizer text file");
+    }
+
+    bool loaded_features[NUM_FEATURES];
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        loaded_features[feature] = false;
+    }
+
+    std::string line;
+    int loaded_count = 0;
+    while (std::getline(file, line)) {
+        if (is_comment_or_empty(line)) {
+            continue;
+        }
+
+        std::istringstream iss(line);
+        int feature = -1;
+        if (!(iss >> feature)) {
+            SC_REPORT_FATAL("HDC_Memory", "invalid quantizer text line");
+        }
+        if (feature < 0 || feature >= NUM_FEATURES) {
+            SC_REPORT_FATAL("HDC_Memory", "quantizer feature out of range");
+        }
+        if (loaded_features[feature]) {
+            SC_REPORT_FATAL("HDC_Memory", "duplicate quantizer feature entry");
+        }
+
+        for (int cut = 0; cut < NUM_LEVELS - 1; ++cut) {
+            double boundary = 0.0;
+            if (!(iss >> boundary)) {
+                SC_REPORT_FATAL("HDC_Memory", "missing quantizer boundary value");
+            }
+            m_quantizer_boundaries[feature * (NUM_LEVELS - 1) + cut] = boundary;
+        }
+
+        loaded_features[feature] = true;
+        ++loaded_count;
+    }
+
+    if (loaded_count != NUM_FEATURES) {
+        SC_REPORT_FATAL("HDC_Memory", "quantizer text file does not contain all features");
+    }
+
     m_quantizer_loaded = true;
 }
 

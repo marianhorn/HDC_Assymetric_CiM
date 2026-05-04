@@ -144,7 +144,9 @@ So the accelerator remains purely computational.
 ### Suggested public methods
 - `clear_all()`
 - `load_cim_flat(const hv_t *flat_cim)`
+- `load_cim_text(const char *path)`
 - `load_quantizer_boundaries(const double *flat_boundaries)`
+- `load_quantizer_text(const char *path)`
 - `read_cim(level_t level, unsigned feature) const`
 - `quantize_sample(const double *raw_sample, level_t *quantized_sample) const`
 - `write_assoc_class(unsigned class_id, const hv_t &class_hv)`
