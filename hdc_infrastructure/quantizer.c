@@ -627,7 +627,7 @@ static int verify_kmeans_lookup_for_feature(int feature_idx,
 }
 
 static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int sample_count) {
-    double *working_quantizer_state.centers = NULL;
+    double *working_centers = NULL;
     double *next_centers = NULL;
     double *sums = NULL;
     double *errors = NULL;
@@ -646,16 +646,16 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         return 0;
     }
 
-    working_quantizer_state.centers = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
+    working_centers = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
     next_centers = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
     sums = (double *)malloc((size_t)g_quantizer_state.num_levels * sizeof(double));
     errors = (double *)malloc((size_t)sample_count * sizeof(double));
     counts = (int *)malloc((size_t)g_quantizer_state.num_levels * sizeof(int));
     claimed = (unsigned char *)malloc((size_t)sample_count * sizeof(unsigned char));
 
-    if (!working_quantizer_state.centers || !next_centers || !sums || !errors || !counts || !claimed) {
+    if (!working_centers || !next_centers || !sums || !errors || !counts || !claimed) {
         fprintf(stderr, "quantizer: failed to allocate k-means work buffers.\n");
-        free(working_quantizer_state.centers);
+        free(working_centers);
         free(next_centers);
         free(sums);
         free(errors);
@@ -666,7 +666,7 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
 
     for (int i = 0; i < g_quantizer_state.num_levels; i++) {
         double q = ((double)i + 0.5) / (double)g_quantizer_state.num_levels;
-        working_quantizer_state.centers[i] = interpolate_sorted_value(sorted_values, sample_count, q);
+        working_centers[i] = interpolate_sorted_value(sorted_values, sample_count, q);
     }
 
     for (int iter = 0; iter < KMEANS_1D_MAX_ITERATIONS; iter++) {
@@ -674,8 +674,8 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         memset(sums, 0, (size_t)g_quantizer_state.num_levels * sizeof(double));
 
         for (int i = 0; i < sample_count; i++) {
-            int cluster_idx = nearest_center_index(working_quantizer_state.centers, g_quantizer_state.num_levels, sorted_values[i]);
-            double delta = sorted_values[i] - working_quantizer_state.centers[cluster_idx];
+            int cluster_idx = nearest_center_index(working_centers, g_quantizer_state.num_levels, sorted_values[i]);
+            double delta = sorted_values[i] - working_centers[cluster_idx];
             counts[cluster_idx] += 1;
             sums[cluster_idx] += sorted_values[i];
             errors[i] = delta * delta;
@@ -695,14 +695,14 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
                 had_empty_cluster = 1;
             }
 
-            double shift = fabs(next_centers[cluster] - working_quantizer_state.centers[cluster]);
+            double shift = fabs(next_centers[cluster] - working_centers[cluster]);
             if (shift > max_shift) {
                 max_shift = shift;
             }
         }
 
         for (int cluster = 0; cluster < g_quantizer_state.num_levels; cluster++) {
-            working_quantizer_state.centers[cluster] = next_centers[cluster];
+            working_centers[cluster] = next_centers[cluster];
         }
 
         iterations_used = iter + 1;
@@ -711,9 +711,9 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         }
     }
 
-    qsort(working_quantizer_state.centers, (size_t)g_quantizer_state.num_levels, sizeof(double), compare_doubles);
+    qsort(working_centers, (size_t)g_quantizer_state.num_levels, sizeof(double), compare_doubles);
     for (int i = 0; i < g_quantizer_state.num_levels; i++) {
-        g_quantizer_state.centers[center_index(feature_idx, i)] = working_quantizer_state.centers[i];
+        g_quantizer_state.centers[center_index(feature_idx, i)] = working_centers[i];
     }
     for (int i = 0; i < g_quantizer_state.num_levels - 1; i++) {
         double left = g_quantizer_state.centers[center_index(feature_idx, i)];
@@ -724,7 +724,7 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
     g_quantizer_statistics.iteration_counts[feature_idx] = iterations_used;
     analyze_kmeans_feature(feature_idx);
     if (verify_kmeans_lookup_for_feature(feature_idx, sorted_values, sample_count) != 0) {
-        free(working_quantizer_state.centers);
+        free(working_centers);
         free(next_centers);
         free(sums);
         free(errors);
@@ -733,7 +733,7 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
         return -1;
     }
 
-    free(working_quantizer_state.centers);
+    free(working_centers);
     free(next_centers);
     free(sums);
     free(errors);
