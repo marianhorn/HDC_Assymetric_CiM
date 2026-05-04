@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include <iostream>
-#include "hdc_systemc.h"
+#include "controller.h"
 
 using namespace hdc_systemc;
 
@@ -59,10 +59,39 @@ void build_demo_cim(hv_t *flat_cim) {
     }
 }
 
-void build_demo_dataset(level_t *training_levels,
-                        int *training_labels,
-                        level_t *eval_levels,
-                        int *eval_labels) {
+void build_demo_boundaries(double *flat_boundaries) {
+    if (NUM_LEVELS <= 1) {
+        return;
+    }
+
+    const double step = 2.0 / static_cast<double>(NUM_LEVELS);
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        for (int cut = 0; cut < NUM_LEVELS - 1; ++cut) {
+            flat_boundaries[feature * (NUM_LEVELS - 1) + cut] =
+                -1.0 + step * static_cast<double>(cut + 1);
+        }
+    }
+}
+
+double raw_value_for_level(const double *feature_boundaries, unsigned level) {
+    if (NUM_LEVELS <= 1) {
+        return 0.0;
+    }
+
+    const double step = 2.0 / static_cast<double>(NUM_LEVELS);
+    if (level == 0u) {
+        return feature_boundaries[0] - 0.25 * step;
+    }
+    if (level >= static_cast<unsigned>(NUM_LEVELS - 1)) {
+        return feature_boundaries[NUM_LEVELS - 2] + 0.25 * step;
+    }
+    return 0.5 * (feature_boundaries[level - 1] + feature_boundaries[level]);
+}
+
+void build_demo_level_dataset(level_t *training_levels,
+                              int *training_labels,
+                              level_t *eval_levels,
+                              int *eval_labels) {
     const int label_pattern[TRAINING_SAMPLES] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 1, 1, 1};
     const int eval_pattern[EVAL_SAMPLES] = {0, 0, 0, 1, 2, 1, 2, 2, 2, 1, 1, 1};
 
@@ -83,6 +112,19 @@ void build_demo_dataset(level_t *training_levels,
                 static_cast<unsigned>((eval_pattern[sample] * 11) + sample + (feature * 5));
             eval_levels[(sample * NUM_FEATURES) + feature] =
                 static_cast<unsigned>(raw_level % NUM_LEVELS);
+        }
+    }
+}
+
+void build_demo_raw_dataset(const level_t *quantized_levels,
+                            int num_samples,
+                            const double *flat_boundaries,
+                            double *raw_data) {
+    for (int sample = 0; sample < num_samples; ++sample) {
+        for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+            const double *feature_boundaries = &flat_boundaries[feature * (NUM_LEVELS - 1)];
+            const unsigned level = quantized_levels[(sample * NUM_FEATURES) + feature].to_uint();
+            raw_data[(sample * NUM_FEATURES) + feature] = raw_value_for_level(feature_boundaries, level);
         }
     }
 }
@@ -171,26 +213,28 @@ int reference_predict(const hv_t class_vectors[NUM_CLASSES], const hv_t &query) 
     return best_class;
 }
 
-bool run_unit_checks(HdcTop &top,
+bool run_unit_checks(Controller &controller,
                      const hv_t *flat_cim,
                      const level_t *training_levels,
+                     const double *training_raw,
                      const int *training_labels,
-                     const level_t *eval_levels) {
-    hv_t reference_timestamp;
-    hv_t systemc_timestamp;
-    reference_encode_timestamp(flat_cim, &training_levels[0], reference_timestamp);
-    top.encode_timestamp(&training_levels[0], systemc_timestamp);
-    if (!hv_equal(reference_timestamp, systemc_timestamp)) {
-        std::cerr << "Timestamp encoder mismatch." << std::endl;
-        return false;
+                     const level_t *eval_levels,
+                     const double *eval_raw) {
+    level_t quantized_window[N_GRAM_SIZE * NUM_FEATURES];
+    controller.quantize_window(&training_raw[0], quantized_window);
+    for (int i = 0; i < N_GRAM_SIZE * NUM_FEATURES; ++i) {
+        if (quantized_window[i] != training_levels[i]) {
+            std::cerr << "Quantizer mismatch at index " << i << "." << std::endl;
+            return false;
+        }
     }
 
     hv_t reference_ngram;
     hv_t systemc_ngram;
     reference_encode_ngram(flat_cim, &training_levels[0], reference_ngram);
-    top.encode_ngram(&training_levels[0], systemc_ngram);
+    controller.encode_window(&training_raw[0], systemc_ngram);
     if (!hv_equal(reference_ngram, systemc_ngram)) {
-        std::cerr << "Fusion n-gram encoder mismatch." << std::endl;
+        std::cerr << "Accelerator encode mismatch." << std::endl;
         return false;
     }
 
@@ -199,27 +243,21 @@ bool run_unit_checks(HdcTop &top,
     hv_t ref_class_vectors[NUM_CLASSES];
     reference_train(flat_cim, training_levels, training_labels, ref_bit_counts, ref_class_counts, ref_class_vectors);
 
-    top.reset_assoc_mem();
-    top.train_dataset(training_levels, training_labels, TRAINING_SAMPLES);
-    top.finalize_assoc_mem();
-
+    controller.train_dataset(training_raw, training_labels, TRAINING_SAMPLES);
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        if (!hv_equal(ref_class_vectors[class_id], top.get_class_vector(static_cast<unsigned>(class_id)))) {
-            std::cerr << "Associative-memory finalize mismatch for class " << class_id << "." << std::endl;
-            return false;
-        }
-        if (ref_class_counts[class_id] != top.get_class_vector_count(static_cast<unsigned>(class_id))) {
-            std::cerr << "Associative-memory count mismatch for class " << class_id << "." << std::endl;
+        if (!hv_equal(ref_class_vectors[class_id], controller.get_class_vector(static_cast<unsigned>(class_id)))) {
+            std::cerr << "Associative-memory mismatch for class " << class_id << "." << std::endl;
             return false;
         }
     }
 
     hv_t eval_query;
+    reference_encode_ngram(flat_cim, &training_levels[0], eval_query);
+    const int systemc_prediction = controller.predict_window(&eval_raw[0]);
     reference_encode_ngram(flat_cim, &eval_levels[0], eval_query);
     const int reference_prediction = reference_predict(ref_class_vectors, eval_query);
-    const int systemc_prediction = top.predict_ngram(&eval_levels[0]);
     if (reference_prediction != systemc_prediction) {
-        std::cerr << "Classifier mismatch." << std::endl;
+        std::cerr << "Prediction mismatch." << std::endl;
         return false;
     }
 
@@ -240,27 +278,40 @@ void print_eval_result(const char *name, const EvaluationResult &result) {
 
 int sc_main(int, char *[]) {
     hv_t flat_cim[NUM_LEVELS * NUM_FEATURES];
+    double flat_boundaries[NUM_FEATURES * ((NUM_LEVELS > 1) ? (NUM_LEVELS - 1) : 1)];
     level_t training_levels[TRAINING_SAMPLES * NUM_FEATURES];
     int training_labels[TRAINING_SAMPLES];
     level_t eval_levels[EVAL_SAMPLES * NUM_FEATURES];
     int eval_labels[EVAL_SAMPLES];
+    double training_raw[TRAINING_SAMPLES * NUM_FEATURES];
+    double eval_raw[EVAL_SAMPLES * NUM_FEATURES];
 
     build_demo_cim(flat_cim);
-    build_demo_dataset(training_levels, training_labels, eval_levels, eval_labels);
+    build_demo_boundaries(flat_boundaries);
+    build_demo_level_dataset(training_levels, training_labels, eval_levels, eval_labels);
+    build_demo_raw_dataset(training_levels, TRAINING_SAMPLES, flat_boundaries, training_raw);
+    build_demo_raw_dataset(eval_levels, EVAL_SAMPLES, flat_boundaries, eval_raw);
 
-    HdcTop top("hdc_top");
-    top.load_cim(flat_cim);
+    Controller controller("controller");
+    controller.load_cim(flat_cim);
+    controller.load_quantizer_boundaries(flat_boundaries);
 
-    if (!run_unit_checks(top, flat_cim, training_levels, training_labels, eval_levels)) {
+    if (!run_unit_checks(controller,
+                         flat_cim,
+                         training_levels,
+                         training_raw,
+                         training_labels,
+                         eval_levels,
+                         eval_raw)) {
         return EXIT_FAILURE;
     }
 
     const EvaluationResult training_result =
-        evaluate_dataset(top, training_levels, training_labels, TRAINING_SAMPLES);
+        controller.evaluate_dataset(training_raw, training_labels, TRAINING_SAMPLES);
     const EvaluationResult eval_result =
-        evaluate_dataset(top, eval_levels, eval_labels, EVAL_SAMPLES);
+        controller.evaluate_dataset(eval_raw, eval_labels, EVAL_SAMPLES);
 
-    std::cout << "SystemC HDC pipeline reference checks passed." << std::endl;
+    std::cout << "SystemC HDC controller/memory/accelerator checks passed." << std::endl;
     print_eval_result("Training", training_result);
     print_eval_result("Eval", eval_result);
 
