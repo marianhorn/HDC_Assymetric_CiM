@@ -46,6 +46,9 @@ int main(void) {
         struct timeseries_eval_result eval_post_val = {0};
         struct timeseries_eval_result eval_post_test = {0};
         char result_info[160];
+        
+        char quantizer_export_path[256];
+        char cim_export_path[256];
 
         quantizer_clear();
 
@@ -56,6 +59,15 @@ int main(void) {
 #if PRECOMPUTED_ITEM_MEMORY
         struct item_memory itemMem;
         init_precomp_item_memory(&itemMem, NUM_LEVELS, NUM_FEATURES);
+
+        snprintf(cim_export_path,
+                 sizeof(cim_export_path),
+                 "systemc_hdc/import/cim_dataset%02d.txt",
+                 dataset);
+        store_precomp_item_mem_to_systemc_text(&itemMem,
+                                               cim_export_path,
+                                               NUM_LEVELS,
+                                               NUM_FEATURES);
 
         struct encoder enc;
         init_encoder(&enc, &itemMem);
@@ -90,6 +102,15 @@ int main(void) {
                                         NUM_FEATURES,
                                         NUM_LEVELS) != 0) {
             fprintf(stderr, "Error: Failed to initialize quantizer for dataset %d.\n", dataset);
+            return EXIT_FAILURE;
+        }
+        
+        snprintf(quantizer_export_path,
+                 sizeof(quantizer_export_path),
+                 "systemc_hdc/import/quantizer_dataset%02d.txt",
+                 dataset);
+        if (quantizer_export_systemc_text(quantizer_export_path) != 0) {
+            fprintf(stderr, "Error: Failed to export quantizer for dataset %d.\n", dataset);
             return EXIT_FAILURE;
         }
 
