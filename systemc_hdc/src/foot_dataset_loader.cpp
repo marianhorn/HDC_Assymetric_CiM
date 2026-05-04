@@ -14,10 +14,10 @@ void build_dataset_paths(int dataset_id,
                          char *training_labels_path,
                          char *testing_emg_path,
                          char *testing_labels_path) {
-    std::snprintf(training_emg_path, 128, "foot/data/dataset%02d/training_emg.csv", dataset_id);
-    std::snprintf(training_labels_path, 128, "foot/data/dataset%02d/training_labels.csv", dataset_id);
-    std::snprintf(testing_emg_path, 128, "foot/data/dataset%02d/testing_emg.csv", dataset_id);
-    std::snprintf(testing_labels_path, 128, "foot/data/dataset%02d/testing_labels.csv", dataset_id);
+    std::snprintf(training_emg_path, 128, "../foot/data/dataset%02d/training_emg.csv", dataset_id);
+    std::snprintf(training_labels_path, 128, "../foot/data/dataset%02d/training_labels.csv", dataset_id);
+    std::snprintf(testing_emg_path, 128, "../foot/data/dataset%02d/testing_emg.csv", dataset_id);
+    std::snprintf(testing_labels_path, 128, "../foot/data/dataset%02d/testing_labels.csv", dataset_id);
 }
 
 DatasetSplit load_emg_split(const char *emg_path, const char *labels_path) {
