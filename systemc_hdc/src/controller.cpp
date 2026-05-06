@@ -370,8 +370,4 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     return result;
 }
 
-const hv_t &Controller::get_class_vector(unsigned class_id) const {
-    return m_memory.read_assoc_class(class_id);
-}
-
 } // namespace hdc_systemc
