@@ -30,6 +30,23 @@ bool is_comment_or_empty(const std::string &line) {
     return true;
 }
 
+int parse_header_int_field(const std::string &line, const char *key) {
+    const std::string pattern(key);
+    const std::string::size_type pos = line.find(pattern);
+    if (pos == std::string::npos) {
+        SC_REPORT_FATAL("HDC_Memory", "missing required header field");
+        return 0;
+    }
+
+    const std::string::size_type start = pos + pattern.size();
+    std::string::size_type end = start;
+    while (end < line.size() && line[end] != ' ' && line[end] != '\t' && line[end] != '\r' && line[end] != '\n') {
+        ++end;
+    }
+
+    return std::atoi(line.substr(start, end - start).c_str());
+}
+
 } // namespace
 
 HDC_Memory::HDC_Memory(sc_core::sc_module_name name)
@@ -79,10 +96,30 @@ void HDC_Memory::load_cim_text(const char *path) {
     }
 
     std::string line;
+    bool header_checked = false;
     int loaded_count = 0;
     while (std::getline(file, line)) {
+        if (line.find("#systemc_precomp_cim") != std::string::npos) {
+            const int header_levels = parse_header_int_field(line, "num_levels=");
+            const int header_features = parse_header_int_field(line, "num_features=");
+            const int header_dimension = parse_header_int_field(line, "dimension=");
+            if (header_levels != NUM_LEVELS) {
+                SC_REPORT_FATAL("HDC_Memory", "CiM header num_levels does not match config_systemc.h");
+            }
+            if (header_features != NUM_FEATURES) {
+                SC_REPORT_FATAL("HDC_Memory", "CiM header num_features does not match config_systemc.h");
+            }
+            if (header_dimension != VECTOR_DIMENSION) {
+                SC_REPORT_FATAL("HDC_Memory", "CiM header dimension does not match config_systemc.h");
+            }
+            header_checked = true;
+            continue;
+        }
         if (is_comment_or_empty(line)) {
             continue;
+        }
+        if (!header_checked) {
+            SC_REPORT_FATAL("HDC_Memory", "CiM text file header missing or not checked before data");
         }
 
         std::istringstream iss(line);
@@ -165,10 +202,26 @@ void HDC_Memory::load_quantizer_text(const char *path) {
     }
 
     std::string line;
+    bool header_checked = false;
     int loaded_count = 0;
     while (std::getline(file, line)) {
+        if (line.find("#systemc_quantizer") != std::string::npos) {
+            const int header_levels = parse_header_int_field(line, "num_levels=");
+            const int header_features = parse_header_int_field(line, "num_features=");
+            if (header_levels != NUM_LEVELS) {
+                SC_REPORT_FATAL("HDC_Memory", "quantizer header num_levels does not match config_systemc.h");
+            }
+            if (header_features != NUM_FEATURES) {
+                SC_REPORT_FATAL("HDC_Memory", "quantizer header num_features does not match config_systemc.h");
+            }
+            header_checked = true;
+            continue;
+        }
         if (is_comment_or_empty(line)) {
             continue;
+        }
+        if (!header_checked) {
+            SC_REPORT_FATAL("HDC_Memory", "quantizer text file header missing or not checked before data");
         }
 
         std::istringstream iss(line);
