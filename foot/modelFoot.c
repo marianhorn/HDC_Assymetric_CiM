@@ -60,14 +60,14 @@ int main(void) {
         struct item_memory itemMem;
         init_precomp_item_memory(&itemMem, NUM_LEVELS, NUM_FEATURES);
 
-        snprintf(cim_export_path,
-                 sizeof(cim_export_path),
-                 "systemc_hdc/import/cim_dataset%02d.txt",
-                 dataset);
-        store_precomp_item_mem_to_systemc_text(&itemMem,
-                                               cim_export_path,
-                                               NUM_LEVELS,
-                                               NUM_FEATURES);
+        /* snprintf(cim_export_path,
+                  sizeof(cim_export_path),
+                  "systemc_hdc/import/cim_dataset%02d.txt",
+                  dataset);
+         store_precomp_item_mem_to_systemc_text(&itemMem,
+                                                cim_export_path,
+                                                NUM_LEVELS,
+                                                NUM_FEATURES); */
 
         struct encoder enc;
         init_encoder(&enc, &itemMem);
@@ -105,14 +105,14 @@ int main(void) {
             return EXIT_FAILURE;
         }
         
-        snprintf(quantizer_export_path,
-                 sizeof(quantizer_export_path),
-                 "systemc_hdc/import/quantizer_dataset%02d.txt",
-                 dataset);
-        if (quantizer_export_systemc_text(quantizer_export_path) != 0) {
-            fprintf(stderr, "Error: Failed to export quantizer for dataset %d.\n", dataset);
-            return EXIT_FAILURE;
-        }
+        /* snprintf(quantizer_export_path,
+                  sizeof(quantizer_export_path),
+                  "systemc_hdc/import/quantizer_dataset%02d.txt",
+                  dataset);
+         if (quantizer_export_systemc_text(quantizer_export_path) != 0) {
+             fprintf(stderr, "Error: Failed to export quantizer for dataset %d.\n", dataset);
+             return EXIT_FAILURE;
+         } */
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
 
