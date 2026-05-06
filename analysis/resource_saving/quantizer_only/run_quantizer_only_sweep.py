@@ -168,6 +168,30 @@ def parse_binning_modes(text):
     return deduped
 
 
+def parse_seeds(text):
+    requested = [part.strip() for part in text.split(',') if part.strip()]
+    if not requested:
+        raise ValueError('At least one seed must be provided.')
+
+    seeds = []
+    for entry in requested:
+        try:
+            seed = int(entry)
+        except ValueError as exc:
+            raise ValueError(f'Invalid seed value: {entry}') from exc
+        if seed <= 0:
+            raise ValueError(f'Seed must be positive: {seed}')
+        seeds.append(seed)
+
+    deduped = []
+    seen = set()
+    for seed in seeds:
+        if seed not in seen:
+            deduped.append(seed)
+            seen.add(seed)
+    return deduped
+
+
 def run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
     seed_dir = os.path.join(RUNS_DIR, f'binning_mode_{mode_name}', f'seed_{item_mem_seed:02d}')
     logs_dir = os.path.join(seed_dir, 'logs')
@@ -273,9 +297,15 @@ def main():
         action='store_true',
         help='Do not delete old logs/results in existing seed folders.',
     )
+    parser.add_argument(
+        '--seeds',
+        default=','.join(str(seed) for seed in SEEDS),
+        help='Comma-separated item-memory seeds to run, for example: 1,2,3',
+    )
     args = parser.parse_args()
 
     selected_modes = parse_binning_modes(args.binning_modes)
+    selected_seeds = parse_seeds(args.seeds)
     num_levels_values = build_num_levels()
     vector_dimensions = build_vector_dimensions()
     make_cmd_name = choose_make_command()
@@ -285,11 +315,11 @@ def main():
     print(f'Repo root: {REPO_ROOT}')
     print(f'Runs folder: {RUNS_DIR}')
     print(f'Binning modes: {selected_modes}')
-    print(f'Seeds: {SEEDS}')
+    print(f'Seeds: {selected_seeds}')
     print(f'Configurations per seed: {len(num_levels_values) * len(vector_dimensions)}')
 
     for mode_name, mode_value in selected_modes:
-        for item_mem_seed in SEEDS:
+        for item_mem_seed in selected_seeds:
             run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
 
     print('\nFinished all quantizer-only resource-saving sweeps.')
