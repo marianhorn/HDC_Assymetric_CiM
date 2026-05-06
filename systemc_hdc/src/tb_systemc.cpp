@@ -33,8 +33,8 @@ int sc_main(int, char *[]) {
         std::snprintf(quantizer_path, sizeof(quantizer_path), "import/quantizer_dataset%02d.txt", dataset);
 
         Controller controller(sc_core::sc_gen_unique_name("controller"));
-        controller.load_cim_file(cim_path);
-        controller.load_quantizer_file(quantizer_path);
+        controller.load_cim(cim_path);
+        controller.load_quantizer(quantizer_path);
 
         const FootDataset real_dataset = load_foot_dataset_by_id(dataset);
         controller.train_dataset(real_dataset.training.raw_data(),

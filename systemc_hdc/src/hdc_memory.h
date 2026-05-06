@@ -11,16 +11,18 @@ public:
     SC_CTOR(HDC_Memory);
 
     void clear_all();
-    //Wrapper for memory loader
-    void load_cim_flat(const hv_t *flat_cim);
-    void load_cim_text(const char *path);
-    void load_quantizer_boundaries(const double *flat_boundaries);
-    void load_quantizer_text(const char *path);
     
+    //CIM
+    void set_cim(const hv_t *flat_cim);
     const hv_t &read_cim(level_t level, unsigned feature) const;
+
+//Quantizer
+    void set_quantizer_boundaries(const double *flat_boundaries);
     level_t quantize_value(unsigned feature, double value) const;
     void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;
     void clear_assoc_mem();
+    
+    //Associative Memory
     void write_assoc_class(unsigned class_id, const hv_t &class_hv);
     const hv_t &read_assoc_class(unsigned class_id) const;
 

@@ -12,10 +12,8 @@ SC_MODULE(Controller) {
 public:
     SC_CTOR(Controller);
 
-    void load_cim(const hv_t *flat_cim);
-    void load_cim_file(const char *path);
-    void load_quantizer_boundaries(const double *flat_boundaries);
-    void load_quantizer_file(const char *path);
+    void load_cim(const char *path);
+    void load_quantizer(const char *path);
     void reset_assoc_mem();
     void quantize_window(const double *raw_window, level_t *quantized_window) const;
     void encode_window(const double *raw_window, hv_t &encoded) const;
