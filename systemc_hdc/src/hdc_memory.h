@@ -11,20 +11,20 @@ public:
     SC_CTOR(HDC_Memory);
 
     void clear_all();
-    
+
     //CIM
     void set_cim(const hv_t *flat_cim);
     const hv_t &read_cim(level_t level, unsigned feature) const;
 
-//Quantizer
+    //Quantizer
     void set_quantizer_boundaries(const double *flat_boundaries);
-    level_t quantize_value(unsigned feature, double value) const;
-    void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;
-    void clear_assoc_mem();
+    const double *read_quantizer_row(unsigned feature) const;
+
     
     //Associative Memory
     void write_assoc_class(unsigned class_id, const hv_t &class_hv);
     const hv_t &read_assoc_class(unsigned class_id) const;
+    void clear_assoc_mem();
 
 private:
     hv_t m_cim[NUM_LEVELS * NUM_FEATURES];

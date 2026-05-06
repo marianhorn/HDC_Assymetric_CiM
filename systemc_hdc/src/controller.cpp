@@ -210,7 +210,35 @@ void Controller::quantize_window(const double *raw_window, level_t *quantized_wi
     }
 
     for (int i = 0; i < N_GRAM_SIZE; ++i) {
-        m_memory.quantize_sample(&raw_window[i * NUM_FEATURES], &quantized_window[i * NUM_FEATURES]);
+        quantize_sample(&raw_window[i * NUM_FEATURES], &quantized_window[i * NUM_FEATURES]);
+    }
+}
+
+level_t Controller::quantize_value(unsigned feature, double value) const {
+    if (feature >= static_cast<unsigned>(NUM_FEATURES)) {
+        SC_REPORT_FATAL("Controller", "quantize_value feature index out of range");
+        return 0;
+    }
+    if (NUM_LEVELS <= 1) {
+        return 0;
+    }
+
+    const double *boundaries = m_memory.read_quantizer_row(feature);
+    for (int cut = 0; cut < NUM_LEVELS - 1; ++cut) {
+        if (value <= boundaries[cut]) {
+            return static_cast<unsigned>(cut);
+        }
+    }
+    return static_cast<unsigned>(NUM_LEVELS - 1);
+}
+
+void Controller::quantize_sample(const double *raw_sample, level_t *quantized_sample) const {
+    if (raw_sample == 0 || quantized_sample == 0) {
+        SC_REPORT_FATAL("Controller", "quantize_sample inputs must not be null");
+    }
+
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        quantized_sample[feature] = quantize_value(static_cast<unsigned>(feature), raw_sample[feature]);
     }
 }
 

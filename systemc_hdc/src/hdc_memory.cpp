@@ -63,6 +63,22 @@ void HDC_Memory::set_quantizer_boundaries(const double *flat_boundaries) {
     m_quantizer_loaded = true;
 }
 
+const double *HDC_Memory::read_quantizer_row(unsigned feature) const {
+    if (feature >= static_cast<unsigned>(NUM_FEATURES)) {
+        SC_REPORT_FATAL("HDC_Memory", "quantizer feature index out of range");
+        return 0;
+    }
+    if (!m_quantizer_loaded) {
+        SC_REPORT_FATAL("HDC_Memory", "quantizer requested before load");
+        return 0;
+    }
+    if (NUM_LEVELS <= 1) {
+        return m_quantizer_boundaries;
+    }
+
+    return &m_quantizer_boundaries[feature * (NUM_LEVELS - 1)];
+}
+
 const hv_t &HDC_Memory::read_cim(level_t level, unsigned feature) const {
     if (!m_cim_loaded) {
         SC_REPORT_FATAL("HDC_Memory", "CiM requested before load");
@@ -80,50 +96,6 @@ const hv_t &HDC_Memory::read_cim(level_t level, unsigned feature) const {
     }
 
     return m_cim[(level_index * NUM_FEATURES) + static_cast<int>(feature)];
-}
-
-level_t HDC_Memory::quantize_value(unsigned feature, double value) const {
-    if (feature >= static_cast<unsigned>(NUM_FEATURES)) {
-        SC_REPORT_FATAL("HDC_Memory", "feature index out of range");
-        return 0;
-    }
-    if (NUM_LEVELS <= 1) {
-        return 0;
-    }
-    if (!m_quantizer_loaded) {
-        SC_REPORT_FATAL("HDC_Memory", "quantizer requested before load");
-        return 0;
-    }
-
-    const double *boundaries = &m_quantizer_boundaries[feature * (NUM_LEVELS - 1)];
-    if (value <= boundaries[0]) {
-        return 0;
-    }
-    if (value > boundaries[NUM_LEVELS - 2]) {
-        return NUM_LEVELS - 1;
-    }
-
-    int lo = 0;
-    int hi = NUM_LEVELS - 2;
-    while (lo < hi) {
-        const int mid = lo + (hi - lo) / 2;
-        if (value <= boundaries[mid]) {
-            hi = mid;
-        } else {
-            lo = mid + 1;
-        }
-    }
-    return static_cast<unsigned>(lo);
-}
-
-void HDC_Memory::quantize_sample(const double *raw_sample, level_t *quantized_sample) const {
-    if (raw_sample == 0 || quantized_sample == 0) {
-        SC_REPORT_FATAL("HDC_Memory", "quantize_sample inputs must not be null");
-    }
-
-    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
-        quantized_sample[feature] = quantize_value(static_cast<unsigned>(feature), raw_sample[feature]);
-    }
 }
 
 void HDC_Memory::clear_assoc_mem() {

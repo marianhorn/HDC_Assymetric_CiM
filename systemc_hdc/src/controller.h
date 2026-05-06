@@ -25,6 +25,8 @@ public:
 
 private:
     bool is_window_stable(const int *labels) const;
+    level_t quantize_value(unsigned feature, double value) const;
+    void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;
     int mode_smallest_tie(const int *labels, int size) const;
 
     HDC_Memory m_memory;
