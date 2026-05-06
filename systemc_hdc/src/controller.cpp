@@ -4,26 +4,11 @@ namespace hdc_systemc {
 
 namespace {
 
-bool get_bit(const hv_t &hv, int index) {
-    return hv[index].to_bool();
-}
-
-void set_bit(hv_t &hv, int index, bool value) {
-    hv[index] = value ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
-}
-
-void clear_hv(hv_t &hv) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        hv[d] = sc_dt::SC_LOGIC_0;
-    }
-}
-
 } // namespace
 
 Controller::Controller(sc_core::sc_module_name name)
     : sc_module(name), m_memory("hdc_memory"), m_accelerator("hdc_accelerator") {
     m_accelerator.bind_memory(&m_memory);
-    reset_training_buffers();
 }
 
 void Controller::load_cim(const hv_t *flat_cim) {
@@ -44,7 +29,7 @@ void Controller::load_quantizer_file(const char *path) {
 
 void Controller::reset_assoc_mem() {
     m_memory.clear_assoc_mem();
-    reset_training_buffers();
+    m_accelerator.reset_training_state();
 }
 
 void Controller::quantize_window(const double *raw_window, level_t *quantized_window) const {
@@ -91,40 +76,6 @@ bool Controller::is_window_stable(const int *labels) const {
     return labels[0] == labels[N_GRAM_SIZE - 1];
 }
 
-void Controller::reset_training_buffers() {
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        m_class_counts[class_id] = 0;
-        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-            m_class_bit_counts[class_id][d] = 0;
-        }
-    }
-}
-
-void Controller::accumulate_class_vector(int class_id, const hv_t &encoded_ngram) {
-    if (class_id < 0 || class_id >= NUM_CLASSES) {
-        return;
-    }
-
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        if (get_bit(encoded_ngram, d)) {
-            m_class_bit_counts[class_id][d] = m_class_bit_counts[class_id][d] + 1;
-        }
-    }
-    m_class_counts[class_id] = m_class_counts[class_id] + 1;
-}
-
-void Controller::finalize_assoc_mem() {
-    hv_t class_vector;
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        clear_hv(class_vector);
-        const train_counter_t threshold = m_class_counts[class_id] / 2;
-        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-            set_bit(class_vector, d, m_class_bit_counts[class_id][d] >= threshold);
-        }
-        m_memory.write_assoc_class(static_cast<unsigned>(class_id), class_vector);
-    }
-}
-
 void Controller::train_dataset(const double *raw_data, const int *labels, int num_samples) {
     if (raw_data == 0 || labels == 0) {
         SC_REPORT_FATAL("Controller", "training data and labels must not be null");
@@ -137,13 +88,13 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
         if (is_window_stable(&labels[j])) {
             const int class_id = labels[j];
             encode_window(&raw_data[j * NUM_FEATURES], encoded_ngram);
-            accumulate_class_vector(class_id, encoded_ngram);
+            m_accelerator.accumulate_class_vector(class_id, encoded_ngram);
         } else {
             j += (N_GRAM_SIZE - 1);
         }
     }
 
-    finalize_assoc_mem();
+    m_accelerator.finalize_assoc_mem();
 }
 
 int Controller::mode_smallest_tie(const int *labels, int size) const {
@@ -221,10 +172,6 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
 
 const hv_t &Controller::get_class_vector(unsigned class_id) const {
     return m_memory.read_assoc_class(class_id);
-}
-
-const HDC_Memory &Controller::get_memory() const {
-    return m_memory;
 }
 
 } // namespace hdc_systemc

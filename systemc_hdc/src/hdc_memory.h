@@ -11,10 +11,12 @@ public:
     SC_CTOR(HDC_Memory);
 
     void clear_all();
+    //Wrapper for memory loader
     void load_cim_flat(const hv_t *flat_cim);
     void load_cim_text(const char *path);
     void load_quantizer_boundaries(const double *flat_boundaries);
     void load_quantizer_text(const char *path);
+    
     const hv_t &read_cim(level_t level, unsigned feature) const;
     level_t quantize_value(unsigned feature, double value) const;
     void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;

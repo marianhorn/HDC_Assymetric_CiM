@@ -18,6 +18,12 @@ void xor_hv(const hv_t &lhs, const hv_t &rhs, hv_t &dst) {
     }
 }
 
+void clear_hv(hv_t &hv) {
+    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        hv[d] = sc_dt::SC_LOGIC_0;
+    }
+}
+
 void permute_right(const hv_t &src, unsigned shift, hv_t &dst) {
     const unsigned effective_shift = shift % VECTOR_DIMENSION;
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
@@ -29,10 +35,50 @@ void permute_right(const hv_t &src, unsigned shift, hv_t &dst) {
 } // namespace
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
-    : sc_module(name), m_memory(0) {}
+    : sc_module(name), m_memory(0) {
+    reset_training_state();
+}
 
-void HDC_Accelerator::bind_memory(const HDC_Memory *memory) {
+void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
     m_memory = memory;
+}
+
+void HDC_Accelerator::reset_training_state() {
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_class_counts[class_id] = 0;
+        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+            m_class_bit_counts[class_id][d] = 0;
+        }
+    }
+}
+
+void HDC_Accelerator::accumulate_class_vector(int class_id, const hv_t &encoded_ngram) {
+    if (class_id < 0 || class_id >= NUM_CLASSES) {
+        return;
+    }
+
+    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        if (get_bit(encoded_ngram, d)) {
+            m_class_bit_counts[class_id][d] = m_class_bit_counts[class_id][d] + 1;
+        }
+    }
+    m_class_counts[class_id] = m_class_counts[class_id] + 1;
+}
+
+void HDC_Accelerator::finalize_assoc_mem() {
+    if (m_memory == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
+    }
+
+    hv_t class_vector;
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        clear_hv(class_vector);
+        const train_counter_t threshold = m_class_counts[class_id] / 2;
+        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+            set_bit(class_vector, d, m_class_bit_counts[class_id][d] >= threshold);
+        }
+        m_memory->write_assoc_class(static_cast<unsigned>(class_id), class_vector);
+    }
 }
 
 void HDC_Accelerator::encode_timestamp(const level_t *quantized_sample, hv_t &encoded_timestamp) const {
