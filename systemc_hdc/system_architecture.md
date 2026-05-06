@@ -1,5 +1,69 @@
 # SystemC HDC Architecture
 
+## Current Diagram
+
+```mermaid
+flowchart TD
+    TB[tb_systemc.cpp]
+    DL[foot_dataset_loader]
+    CTRL[Controller]
+    MEM[HDC_Memory]
+    ACC[HDC_Accelerator]
+
+    CIF["import/cim_datasetXX.txt"]
+    QIF["import/quantizer_datasetXX.txt"]
+    TR["../foot/data/datasetXX/training_emg.csv<br/>training_labels.csv"]
+    TE["../foot/data/datasetXX/testing_emg.csv<br/>testing_labels.csv"]
+
+    CIM["CiM[level][feature] -> hv"]
+    QTZ["QuantizerBoundaries[feature][cut]"]
+    AM["AssocMem[class] -> hv"]
+
+    TB --> CTRL
+    TB --> DL
+    TB --> CIF
+    TB --> QIF
+    TB --> TR
+    TB --> TE
+
+    CTRL -->|load_cim_file| MEM
+    CTRL -->|load_quantizer_file| MEM
+    CIF --> MEM
+    QIF --> MEM
+
+    DL -->|training split| CTRL
+    DL -->|testing split| CTRL
+    TR --> DL
+    TE --> DL
+
+    CTRL -->|quantize window| MEM
+    CTRL -->|encode / classify| ACC
+    ACC -->|read CiM| MEM
+    ACC -->|read class vectors| MEM
+    CTRL -->|write trained class vectors| MEM
+
+    MEM --> CIM
+    MEM --> QTZ
+    MEM --> AM
+```
+
+### Training / Inference View
+
+```mermaid
+flowchart LR
+    RAW[Raw CSV samples] --> CTRL[Controller]
+    CTRL -->|quantize_sample| MEM[HDC_Memory]
+    MEM -->|quantized window| CTRL
+    CTRL -->|encode window| ACC[HDC_Accelerator]
+    ACC -->|read CiM| MEM
+    ACC -->|encoded hv| CTRL
+    CTRL -->|bundle/train per class| AMW[Class bit counters]
+    AMW -->|finalize| MEM
+    MEM -->|AssocMem class vector| ACC
+    CTRL -->|classify window| ACC
+    ACC -->|distance per class| CTRL
+```
+
 ## Goal
 This document defines the target modular architecture for the SystemC implementation of the current HDC pipeline.
 
