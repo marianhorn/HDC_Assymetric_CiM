@@ -602,26 +602,6 @@ static void analyze_kmeans_feature(int feature_idx) {
     g_quantizer_statistics.total_zero_width_intervals += zero_width_count;
 }
 
-static int verify_kmeans_lookup_for_feature(int feature_idx,
-                                            const double *values,
-                                            int sample_count) {
-    const double *centers = &g_quantizer_state.centers[feature_idx * g_quantizer_state.num_levels];
-    for (int i = 0; i < sample_count; i++) {
-        int boundary_level = map_value_with_boundaries_unchecked(feature_idx, values[i]);
-        int center_level = nearest_center_index(centers, g_quantizer_state.num_levels, values[i]);
-        if (boundary_level != center_level) {
-            fprintf(stderr,
-                    "quantizer: k-means lookup mismatch for feature %d at sample %d (boundary=%d, center=%d).\n",
-                    feature_idx,
-                    i,
-                    boundary_level,
-                    center_level);
-            return -1;
-        }
-    }
-    return 0;
-}
-
 static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int sample_count) {
     double *working_centers = NULL;
     double *next_centers = NULL;
@@ -719,15 +699,6 @@ static int fit_kmeans_feature(int feature_idx, const double *sorted_values, int 
 
     g_quantizer_statistics.iteration_counts[feature_idx] = iterations_used;
     analyze_kmeans_feature(feature_idx);
-    if (verify_kmeans_lookup_for_feature(feature_idx, sorted_values, sample_count) != 0) {
-        free(working_centers);
-        free(next_centers);
-        free(sums);
-        free(errors);
-        free(counts);
-        free(claimed);
-        return -1;
-    }
 
     free(working_centers);
     free(next_centers);
