@@ -2,10 +2,10 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 1024 // hypervector dimension
+#define VECTOR_DIMENSION 15000 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 30 // number of quantization levels
+#define NUM_LEVELS 80 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -44,10 +44,10 @@
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
-#define OUTPUT_MODE OUTPUT_DETAILED // output verbosity level
+#define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
 #endif
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
@@ -67,7 +67,7 @@
 #define GA_DEFAULT_POPULATION_SIZE 128 // GA population size
 #endif
 #ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 128 // GA generations
+#define GA_DEFAULT_GENERATIONS 64 // GA generations
 #endif
 #ifndef GA_DEFAULT_CROSSOVER_RATE
 #define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate
@@ -107,13 +107,13 @@
 #define GA_BINNING_ALPHA 1.0 // inverse-width strength for GA-refined quantizer
 #endif
 #ifndef GA_CROSSOVER_ALPHA
-#define GA_CROSSOVER_ALPHA 0.8 // schedule curvature for custom crossover chunk size
+#define GA_CROSSOVER_ALPHA 1 // schedule curvature for custom crossover chunk size
 #endif
 #ifndef GA_CROSSOVER_CHUNK_WIDTH
 #define GA_CROSSOVER_CHUNK_WIDTH 0.2 // relative random width around scheduled chunk size
 #endif
 #ifndef GA_MUTATION_BETA
-#define GA_MUTATION_BETA 0.8 // schedule curvature for custom mutation step size
+#define GA_MUTATION_BETA 0 // schedule curvature for custom mutation step size
 #endif
 
 extern int output_mode;

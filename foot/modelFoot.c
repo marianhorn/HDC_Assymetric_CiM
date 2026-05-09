@@ -48,7 +48,6 @@ int main(void) {
         char result_info[160];
         
         char quantizer_export_path[256];
-        char cim_export_path[256];
 
         quantizer_clear();
 
@@ -59,15 +58,6 @@ int main(void) {
 #if PRECOMPUTED_ITEM_MEMORY
         struct item_memory itemMem;
         init_precomp_item_memory(&itemMem, NUM_LEVELS, NUM_FEATURES);
-
-        /* snprintf(cim_export_path,
-                  sizeof(cim_export_path),
-                  "systemc_hdc/import/cim_dataset%02d.txt",
-                  dataset);
-         store_precomp_item_mem_to_systemc_text(&itemMem,
-                                                cim_export_path,
-                                                NUM_LEVELS,
-                                                NUM_FEATURES); */
 
         struct encoder enc;
         init_encoder(&enc, &itemMem);

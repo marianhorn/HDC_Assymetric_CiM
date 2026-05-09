@@ -108,7 +108,7 @@ def init_manifest(manifest_path):
                 "run_index",
                 "total_runs",
                 "timestamp",
-                "item_mem_seed",
+                "ga_seed",
                 "num_levels",
                 "vector_dimension",
                 "use_genetic_item_memory",
@@ -120,7 +120,7 @@ def init_manifest(manifest_path):
         )
 
 
-def append_manifest(manifest_path, run_index, total_runs, item_mem_seed, num_levels, vector_dimension, log_file, duration_sec):
+def append_manifest(manifest_path, run_index, total_runs, ga_seed, num_levels, vector_dimension, log_file, duration_sec):
     with open(manifest_path, "a", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -128,7 +128,7 @@ def append_manifest(manifest_path, run_index, total_runs, item_mem_seed, num_lev
                 run_index,
                 total_runs,
                 datetime.now().isoformat(),
-                item_mem_seed,
+                ga_seed,
                 num_levels,
                 vector_dimension,
                 1,
@@ -140,12 +140,12 @@ def append_manifest(manifest_path, run_index, total_runs, item_mem_seed, num_lev
         )
 
 
-def append_combined(combined_output_path, log_path, run_index, total_runs, item_mem_seed, num_levels, vector_dimension):
+def append_combined(combined_output_path, log_path, run_index, total_runs, ga_seed, num_levels, vector_dimension):
     with open(combined_output_path, "a", encoding="utf-8") as out_f:
         out_f.write(
             "\n===== "
             f"run={run_index}/{total_runs}, "
-            f"ITEM_MEM_SEED={item_mem_seed}, "
+            f"GA_DEFAULT_SEED={ga_seed}, "
             f"NUM_LEVELS={num_levels}, VECTOR_DIMENSION={vector_dimension}, "
             "USE_GENETIC_ITEM_MEMORY=1, BINNING_MODE=0, OUTPUT_MODE=2"
             " =====\n"
@@ -154,8 +154,8 @@ def append_combined(combined_output_path, log_path, run_index, total_runs, item_
             shutil.copyfileobj(in_f, out_f)
 
 
-def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
-    seed_dir = os.path.join(RUNS_DIR, f"seed_{item_mem_seed:02d}")
+def run_seed_sweep(ga_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
+    seed_dir = os.path.join(RUNS_DIR, f"seed_{ga_seed:02d}")
     logs_dir = os.path.join(seed_dir, "logs")
     combined_output_path = os.path.join(seed_dir, "output_all.txt")
     manifest_path = os.path.join(seed_dir, "run_manifest.csv")
@@ -169,7 +169,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
     runs = [(num_levels, vector_dimension) for num_levels in num_levels_values for vector_dimension in vector_dimensions]
     total_runs = len(runs)
 
-    print(f"\nSeed {item_mem_seed}")
+    print(f"\nSeed {ga_seed}")
     print(f"Output folder: {seed_dir}")
 
     for run_index, (num_levels, vector_dimension) in enumerate(runs, start=1):
@@ -177,7 +177,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
         log_path = os.path.join(logs_dir, log_name)
 
         print(
-            f"[seed {item_mem_seed:02d}] "
+            f"[seed {ga_seed:02d}] "
             f"[{run_index}/{total_runs}] "
             f"NUM_LEVELS={num_levels} VECTOR_DIMENSION={vector_dimension}"
         )
@@ -187,7 +187,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
             log_file.write(
                 "=== cim-only resource-saving run ===\n"
                 f"timestamp={datetime.now().isoformat()}\n"
-                f"ITEM_MEM_SEED={item_mem_seed}\n"
+                f"GA_DEFAULT_SEED={ga_seed}\n"
                 f"NUM_LEVELS={num_levels}\n"
                 f"VECTOR_DIMENSION={vector_dimension}\n"
                 "USE_GENETIC_ITEM_MEMORY=1\n"
@@ -203,7 +203,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
                 "USE_GENETIC_ITEM_MEMORY=1",
                 "BINNING_MODE=0",
                 "OUTPUT_MODE=2",
-                f"ITEM_MEM_SEED={item_mem_seed}",
+                f"GA_DEFAULT_SEED={ga_seed}",
                 f"NUM_LEVELS={num_levels}",
                 f"VECTOR_DIMENSION={vector_dimension}",
                 f"RESULT_CSV_PATH={results_rel}",
@@ -222,7 +222,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
             manifest_path,
             run_index,
             total_runs,
-            item_mem_seed,
+            ga_seed,
             num_levels,
             vector_dimension,
             log_name,
@@ -233,7 +233,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
             log_path,
             run_index,
             total_runs,
-            item_mem_seed,
+            ga_seed,
             num_levels,
             vector_dimension,
         )
@@ -251,7 +251,7 @@ def main():
     parser.add_argument(
         "--seeds",
         default=",".join(str(seed) for seed in SEEDS),
-        help="Comma-separated item-memory seeds to run, for example: 1,2,3",
+        help="Comma-separated GA seeds to run, for example: 1,2,3",
     )
     args = parser.parse_args()
 
@@ -267,8 +267,8 @@ def main():
     print(f"Seeds: {selected_seeds}")
     print(f"Configurations per seed: {len(num_levels_values) * len(vector_dimensions)}")
 
-    for item_mem_seed in selected_seeds:
-        run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
+    for ga_seed in selected_seeds:
+        run_seed_sweep(ga_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
 
     print("\nFinished all cim-only resource-saving sweeps.")
 

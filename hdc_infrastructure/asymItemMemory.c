@@ -22,7 +22,13 @@
 #include <omp.h>
 #endif
 
+#ifndef GA_CIM_EXPORT_ENABLED
+#define GA_CIM_EXPORT_ENABLED 0
+#endif
+
+#if GA_CIM_EXPORT_ENABLED
 static int g_cim_export_run_counter = 0;
+#endif
 
 void init_ga_params(struct ga_params *params) {
     if (!params) {
@@ -611,6 +617,7 @@ struct ga_eval_context {
     const char *export_label;
 };
 
+#if GA_CIM_EXPORT_ENABLED
 static int create_directory_if_missing(const char *path) {
     if (!path || path[0] == '\0') {
         return -1;
@@ -805,6 +812,7 @@ static void export_continuous_cim_csv(const struct item_memory *signal_mem,
     fclose(file);
 }
 #endif
+#endif
 
 static double evaluate_candidate(const uint16_t *B,
                                  const struct ga_eval_context *ctx,
@@ -813,6 +821,11 @@ static double evaluate_candidate(const uint16_t *B,
                                  int export_candidate_index,
                                  double *out_accuracy,
                                  double *out_similarity) {
+#if !GA_CIM_EXPORT_ENABLED
+    (void)export_run_dir;
+    (void)export_generation;
+    (void)export_candidate_index;
+#endif
     if (!ctx || !ctx->training_data || !ctx->training_labels || ctx->training_samples <= N_GRAM_SIZE) {
         if (out_accuracy) {
             *out_accuracy = 0.0;
@@ -890,6 +903,7 @@ static double evaluate_candidate(const uint16_t *B,
     }
     double fitness = eval_result.class_average_accuracy - eval_result.class_vector_similarity;
 
+    #if GA_CIM_EXPORT_ENABLED
     if (export_run_dir) {
         export_precomputed_cim_csv(&item_mem,
                                    ctx,
@@ -899,6 +913,7 @@ static double evaluate_candidate(const uint16_t *B,
                                    eval_result.class_average_accuracy,
                                    eval_result.class_vector_similarity);
     }
+    #endif
 
     free_item_memory(&item_mem);
     free_assoc_mem(&assoc_mem);
@@ -969,6 +984,7 @@ static double evaluate_candidate(const uint16_t *B,
         *out_similarity = similarity;
     }
 
+    #if GA_CIM_EXPORT_ENABLED
     if (export_run_dir) {
         export_continuous_cim_csv(&signal_mem,
                                   ctx,
@@ -978,6 +994,7 @@ static double evaluate_candidate(const uint16_t *B,
                                   accuracy,
                                   similarity);
     }
+    #endif
 
     free(b_levels);
     free_assoc_mem(&assoc_mem);
@@ -1442,8 +1459,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
         adaptive_mutation_step_schedule = build_adaptive_mutation_step_schedule_or_die(transitions, params->generations);
     }
 
-    char export_run_dir[512];
     const char *active_export_run_dir = NULL;
+#if GA_CIM_EXPORT_ENABLED
+    char export_run_dir[512];
     if (init_cim_export_run_dir(ctx.export_label, export_run_dir, sizeof(export_run_dir)) == 0 &&
         create_generation_export_dirs(export_run_dir, params->generations) == 0) {
         active_export_run_dir = export_run_dir;
@@ -1453,6 +1471,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     } else {
         fprintf(stderr, "Warning: GA CiM export disabled for this GA run.\n");
     }
+#endif
 
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
