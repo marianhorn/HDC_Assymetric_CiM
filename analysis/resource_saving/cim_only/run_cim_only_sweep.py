@@ -47,7 +47,6 @@ def build_vector_dimensions():
     dims.extend(range(201, 1000, 50))
     dims.append(1000)
     dims.extend(range(1500, 10001, 500))
-    dims.extend(range(11000, 20001, 1000))
     return sorted(set(dims))
 
 
