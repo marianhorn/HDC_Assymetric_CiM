@@ -20,10 +20,8 @@ public:
 private:
     void reset_assoc_mem();
     void quantize_window(const double *raw_window, level_t *quantized_window) const;
-    void encode_window(const double *raw_window, hv_t &encoded) const;
     void classify_window(const double *raw_window, distance_counter_t *distances) const;
     int predict_window(const double *raw_window) const;
-    bool is_window_stable(const int *labels) const;
     level_t quantize_value(unsigned feature, double value) const;
     void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;
     int mode_smallest_tie(const int *labels, int size) const;

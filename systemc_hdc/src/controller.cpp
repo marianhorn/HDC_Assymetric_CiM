@@ -242,12 +242,6 @@ void Controller::quantize_sample(const double *raw_sample, level_t *quantized_sa
     }
 }
 
-void Controller::encode_window(const double *raw_window, hv_t &encoded) const {
-    level_t quantized_window[N_GRAM_SIZE * NUM_FEATURES];
-    quantize_window(raw_window, quantized_window);
-    m_accelerator.encode(quantized_window, encoded);
-}
-
 void Controller::classify_window(const double *raw_window, distance_counter_t *distances) const {
     level_t quantized_window[N_GRAM_SIZE * NUM_FEATURES];
     quantize_window(raw_window, quantized_window);
@@ -269,13 +263,6 @@ int Controller::predict_window(const double *raw_window) const {
     return best_class;
 }
 
-bool Controller::is_window_stable(const int *labels) const {
-    if (labels == 0) {
-        SC_REPORT_FATAL("Controller", "labels must not be null");
-    }
-    return labels[0] == labels[N_GRAM_SIZE - 1];
-}
-
 void Controller::train_dataset(const double *raw_data, const int *labels, int num_samples) {
     if (raw_data == 0 || labels == 0) {
         SC_REPORT_FATAL("Controller", "training data and labels must not be null");
@@ -285,9 +272,17 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
 
     hv_t encoded_ngram;
     for (int j = 0; j < num_samples - N_GRAM_SIZE; ++j) {
-        if (is_window_stable(&labels[j])) {
+        // If window is stable
+        if (labels[j] == labels[j + N_GRAM_SIZE - 1]) {
             const int class_id = labels[j];
-            encode_window(&raw_data[j * NUM_FEATURES], encoded_ngram);
+
+            // Quantize ngram
+            level_t quantized_window[N_GRAM_SIZE * NUM_FEATURES];
+            quantize_window(&raw_data[j * NUM_FEATURES], quantized_window);
+
+            //Encode ngram
+            m_accelerator.encode(quantized_window, encoded_ngram);
+
             m_accelerator.accumulate_class_vector(class_id, encoded_ngram);
         } else {
             j += (N_GRAM_SIZE - 1);
