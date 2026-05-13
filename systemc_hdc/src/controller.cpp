@@ -270,26 +270,23 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
 
     reset_assoc_mem();
 
-    hv_t encoded_ngram;
-    for (int j = 0; j < num_samples - N_GRAM_SIZE; ++j) {
-        // If window is stable
-        if (labels[j] == labels[j + N_GRAM_SIZE - 1]) {
-            const int class_id = labels[j];
+    level_t quantized_sample[NUM_FEATURES];
 
-            // Quantize ngram
-            level_t quantized_window[N_GRAM_SIZE * NUM_FEATURES];
-            quantize_window(&raw_data[j * NUM_FEATURES], quantized_window);
+    //first sample
+    quantize_sample(raw_data, quantized_sample);
+    m_accelerator.push_training_sample(labels[0], quantized_sample);
 
-            //Encode ngram
-            m_accelerator.encode(quantized_window, encoded_ngram);
-
-            m_accelerator.accumulate_class_vector(class_id, encoded_ngram);
-        } else {
-            j += (N_GRAM_SIZE - 1);
+    
+    for (int j = 1; j < num_samples - 1; ++j) {
+        if (labels[j] != labels[j - 1]) {
+            m_accelerator.push_invalid_training_step();
+            continue;
         }
+        quantize_sample(&raw_data[j * NUM_FEATURES], quantized_sample);
+        m_accelerator.push_training_sample(labels[j], quantized_sample);
     }
 
-    m_accelerator.finalize_assoc_mem();
+    m_accelerator.push_invalid_training_step();
 }
 
 int Controller::mode_smallest_tie(const int *labels, int size) const {
