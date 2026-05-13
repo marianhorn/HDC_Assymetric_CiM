@@ -227,7 +227,7 @@ void Controller::quantize_sample(const double *raw_sample, level_t *quantized_sa
     }
 }
 
-int Controller::predict_ngram(const double *raw_ngram) const {
+int Controller::predict_ngram(const double *raw_ngram) {
     level_t quantized_ngram[N_GRAM_SIZE * NUM_FEATURES];
     for (int i = 0; i < N_GRAM_SIZE; ++i) {
         quantize_sample(&raw_ngram[i * NUM_FEATURES], &quantized_ngram[i * NUM_FEATURES]);
@@ -297,7 +297,7 @@ int Controller::get_ngram_real_label(const int *labels, int size) const {
     return max_value;
 }
 
-EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int *labels, int num_samples) const {
+EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int *labels, int num_samples) {
     if (raw_data == 0 || labels == 0) {
         SC_REPORT_FATAL("Controller", "evaluation data and labels must not be null");
     }
@@ -320,7 +320,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
         const int predicted = predict_ngram(&raw_data[j * NUM_FEATURES]);
 
         if (actual >= 0 && actual < NUM_CLASSES && predicted >= 0 && predicted < NUM_CLASSES) {
-            result.confusion_matrix[actual][predicted] += 1;
+            ++result.confusion_matrix[actual][predicted];
         }
 
         if (predicted == actual) {

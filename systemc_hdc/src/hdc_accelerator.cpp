@@ -44,44 +44,105 @@ void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
 }
 
 void HDC_Accelerator::reset_training_state() {
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        m_class_counts[class_id] = 0;
-        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-            m_class_bit_counts[class_id][d] = 0;
-        }
+    reset_ngram_buffer();
+    m_current_class_count = 0;
+    m_current_class_id = -1;
+    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        m_bundling_buffer[d] = 0;
     }
 }
 
-void HDC_Accelerator::accumulate_class_vector(int class_id, const hv_t &encoded_ngram) {
-    if (class_id < 0 || class_id >= NUM_CLASSES) {
-        return;
+void HDC_Accelerator::reset_ngram_buffer() {
+    m_ngram_buffer_write_pos = 0;
+    m_ngram_buffer_fill_count = 0;
+    for (int slot = 0; slot < N_GRAM_SIZE; ++slot) {
+        clear_hv(m_ngram_buffer[slot]);
     }
+}
 
+void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
         if (get_bit(encoded_ngram, d)) {
-            m_class_bit_counts[class_id][d] = m_class_bit_counts[class_id][d] + 1;
+            ++m_bundling_buffer[d];
         }
     }
-    m_class_counts[class_id] = m_class_counts[class_id] + 1;
+    ++m_current_class_count;
 }
 
-void HDC_Accelerator::finalize_assoc_mem() {
+void HDC_Accelerator::finalize_current_class() {
     if (m_memory == 0) {
         SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
     }
+    if (m_current_class_id < 0) {
+        return;
+    }
+    if (m_current_class_id >= NUM_CLASSES) {
+        SC_REPORT_FATAL("HDC_Accelerator", "active class index out of range");
+    }
+    if (m_current_class_count == 0) {
+        m_current_class_id = -1;
+        return;
+    }
 
     hv_t class_vector;
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        clear_hv(class_vector);
-        const train_counter_t threshold = m_class_counts[class_id] / 2;
-        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-            set_bit(class_vector, d, m_class_bit_counts[class_id][d] >= threshold);
-        }
-        m_memory->write_assoc_class(static_cast<unsigned>(class_id), class_vector);
+    clear_hv(class_vector);
+    const train_counter_t threshold = m_current_class_count / 2;
+    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        set_bit(class_vector, d, m_bundling_buffer[d] >= threshold);
+        m_bundling_buffer[d] = 0;
+    }
+    m_memory->write_assoc_class(static_cast<unsigned>(m_current_class_id), class_vector);
+
+    m_current_class_count = 0;
+    m_current_class_id = -1;
+}
+
+void HDC_Accelerator::push_invalid_training_step() {
+    finalize_current_class();
+    reset_ngram_buffer();
+}
+
+void HDC_Accelerator::bind_ngram(hv_t &encoded) const {
+    const int oldest_slot = m_ngram_buffer_write_pos;
+    encoded = m_ngram_buffer[oldest_slot];
+
+    hv_t permuted_result;
+    for (int i = 1; i < N_GRAM_SIZE; ++i) {
+        const int slot = (oldest_slot + i) % N_GRAM_SIZE;
+        permute_right(encoded, 1u, permuted_result);
+        xor_hv(permuted_result, m_ngram_buffer[slot], encoded);
     }
 }
 
-void HDC_Accelerator::encode_timestamp(const level_t *quantized_sample, hv_t &encoded_timestamp) const {
+void HDC_Accelerator::push_training_sample(int class_id, const level_t *quantized_sample) {
+    if (quantized_sample == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "quantized_sample must not be null");
+    }
+    if (class_id < 0 || class_id >= NUM_CLASSES) {
+        SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
+    }
+
+    if (m_current_class_id < 0) {
+        m_current_class_id = class_id;
+    } else if (m_current_class_id != class_id) {
+        SC_REPORT_FATAL("HDC_Accelerator", "class changed without invalid training step");
+    }
+
+    encode_sample(quantized_sample, m_ngram_buffer[m_ngram_buffer_write_pos]);
+
+    m_ngram_buffer_write_pos = (m_ngram_buffer_write_pos + 1) % N_GRAM_SIZE;
+    if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
+        ++m_ngram_buffer_fill_count;
+    }
+
+    if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
+        hv_t encoded_ngram;
+        bind_ngram(encoded_ngram);
+        add_ngram_to_bundling_buffer(encoded_ngram);
+    }
+}
+
+void HDC_Accelerator::encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const {
     if (m_memory == 0) {
         SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
     }
@@ -95,26 +156,10 @@ void HDC_Accelerator::encode_timestamp(const level_t *quantized_sample, hv_t &en
         for (int feature = 0; feature < NUM_FEATURES; ++feature) {
             const hv_t &feature_hv = m_memory->read_cim(quantized_sample[feature], static_cast<unsigned>(feature));
             if (get_bit(feature_hv, d)) {
-                ones = ones + 1;
+                ++ones;
             }
         }
-        set_bit(encoded_timestamp, d, ones >= threshold);
-    }
-}
-
-void HDC_Accelerator::encode(const level_t *quantized_window, hv_t &encoded) const {
-    if (quantized_window == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "quantized_window must not be null");
-    }
-
-    encode_timestamp(quantized_window, encoded);
-
-    hv_t encoded_timestamp;
-    hv_t permuted_result;
-    for (int i = 1; i < N_GRAM_SIZE; ++i) {
-        encode_timestamp(&quantized_window[i * NUM_FEATURES], encoded_timestamp);
-        permute_right(encoded, 1u, permuted_result);
-        xor_hv(permuted_result, encoded_timestamp, encoded);
+        set_bit(encoded_sample, d, ones >= threshold);
     }
 }
 
@@ -131,16 +176,26 @@ void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_coun
         const hv_t &class_vector = m_memory->read_assoc_class(static_cast<unsigned>(class_id));
         for (int d = 0; d < VECTOR_DIMENSION; ++d) {
             if (get_bit(query, d) != get_bit(class_vector, d)) {
-                distance = distance + 1;
+                ++distance;
             }
         }
         distances[class_id] = distance;
     }
 }
 
-void HDC_Accelerator::classify(const level_t *quantized_window, distance_counter_t *distances) const {
+void HDC_Accelerator::classify(const level_t *quantized_window, distance_counter_t *distances) {
+    if (quantized_window == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "quantized_window must not be null");
+    }
+
+    m_ngram_buffer_write_pos = 0;
+    m_ngram_buffer_fill_count = N_GRAM_SIZE;
+    for (int i = 0; i < N_GRAM_SIZE; ++i) {
+        encode_sample(&quantized_window[i * NUM_FEATURES], m_ngram_buffer[i]);
+    }
+
     hv_t encoded;
-    encode(quantized_window, encoded);
+    bind_ngram(encoded);
     compute_hamming_distances(encoded, distances);
 }
 

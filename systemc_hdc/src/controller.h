@@ -15,10 +15,10 @@ public:
     void load_cim(const char *path);
     void load_quantizer(const char *path);
     void train_dataset(const double *raw_data, const int *labels, int num_samples);
-    EvaluationResult evaluate_dataset(const double *raw_data, const int *labels, int num_samples) const;
+    EvaluationResult evaluate_dataset(const double *raw_data, const int *labels, int num_samples);
 
 private:
-    int predict_ngram(const double *raw_ngram) const;
+    int predict_ngram(const double *raw_ngram);
     level_t quantize_value(unsigned feature, double value) const;
     void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;
     int get_ngram_real_label(const int *labels, int size) const;
