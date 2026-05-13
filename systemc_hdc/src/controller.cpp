@@ -199,21 +199,6 @@ void Controller::load_quantizer(const char *path) {
     m_memory.set_quantizer_boundaries(flat_boundaries.data());
 }
 
-void Controller::reset_assoc_mem() {
-    m_memory.clear_assoc_mem();
-    m_accelerator.reset_training_state();
-}
-
-void Controller::quantize_window(const double *raw_window, level_t *quantized_window) const {
-    if (raw_window == 0 || quantized_window == 0) {
-        SC_REPORT_FATAL("Controller", "quantize_window inputs must not be null");
-    }
-
-    for (int i = 0; i < N_GRAM_SIZE; ++i) {
-        quantize_sample(&raw_window[i * NUM_FEATURES], &quantized_window[i * NUM_FEATURES]);
-    }
-}
-
 level_t Controller::quantize_value(unsigned feature, double value) const {
     if (feature >= static_cast<unsigned>(NUM_FEATURES)) {
         SC_REPORT_FATAL("Controller", "quantize_value feature index out of range");
@@ -242,15 +227,14 @@ void Controller::quantize_sample(const double *raw_sample, level_t *quantized_sa
     }
 }
 
-void Controller::classify_window(const double *raw_window, distance_counter_t *distances) const {
-    level_t quantized_window[N_GRAM_SIZE * NUM_FEATURES];
-    quantize_window(raw_window, quantized_window);
-    m_accelerator.classify(quantized_window, distances);
-}
+int Controller::predict_ngram(const double *raw_ngram) const {
+    level_t quantized_ngram[N_GRAM_SIZE * NUM_FEATURES];
+    for (int i = 0; i < N_GRAM_SIZE; ++i) {
+        quantize_sample(&raw_ngram[i * NUM_FEATURES], &quantized_ngram[i * NUM_FEATURES]);
+    }
 
-int Controller::predict_window(const double *raw_window) const {
     distance_counter_t distances[NUM_CLASSES];
-    classify_window(raw_window, distances);
+    m_accelerator.classify(quantized_ngram, distances);
 
     int best_class = 0;
     distance_counter_t best_distance = distances[0];
@@ -268,15 +252,13 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
         SC_REPORT_FATAL("Controller", "training data and labels must not be null");
     }
 
-    reset_assoc_mem();
+    m_memory.clear_assoc_mem();
+    m_accelerator.reset_training_state();
 
     level_t quantized_sample[NUM_FEATURES];
-
-    //first sample
     quantize_sample(raw_data, quantized_sample);
     m_accelerator.push_training_sample(labels[0], quantized_sample);
 
-    
     for (int j = 1; j < num_samples - 1; ++j) {
         if (labels[j] != labels[j - 1]) {
             m_accelerator.push_invalid_training_step();
@@ -289,7 +271,7 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
     m_accelerator.push_invalid_training_step();
 }
 
-int Controller::mode_smallest_tie(const int *labels, int size) const {
+int Controller::get_ngram_real_label(const int *labels, int size) const {
     if (labels == 0 || size <= 0) {
         SC_REPORT_FATAL("Controller", "invalid labels input");
         return 0;
@@ -334,8 +316,8 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     }
 
     for (int j = 0; j < num_samples - N_GRAM_SIZE + 1; j += N_GRAM_SIZE) {
-        const int actual = mode_smallest_tie(&labels[j], N_GRAM_SIZE);
-        const int predicted = predict_window(&raw_data[j * NUM_FEATURES]);
+        const int actual = get_ngram_real_label(&labels[j], N_GRAM_SIZE);
+        const int predicted = predict_ngram(&raw_data[j * NUM_FEATURES]);
 
         if (actual >= 0 && actual < NUM_CLASSES && predicted >= 0 && predicted < NUM_CLASSES) {
             result.confusion_matrix[actual][predicted] += 1;

@@ -18,13 +18,10 @@ public:
     EvaluationResult evaluate_dataset(const double *raw_data, const int *labels, int num_samples) const;
 
 private:
-    void reset_assoc_mem();
-    void quantize_window(const double *raw_window, level_t *quantized_window) const;
-    void classify_window(const double *raw_window, distance_counter_t *distances) const;
-    int predict_window(const double *raw_window) const;
+    int predict_ngram(const double *raw_ngram) const;
     level_t quantize_value(unsigned feature, double value) const;
     void quantize_sample(const double *raw_sample, level_t *quantized_sample) const;
-    int mode_smallest_tie(const int *labels, int size) const;
+    int get_ngram_real_label(const int *labels, int size) const;
 
     HDC_Memory m_memory;
     HDC_Accelerator m_accelerator;
