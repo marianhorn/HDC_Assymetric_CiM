@@ -227,26 +227,6 @@ void Controller::quantize_sample(const double *raw_sample, level_t *quantized_sa
     }
 }
 
-int Controller::predict_ngram(const double *raw_ngram) {
-    level_t quantized_ngram[N_GRAM_SIZE * NUM_FEATURES];
-    for (int i = 0; i < N_GRAM_SIZE; ++i) {
-        quantize_sample(&raw_ngram[i * NUM_FEATURES], &quantized_ngram[i * NUM_FEATURES]);
-    }
-
-    distance_counter_t distances[NUM_CLASSES];
-    m_accelerator.classify(quantized_ngram, distances);
-
-    int best_class = 0;
-    distance_counter_t best_distance = distances[0];
-    for (int class_id = 1; class_id < NUM_CLASSES; ++class_id) {
-        if (distances[class_id] < best_distance) {
-            best_distance = distances[class_id];
-            best_class = class_id;
-        }
-    }
-    return best_class;
-}
-
 void Controller::train_dataset(const double *raw_data, const int *labels, int num_samples) {
     if (raw_data == 0 || labels == 0) {
         SC_REPORT_FATAL("Controller", "training data and labels must not be null");
@@ -315,9 +295,25 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
         }
     }
 
-    for (int j = 0; j < num_samples - N_GRAM_SIZE + 1; ++j) {
-        const int actual = get_ngram_real_label(&labels[j], N_GRAM_SIZE);
-        const int predicted = predict_ngram(&raw_data[j * NUM_FEATURES]);
+    m_accelerator.reset_inference_state();
+    level_t quantized_sample[NUM_FEATURES];
+    distance_counter_t distances[NUM_CLASSES];
+    for (int sample = 0; sample < num_samples; ++sample) {
+        quantize_sample(&raw_data[sample * NUM_FEATURES], quantized_sample);
+        if (!m_accelerator.push_inference_sample(quantized_sample, distances)) {
+            continue;
+        }
+
+        const int ngram_start = sample - N_GRAM_SIZE + 1;
+        const int actual = get_ngram_real_label(&labels[ngram_start], N_GRAM_SIZE);
+        int predicted = 0;
+        distance_counter_t best_distance = distances[0];
+        for (int class_id = 1; class_id < NUM_CLASSES; ++class_id) {
+            if (distances[class_id] < best_distance) {
+                best_distance = distances[class_id];
+                predicted = class_id;
+            }
+        }
 
         if (actual >= 0 && actual < NUM_CLASSES && predicted >= 0 && predicted < NUM_CLASSES) {
             ++result.confusion_matrix[actual][predicted];
@@ -325,7 +321,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
 
         if (predicted == actual) {
             ++result.correct;
-        } else if (labels[j] != labels[j + N_GRAM_SIZE - 1]) {
+        } else if (labels[ngram_start] != labels[ngram_start + N_GRAM_SIZE - 1]) {
             ++result.transition_error;
         } else {
             ++result.not_correct;

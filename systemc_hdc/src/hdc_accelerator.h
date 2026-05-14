@@ -12,13 +12,15 @@ public:
     SC_CTOR(HDC_Accelerator);
 
     void bind_memory(HDC_Memory *memory);
-    void classify(const level_t *quantized_window, distance_counter_t *distances);
     void reset_training_state();
     void push_training_sample(int class_id, const level_t *quantized_sample);
     void push_invalid_training_step();
+    void reset_inference_state();
+    bool push_inference_sample(const level_t *quantized_sample, distance_counter_t *distances);
 
 private:
     void encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const;
+    void push_sample_to_ngram_buffer(const level_t *quantized_sample);
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const;
     void bind_ngram(hv_t &encoded) const;
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);

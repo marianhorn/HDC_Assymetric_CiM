@@ -102,6 +102,10 @@ void HDC_Accelerator::push_invalid_training_step() {
     reset_ngram_buffer();
 }
 
+void HDC_Accelerator::reset_inference_state() {
+    reset_ngram_buffer();
+}
+
 void HDC_Accelerator::bind_ngram(hv_t &encoded) const {
     const int oldest_slot = m_ngram_buffer_write_pos;
     encoded = m_ngram_buffer[oldest_slot];
@@ -114,10 +118,20 @@ void HDC_Accelerator::bind_ngram(hv_t &encoded) const {
     }
 }
 
-void HDC_Accelerator::push_training_sample(int class_id, const level_t *quantized_sample) {
+void HDC_Accelerator::push_sample_to_ngram_buffer(const level_t *quantized_sample) {
     if (quantized_sample == 0) {
         SC_REPORT_FATAL("HDC_Accelerator", "quantized_sample must not be null");
     }
+
+    encode_sample(quantized_sample, m_ngram_buffer[m_ngram_buffer_write_pos]);
+
+    m_ngram_buffer_write_pos = (m_ngram_buffer_write_pos + 1) % N_GRAM_SIZE;
+    if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
+        ++m_ngram_buffer_fill_count;
+    }
+}
+
+void HDC_Accelerator::push_training_sample(int class_id, const level_t *quantized_sample) {
     if (class_id < 0 || class_id >= NUM_CLASSES) {
         SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
     }
@@ -128,18 +142,29 @@ void HDC_Accelerator::push_training_sample(int class_id, const level_t *quantize
         SC_REPORT_FATAL("HDC_Accelerator", "class changed without invalid training step");
     }
 
-    encode_sample(quantized_sample, m_ngram_buffer[m_ngram_buffer_write_pos]);
-
-    m_ngram_buffer_write_pos = (m_ngram_buffer_write_pos + 1) % N_GRAM_SIZE;
-    if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
-        ++m_ngram_buffer_fill_count;
-    }
+    push_sample_to_ngram_buffer(quantized_sample);
 
     if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
         hv_t encoded_ngram;
         bind_ngram(encoded_ngram);
         add_ngram_to_bundling_buffer(encoded_ngram);
     }
+}
+
+bool HDC_Accelerator::push_inference_sample(const level_t *quantized_sample, distance_counter_t *distances) {
+    if (distances == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "distances must not be null");
+    }
+
+    push_sample_to_ngram_buffer(quantized_sample);
+    if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
+        return false;
+    }
+
+    hv_t encoded_ngram;
+    bind_ngram(encoded_ngram);
+    compute_hamming_distances(encoded_ngram, distances);
+    return true;
 }
 
 void HDC_Accelerator::encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const {
@@ -181,22 +206,6 @@ void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_coun
         }
         distances[class_id] = distance;
     }
-}
-
-void HDC_Accelerator::classify(const level_t *quantized_window, distance_counter_t *distances) {
-    if (quantized_window == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "quantized_window must not be null");
-    }
-
-    m_ngram_buffer_write_pos = 0;
-    m_ngram_buffer_fill_count = N_GRAM_SIZE;
-    for (int i = 0; i < N_GRAM_SIZE; ++i) {
-        encode_sample(&quantized_window[i * NUM_FEATURES], m_ngram_buffer[i]);
-    }
-
-    hv_t encoded;
-    bind_ngram(encoded);
-    compute_hamming_distances(encoded, distances);
 }
 
 } // namespace hdc_systemc
