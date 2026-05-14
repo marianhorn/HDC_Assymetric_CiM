@@ -254,6 +254,82 @@ int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result) {
 
 }
 
+void init_ngram_encoder_state(struct ngram_encoder_state *state) {
+    if (state == NULL) {
+        fprintf(stderr, "Error: NULL pointer passed to init_ngram_encoder_state\n");
+        exit(EXIT_FAILURE);
+    }
+
+    state->write_pos = 0;
+    state->fill_count = 0;
+    state->permuted_result = create_vector();
+    for (int i = 0; i < N_GRAM_SIZE; i++) {
+        state->encoded_samples[i] = create_vector();
+    }
+}
+
+void reset_ngram_encoder_state(struct ngram_encoder_state *state) {
+    if (state == NULL) {
+        fprintf(stderr, "Error: NULL pointer passed to reset_ngram_encoder_state\n");
+        exit(EXIT_FAILURE);
+    }
+
+    state->write_pos = 0;
+    state->fill_count = 0;
+    for (int i = 0; i < N_GRAM_SIZE; i++) {
+        vector_zero(state->encoded_samples[i]);
+    }
+    vector_zero(state->permuted_result);
+}
+
+void free_ngram_encoder_state(struct ngram_encoder_state *state) {
+    if (state == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < N_GRAM_SIZE; i++) {
+        if (state->encoded_samples[i] != NULL) {
+            free_vector(state->encoded_samples[i]);
+            state->encoded_samples[i] = NULL;
+        }
+    }
+    if (state->permuted_result != NULL) {
+        free_vector(state->permuted_result);
+        state->permuted_result = NULL;
+    }
+    state->write_pos = 0;
+    state->fill_count = 0;
+}
+
+int push_ngram_encoder_sample(struct encoder *enc,
+                              struct ngram_encoder_state *state,
+                              double *emg_sample,
+                              Vector *result) {
+    if (enc == NULL || state == NULL || emg_sample == NULL || result == NULL) {
+        fprintf(stderr, "Error: NULL pointer passed to push_ngram_encoder_sample\n");
+        return -1;
+    }
+
+    encode_timestamp(enc, emg_sample, state->encoded_samples[state->write_pos]);
+    state->write_pos = (state->write_pos + 1) % N_GRAM_SIZE;
+    if (state->fill_count < N_GRAM_SIZE) {
+        state->fill_count++;
+    }
+    if (state->fill_count < N_GRAM_SIZE) {
+        return 0;
+    }
+
+    int oldest_slot = state->write_pos;
+    vector_copy(result, state->encoded_samples[oldest_slot]);
+    for (int i = 1; i < N_GRAM_SIZE; i++) {
+        int slot = (oldest_slot + i) % N_GRAM_SIZE;
+        permute(result, 1, state->permuted_result);
+        bind(state->permuted_result, state->encoded_samples[slot], result);
+    }
+
+    return 1;
+}
+
 /**
  * @brief Encodes a single EMG data point into a hypervector.
  *

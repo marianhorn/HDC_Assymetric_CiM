@@ -311,36 +311,53 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     free(window_vectors);
     free_vector(rolling_acc);
 #else
-    // Evaluation uses overlapping ngrams, matching the training window stride.
-    for (int j = 0; j < testing_samples-N_GRAM_SIZE+1; j++) {
-        int actual_label = mode(testing_labels + j, N_GRAM_SIZE);
-        Vector* sample_hv = create_vector();
-        int encoding_result = encode_timeseries(enc, &(testing_data[j]), sample_hv);
+    Vector* sample_hv = create_vector();
+    struct ngram_encoder_state ngram_state;
+    init_ngram_encoder_state(&ngram_state);
+    for (int sample = 0; sample < testing_samples; sample++) {
+        int encoding_result = push_ngram_encoder_sample(enc, &ngram_state, testing_data[sample], sample_hv);
+        if (encoding_result < 0) {
+            fprintf(stderr, "Failed to encode testing ngram at sample %d.\n", sample);
+            free_ngram_encoder_state(&ngram_state);
+            free_vector(sample_hv);
+            exit(EXIT_FAILURE);
+        }
+        if (!encoding_result) {
+            continue;
+        }
+
+        int ngram_start = sample - N_GRAM_SIZE + 1;
+        int actual_label = mode(testing_labels + ngram_start, N_GRAM_SIZE);
         int predicted_label = classify(assoc_mem, sample_hv);
         if(predicted_label==-1){
             printf("Encoding result: %i",encoding_result);
-            printf("SampleHV number %i:\n",j);
+            printf("SampleHV number %i:\n",ngram_start);
             print_vector(sample_hv);
             fprintf(stderr, "Label not valid, terminating...");
+            free_ngram_encoder_state(&ngram_state);
+            free_vector(sample_hv);
             exit(EXIT_FAILURE);
         }
         double confidence = similarity_check(sample_hv,get_class_vector(assoc_mem,predicted_label));
         if(confidence==-2){
             fprintf(stderr,"Got invalid cosine similarity\nTerminating...");
+            free_ngram_encoder_state(&ngram_state);
+            free_vector(sample_hv);
             exit(EXIT_FAILURE);
         }
 
-        free_vector(sample_hv);
         result.confusion_matrix[actual_label][predicted_label]++;
         
         if (predicted_label == actual_label) {
             result.correct++;
-        }else if(testing_labels[j]!=testing_labels[j+N_GRAM_SIZE-1])
+        }else if(testing_labels[ngram_start]!=testing_labels[ngram_start+N_GRAM_SIZE-1])
         {
             result.transition_error++;
 
         } else{result.not_correct++;}
     }
+    free_ngram_encoder_state(&ngram_state);
+    free_vector(sample_hv);
 
     result.total = result.correct + result.not_correct + result.transition_error;
     result.overall_accuracy = result.total > 0 ? (double)result.correct / (double)result.total : 0.0;

@@ -178,21 +178,33 @@ void train_model_timeseries(double **training_data, int *training_labels, int tr
     }
 
     Vector* sample_hv = create_vector();
-    for (int j = 0; j < training_samples - N_GRAM_SIZE; j++) {
-     
-        if (is_window_stable(&training_labels[j])) {  // Ensure the window is stable
-            int class_id = training_labels[j];
-            encode_timeseries(enc, &training_data[j], sample_hv);
-            if (class_id >= 0 && class_id < NUM_CLASSES) {
-                for (int d = 0; d < VECTOR_DIMENSION; d++) {
-                    class_bit_counts[class_id][d] += vector_get_bit(sample_hv, d) ? 1 : 0;
-                }
-                vector_counts[class_id]++;
+    struct ngram_encoder_state ngram_state;
+    init_ngram_encoder_state(&ngram_state);
+    for (int sample = 0; sample < training_samples - 1; sample++) {
+        if (sample > 0 && training_labels[sample] != training_labels[sample - 1]) {
+            reset_ngram_encoder_state(&ngram_state);
+        }
+
+        int ready = push_ngram_encoder_sample(enc, &ngram_state, training_data[sample], sample_hv);
+        if (ready < 0) {
+            fprintf(stderr, "Failed to encode training ngram at sample %d.\n", sample);
+            free_ngram_encoder_state(&ngram_state);
+            free_vector(sample_hv);
+            exit(EXIT_FAILURE);
+        }
+        if (!ready) {
+            continue;
+        }
+
+        int class_id = training_labels[sample];
+        if (class_id >= 0 && class_id < NUM_CLASSES) {
+            for (int d = 0; d < VECTOR_DIMENSION; d++) {
+                class_bit_counts[class_id][d] += vector_get_bit(sample_hv, d) ? 1 : 0;
             }
-        }else{
-            j+=(N_GRAM_SIZE-1);
+            vector_counts[class_id]++;
         }
     }
+    free_ngram_encoder_state(&ngram_state);
     free_vector(sample_hv);
 
     for (int class_id = 0; class_id < NUM_CLASSES; class_id++) {

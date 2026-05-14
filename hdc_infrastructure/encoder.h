@@ -44,8 +44,22 @@ struct encoder {
 // Initialize the encoder
 void init_encoder(struct encoder *enc, struct item_memory *channel_memory, struct item_memory *signal_memory);
 #endif
+struct ngram_encoder_state {
+    Vector *encoded_samples[N_GRAM_SIZE];
+    Vector *permuted_result;
+    int write_pos;
+    int fill_count;
+};
+
 void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result);
 int encode_timeseries(struct encoder *enc, double **emg_data, Vector *result);
+void init_ngram_encoder_state(struct ngram_encoder_state *state);
+void reset_ngram_encoder_state(struct ngram_encoder_state *state);
+void free_ngram_encoder_state(struct ngram_encoder_state *state);
+int push_ngram_encoder_sample(struct encoder *enc,
+                              struct ngram_encoder_state *state,
+                              double *emg_sample,
+                              Vector *result);
 bool is_window_stable(int* labels);
 int encode_general_data(struct encoder *enc, double *emg_data, Vector *result);
 

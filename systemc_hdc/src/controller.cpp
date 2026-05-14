@@ -242,7 +242,6 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
     for (int j = 1; j < num_samples - 1; ++j) {
         if (labels[j] != labels[j - 1]) {
             m_accelerator.push_invalid_training_step();
-            continue;
         }
         quantize_sample(&raw_data[j * NUM_FEATURES], quantized_sample);
         m_accelerator.push_training_sample(labels[j], quantized_sample);
