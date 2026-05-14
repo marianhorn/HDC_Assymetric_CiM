@@ -2,7 +2,7 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 15000 // hypervector dimension
+#define VECTOR_DIMENSION 5000 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
 #define NUM_LEVELS 80 // number of quantization levels
@@ -44,7 +44,7 @@
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
