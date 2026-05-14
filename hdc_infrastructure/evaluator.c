@@ -311,8 +311,8 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     free(window_vectors);
     free_vector(rolling_acc);
 #else
-    //Iterate over testing data 
-    for (int j = 0; j < testing_samples-N_GRAM_SIZE+1; j+=N_GRAM_SIZE) {
+    // Evaluation uses overlapping ngrams, matching the training window stride.
+    for (int j = 0; j < testing_samples-N_GRAM_SIZE+1; j++) {
         int actual_label = mode(testing_labels + j, N_GRAM_SIZE);
         Vector* sample_hv = create_vector();
         int encoding_result = encode_timeseries(enc, &(testing_data[j]), sample_hv);

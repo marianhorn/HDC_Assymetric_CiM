@@ -315,7 +315,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
         }
     }
 
-    for (int j = 0; j < num_samples - N_GRAM_SIZE + 1; j += N_GRAM_SIZE) {
+    for (int j = 0; j < num_samples - N_GRAM_SIZE + 1; ++j) {
         const int actual = get_ngram_real_label(&labels[j], N_GRAM_SIZE);
         const int predicted = predict_ngram(&raw_data[j * NUM_FEATURES]);
 
