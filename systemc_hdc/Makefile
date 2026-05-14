@@ -1,4 +1,4 @@
-SYSTEMC_HOME ?= /usr/local/systemc
+SYSTEMC_HOME ?= $(firstword $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
 CXX ?= g++
 TARGET ?= systemc_hdc_tb
 SRC_DIR := src
