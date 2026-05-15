@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1000" viewBox="0 0 1700 1000">
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#004cff"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#e00000"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#008000"/>
+    </marker>
+    <marker id="arrow-magenta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff00d8"/>
+    </marker>
+    <style>
+      .title { font: 34px Arial, sans-serif; font-weight: 600; }
+      .label { font: 22px Arial, sans-serif; }
+      .small { font: 17px Arial, sans-serif; }
+      .tiny { font: 14px Arial, sans-serif; }
+      .blue { fill: #004cff; }
+      .red { fill: #e00000; }
+      .green { fill: #008000; }
+      .magenta { fill: #ff00d8; }
+      .black { fill: #111111; }
+      .gray { fill: #555555; }
+      .box-blue { fill: #ffffff; stroke: #004cff; stroke-width: 2.5; }
+      .box-red { fill: #ffffff; stroke: #e00000; stroke-width: 2.5; }
+      .box-green { fill: #ffffff; stroke: #008000; stroke-width: 2.5; }
+      .box-black { fill: #ffffff; stroke: #111111; stroke-width: 2.5; }
+      .box-magenta { fill: #ffffff; stroke: #ff00d8; stroke-width: 2.5; }
+      .wire-blue { fill: none; stroke: #004cff; stroke-width: 2.5; marker-end: url(#arrow-blue); }
+      .wire-red { fill: none; stroke: #e00000; stroke-width: 2.5; marker-end: url(#arrow-red); }
+      .wire-green { fill: none; stroke: #008000; stroke-width: 2.5; marker-end: url(#arrow-green); }
+      .wire-magenta { fill: none; stroke: #ff00d8; stroke-width: 2.5; marker-end: url(#arrow-magenta); }
+      .wire-black { fill: none; stroke: #111111; stroke-width: 2; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1700" height="1000" fill="#ffffff"/>
+  <text x="40" y="50" class="title black">Current SystemC HDC implementation</text>
+  <text x="40" y="78" class="small gray">Actual code path: Controller + HDC_Memory + HDC_Accelerator, binary HVs, precomputed CiM, learned quantizer boundaries, streaming N-gram buffer.</text>
+
+  <!-- External data/files -->
+  <text x="55" y="135" class="title blue">External inputs</text>
+  <rect x="45" y="160" width="310" height="250" class="box-blue"/>
+  <text x="70" y="195" class="label blue">C-exported model files</text>
+  <text x="75" y="235" class="small blue">import/cim_datasetXX.txt</text>
+  <text x="75" y="265" class="small blue">import/quantizer_datasetXX.txt</text>
+  <line x1="70" y1="290" x2="330" y2="290" stroke="#004cff" stroke-width="1.5"/>
+  <text x="75" y="325" class="small blue">foot/data/datasetXX/</text>
+  <text x="95" y="355" class="small blue">training_emg.csv, labels</text>
+  <text x="95" y="385" class="small blue">testing_emg.csv, labels</text>
+
+  <rect x="45" y="465" width="310" height="130" class="box-blue"/>
+  <text x="70" y="505" class="label blue">Testbench</text>
+  <text x="75" y="540" class="small blue">tb_systemc.cpp</text>
+  <text x="75" y="570" class="small blue">foot_dataset_loader</text>
+
+  <!-- Controller -->
+  <text x="450" y="135" class="title red">Controller</text>
+  <rect x="410" y="160" width="330" height="435" class="box-red"/>
+  <text x="435" y="200" class="label red">controller.cpp</text>
+  <text x="435" y="240" class="small red">load_cim(path)</text>
+  <text x="435" y="270" class="small red">load_quantizer(path)</text>
+  <text x="435" y="315" class="small red">quantize_value(feature, value)</text>
+  <text x="435" y="345" class="small red">quantize_sample(raw[32])</text>
+  <text x="435" y="390" class="small red">train_dataset(...)</text>
+  <text x="455" y="420" class="tiny red">- reset assoc memory</text>
+  <text x="455" y="445" class="tiny red">- stream samples</text>
+  <text x="455" y="470" class="tiny red">- reset accelerator on class change</text>
+  <text x="435" y="520" class="small red">evaluate_dataset(...)</text>
+  <text x="455" y="550" class="tiny red">- stream samples</text>
+  <text x="455" y="575" class="tiny red">- choose minimum distance class</text>
+
+  <!-- Memory -->
+  <text x="935" y="135" class="title black">HDC_Memory</text>
+  <rect x="815" y="160" width="790" height="300" class="box-black"/>
+  <text x="850" y="205" class="label black">Quantizer</text>
+  <rect x="850" y="225" width="190" height="150" class="box-black"/>
+  <text x="875" y="260" class="small black">boundaries</text>
+  <text x="875" y="290" class="tiny black">feature x cut</text>
+  <text x="875" y="320" class="tiny black">32 x 29</text>
+  <text x="875" y="350" class="tiny black">read row</text>
+
+  <text x="1110" y="205" class="label black">CiM</text>
+  <rect x="1075" y="225" width="210" height="150" class="box-black"/>
+  <text x="1100" y="260" class="small black">m_cim</text>
+  <text x="1100" y="290" class="tiny black">level x feature</text>
+  <text x="1100" y="320" class="tiny black">30 x 32 HVs</text>
+  <text x="1100" y="350" class="tiny black">read_cim(level, feature)</text>
+
+  <text x="1370" y="205" class="label black">AM</text>
+  <rect x="1335" y="225" width="210" height="150" class="box-black"/>
+  <text x="1360" y="260" class="small black">m_assoc_mem</text>
+  <text x="1360" y="290" class="tiny black">class x HV</text>
+  <text x="1360" y="320" class="tiny black">5 class vectors</text>
+  <text x="1360" y="350" class="tiny black">read/write class</text>
+
+  <!-- Accelerator -->
+  <text x="880" y="540" class="title green">HDC_Accelerator</text>
+  <rect x="770" y="570" width="880" height="365" class="box-green"/>
+
+  <rect x="815" y="615" width="250" height="105" class="box-green"/>
+  <text x="840" y="650" class="label green">N-gram buffer</text>
+  <text x="840" y="680" class="small green">m_ngram_buffer[3]</text>
+  <text x="840" y="705" class="tiny green">write_pos + fill_count</text>
+  <rect x="875" y="735" width="170" height="38" class="box-magenta"/>
+  <line x1="932" y1="735" x2="932" y2="773" stroke="#ff00d8" stroke-width="1.5"/>
+  <line x1="989" y1="735" x2="989" y2="773" stroke="#ff00d8" stroke-width="1.5"/>
+  <text x="890" y="798" class="tiny magenta">encoded sample HV slots</text>
+
+  <rect x="1125" y="615" width="215" height="105" class="box-green"/>
+  <text x="1148" y="650" class="label green">encode_sample</text>
+  <text x="1148" y="680" class="tiny green">for each feature:</text>
+  <text x="1148" y="705" class="tiny green">read CiM[level][feature]</text>
+  <text x="1148" y="730" class="tiny green">majority over 32 features</text>
+
+  <rect x="1400" y="615" width="200" height="105" class="box-green"/>
+  <text x="1420" y="650" class="label green">bind_ngram</text>
+  <text x="1420" y="680" class="tiny green">oldest to newest</text>
+  <text x="1420" y="705" class="tiny green">permute_right(1)</text>
+  <text x="1420" y="730" class="tiny green">XOR next sample</text>
+
+  <rect x="850" y="830" width="315" height="75" class="box-magenta"/>
+  <text x="875" y="862" class="label magenta">training path</text>
+  <text x="875" y="890" class="tiny magenta">bundling_buffer[d]++, finalize_current_class()</text>
+
+  <rect x="1260" y="830" width="315" height="75" class="box-magenta"/>
+  <text x="1285" y="862" class="label magenta">inference path</text>
+  <text x="1285" y="890" class="tiny magenta">compute_hamming_distances(query, AM[class])</text>
+
+  <!-- External to controller arrows -->
+  <path d="M 355 220 C 380 220 385 220 410 220" class="wire-blue"/>
+  <text x="370" y="210" class="tiny blue">model files</text>
+  <path d="M 355 355 C 380 355 385 355 410 355" class="wire-blue"/>
+  <text x="370" y="345" class="tiny blue">raw samples + labels</text>
+  <path d="M 355 525 C 380 525 385 525 410 525" class="wire-blue"/>
+  <text x="370" y="515" class="tiny blue">run train/eval</text>
+
+  <!-- Controller to memory arrows -->
+  <path d="M 740 230 L 815 230" class="wire-red"/>
+  <text x="755" y="220" class="tiny red">set_cim</text>
+  <path d="M 740 270 L 815 270" class="wire-red"/>
+  <text x="755" y="262" class="tiny red">set_quantizer_boundaries</text>
+  <path d="M 740 330 L 850 330" class="wire-red"/>
+  <text x="755" y="320" class="tiny red">read_quantizer_row</text>
+  <path d="M 850 350 L 742 350" class="wire-red"/>
+  <text x="755" y="375" class="tiny red">level per feature</text>
+
+  <!-- Controller to accelerator arrows -->
+  <path d="M 575 595 L 575 650 L 815 650" class="wire-red"/>
+  <text x="585" y="640" class="tiny red">push_training_sample(class, levels[32])</text>
+  <path d="M 575 575 L 575 700 L 815 700" class="wire-red"/>
+  <text x="585" y="690" class="tiny red">push_inference_sample(levels[32])</text>
+  <path d="M 740 445 L 800 445 L 800 610" class="wire-red"/>
+  <text x="750" y="435" class="tiny red">push_invalid_training_step</text>
+
+  <!-- Accelerator memory arrows -->
+  <path d="M 1230 615 L 1230 375" class="wire-green"/>
+  <text x="1240" y="510" class="tiny green">read CiM HVs</text>
+  <path d="M 1400 850 L 1440 850 L 1440 375" class="wire-magenta"/>
+  <text x="1450" y="790" class="tiny magenta">read AM(class)</text>
+  <path d="M 1007 830 L 1007 790 L 1370 790 L 1370 375" class="wire-magenta"/>
+  <text x="1015" y="815" class="tiny magenta">write_assoc_class</text>
+
+  <!-- Accelerator internal arrows -->
+  <path d="M 1065 665 L 1125 665" class="wire-green"/>
+  <text x="1073" y="655" class="tiny green">slot HV</text>
+  <path d="M 1340 665 L 1400 665" class="wire-green"/>
+  <text x="1350" y="655" class="tiny green">3 slots ready</text>
+  <path d="M 1495 720 L 1495 830" class="wire-magenta"/>
+  <path d="M 1425 720 C 1320 790 1130 805 1010 830" class="wire-magenta"/>
+
+  <!-- Output arrows -->
+  <path d="M 1260 867 C 1060 970 650 945 610 595" class="wire-magenta"/>
+  <text x="760" y="955" class="tiny magenta">distance[class] returned to controller</text>
+
+  <!-- Notes -->
+  <rect x="45" y="675" width="620" height="180" class="box-black"/>
+  <text x="70" y="715" class="label black">Important differences to the concept sketch</text>
+  <text x="75" y="755" class="small black">- no ADC model and no IdM in this SystemC implementation</text>
+  <text x="75" y="785" class="small black">- quantizer boundaries are stored in HDC_Memory</text>
+  <text x="75" y="815" class="small black">- Controller performs threshold lookup and streams one sample at a time</text>
+  <text x="75" y="845" class="small black">- Accelerator owns the N-gram ring buffer for training and inference</text>
+
+  <text x="45" y="935" class="small gray">Generated from current code: src/controller.cpp, src/hdc_memory.cpp, src/hdc_accelerator.cpp, src/config_systemc.h.</text>
+</svg>
