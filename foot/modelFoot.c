@@ -3,11 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef _OPENMP
-#include <omp.h>
-#else
-#include <time.h>
-#endif
 #include "../hdc_infrastructure/assoc_mem.h"
 #include "../hdc_infrastructure/item_mem.h"
 #include "../hdc_infrastructure/asymItemMemory.h"
@@ -23,14 +18,6 @@
 
 int output_mode = OUTPUT_MODE;
 
-static double get_time_seconds(void) {
-#ifdef _OPENMP
-    return omp_get_wtime();
-#else
-    return (double)clock() / (double)CLOCKS_PER_SEC;
-#endif
-}
-
 int main(void) {
     result_manager_init();
 
@@ -40,8 +27,10 @@ int main(void) {
 
     double mean_pre_val_accuracy = 0.0;
     double mean_pre_test_accuracy = 0.0;
+#if USE_GENETIC_ITEM_MEMORY
     double mean_post_val_accuracy = 0.0;
     double mean_post_test_accuracy = 0.0;
+#endif
     int processed_datasets = 0;
 
     for (int dataset = 0; dataset < 4; dataset++) {
@@ -56,10 +45,10 @@ int main(void) {
         int testingSamples = 0;
         struct timeseries_eval_result eval_pre_val = {0};
         struct timeseries_eval_result eval_pre_test = {0};
+#if USE_GENETIC_ITEM_MEMORY
         struct timeseries_eval_result eval_post_val = {0};
         struct timeseries_eval_result eval_post_test = {0};
-        double pre_training_time_seconds = 0.0;
-        double pre_testing_time_seconds = 0.0;
+#endif
         char result_info[160];
 
         quantizer_clear();
@@ -107,26 +96,13 @@ int main(void) {
             fprintf(stderr, "Error: Failed to initialize quantizer for dataset %d.\n", dataset);
             return EXIT_FAILURE;
         }
-        
-        /* snprintf(quantizer_export_path,
-                  sizeof(quantizer_export_path),
-                  "systemc_hdc/import/quantizer_dataset%02d.txt",
-                  dataset);
-         if (quantizer_export_systemc_text(quantizer_export_path) != 0) {
-             fprintf(stderr, "Error: Failed to export quantizer for dataset %d.\n", dataset);
-             return EXIT_FAILURE;
-         } */
 
-        double timer_start = get_time_seconds();
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        pre_training_time_seconds = get_time_seconds() - timer_start;
 
         if (validationData && validationLabels && validationSamples > 0) {
             eval_pre_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
         }
-        timer_start = get_time_seconds();
         eval_pre_test = evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-        pre_testing_time_seconds = get_time_seconds() - timer_start;
 
         snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=preopt-validation", dataset);
         addResult(&eval_pre_val, result_info);
@@ -145,13 +121,9 @@ int main(void) {
                 printf("n/a\n");
             }
             printf("    test accuracy: %.2f%%\n", eval_pre_test.overall_accuracy * 100.0);
-            printf("    training time: %.6f s\n", pre_training_time_seconds);
-            printf("    testing time: %.6f s\n", pre_testing_time_seconds);
         }
 
 #if USE_GENETIC_ITEM_MEMORY
-        double post_training_time_seconds = 0.0;
-        double post_testing_time_seconds = 0.0;
 #if PRECOMPUTED_ITEM_MEMORY
         optimize_item_memory(&itemMem,
                              trainingData,
@@ -173,16 +145,12 @@ int main(void) {
 
         free_assoc_mem(&assMem);
         init_assoc_mem(&assMem);
-        timer_start = get_time_seconds();
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-        post_training_time_seconds = get_time_seconds() - timer_start;
 
         if (validationData && validationLabels && validationSamples > 0) {
             eval_post_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
         }
-        timer_start = get_time_seconds();
         eval_post_test = evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-        post_testing_time_seconds = get_time_seconds() - timer_start;
 
         snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-validation", dataset);
         addResult(&eval_post_val, result_info);
@@ -201,8 +169,6 @@ int main(void) {
                 printf("n/a\n");
             }
             printf("    test accuracy: %.2f%%\n", eval_post_test.overall_accuracy * 100.0);
-            printf("    training time: %.6f s\n", post_training_time_seconds);
-            printf("    testing time: %.6f s\n", post_testing_time_seconds);
         }
 #endif
 
