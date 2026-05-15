@@ -1,3 +1,4 @@
+import argparse
 import csv
 import os
 import shutil
@@ -10,7 +11,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", "..", ".."))
 RUNS_DIR = os.path.join(BASE_DIR, "runs")
-SEEDS = list(range(1, 11))
+SEEDS = list(range(1, 6))
 
 MODEL_CANDIDATES = [
     os.path.join(REPO_ROOT, "modelFoot"),
@@ -54,6 +55,30 @@ def build_num_levels():
     levels = list(range(5, 101, 1))
     levels.extend(range(105, 201, 5))
     return levels
+
+
+def parse_seeds(text):
+    requested = [part.strip() for part in text.split(",") if part.strip()]
+    if not requested:
+        raise ValueError("At least one seed must be provided.")
+
+    seeds = []
+    for entry in requested:
+        try:
+            seed = int(entry)
+        except ValueError as exc:
+            raise ValueError(f"Invalid seed value: {entry}") from exc
+        if seed <= 0:
+            raise ValueError(f"Seed must be positive: {seed}")
+        seeds.append(seed)
+
+    deduped = []
+    seen = set()
+    for seed in seeds:
+        if seed not in seen:
+            deduped.append(seed)
+            seen.add(seed)
+    return deduped
 
 
 def ensure_clean_seed_dir(seed_dir, skip_clean):
@@ -215,8 +240,22 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
 
 
 def main():
-    skip_clean = "--skip-clean" in sys.argv
+    parser = argparse.ArgumentParser(
+        description="Run baseline resource-saving sweeps with uniform quantization and random CiM."
+    )
+    parser.add_argument(
+        "--skip-clean",
+        action="store_true",
+        help="Do not delete old logs/results in existing seed folders.",
+    )
+    parser.add_argument(
+        "--seeds",
+        default=",".join(str(seed) for seed in SEEDS),
+        help="Comma-separated item-memory seeds to run, for example: 1,2,3",
+    )
+    args = parser.parse_args()
 
+    selected_seeds = parse_seeds(args.seeds)
     num_levels_values = build_num_levels()
     vector_dimensions = build_vector_dimensions()
     make_cmd_name = choose_make_command()
@@ -225,11 +264,11 @@ def main():
 
     print(f"Repo root: {REPO_ROOT}")
     print(f"Runs folder: {RUNS_DIR}")
-    print(f"Seeds: {SEEDS}")
+    print(f"Seeds: {selected_seeds}")
     print(f"Configurations per seed: {len(num_levels_values) * len(vector_dimensions)}")
 
-    for item_mem_seed in SEEDS:
-        run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean)
+    for item_mem_seed in selected_seeds:
+        run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
 
     print("\nFinished all seeded baseline sweeps.")
 

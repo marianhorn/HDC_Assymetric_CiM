@@ -10,7 +10,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..', '..', '..'))
 RUNS_DIR = os.path.join(BASE_DIR, 'runs')
-SEEDS = list(range(1, 11))
+SEEDS = list(range(1, 6))
 
 MODEL_CANDIDATES = [
     os.path.join(REPO_ROOT, 'modelFoot'),

@@ -11,7 +11,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", "..", ".."))
 RUNS_DIR = os.path.join(BASE_DIR, "runs")
-SEEDS = list(range(1, 11))
+SEEDS = list(range(1, 6))
 
 MODEL_CANDIDATES = [
     os.path.join(REPO_ROOT, "modelFoot"),
@@ -46,7 +46,7 @@ def build_vector_dimensions():
     dims = []
     dims.extend(range(201, 1000, 50))
     dims.append(1000)
-    dims.extend(range(1500, 10001, 500))
+    dims.extend(range(1500, 5001, 500))
     return sorted(set(dims))
 
 
