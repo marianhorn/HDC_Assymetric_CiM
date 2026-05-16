@@ -50,7 +50,7 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     SC_THREAD(ngram_thread);
     SC_THREAD(bundler_thread);
     SC_THREAD(distance_thread);
-    reset_training_state();
+    reset_training_state_local();
 }
 
 void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
@@ -90,7 +90,7 @@ void HDC_Accelerator::command_thread() {
         const AccelCommand command = cmd_in.read();
         switch (command.kind) {
         case AccelCommandKind::ResetTraining: {
-            reset_bundling_state();
+            reset_bundling_buffer_only();
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetTraining;
             item.valid_ngram = false;
@@ -217,34 +217,31 @@ void HDC_Accelerator::bundler_thread() {
             return;
         }
 
-        switch (item.kind) {
-        case AccelCommandKind::TrainSample: {
-            const int class_id = static_cast<int>(item.class_id.to_uint());
-            if (class_id < 0 || class_id >= NUM_CLASSES) {
-                SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
-            }
-            if (m_current_class_id < 0) {
-                m_current_class_id = class_id;
-            } else if (m_current_class_id != class_id) {
-                SC_REPORT_FATAL("HDC_Accelerator", "class changed without invalid training step");
-            }
+        if (item.kind == AccelCommandKind::TrainSample) {
             if (item.valid_ngram) {
+                const int class_id = item.class_id.to_int();
+                if (class_id < 0 || class_id >= NUM_CLASSES) {
+                    SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
+                }
+
+                if (m_current_class_id < 0) {
+                    m_current_class_id = class_id;
+                }
+                if (class_id != m_current_class_id) {
+                    SC_REPORT_FATAL("HDC_Accelerator", "Training class changed without flush");
+                }
+
                 add_ngram_to_bundling_buffer(item.ngram);
             }
             m_control_done_fifo.write(true);
-            break;
+            continue;
         }
 
-        case AccelCommandKind::InvalidTrainingStep:
+        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             finalize_current_class();
+            reset_bundling_buffer_only();
             m_control_done_fifo.write(true);
-            break;
-
-        case AccelCommandKind::ResetInference:
-        case AccelCommandKind::ResetTraining:
-        case AccelCommandKind::InferSample:
-        case AccelCommandKind::Shutdown:
-            break;
+            continue;
         }
     }
 }
@@ -272,12 +269,12 @@ void HDC_Accelerator::distance_thread() {
     }
 }
 
-void HDC_Accelerator::reset_training_state() {
+void HDC_Accelerator::reset_training_state_local() {
     reset_ngram_buffer();
-    reset_bundling_state();
+    reset_bundling_buffer_only();
 }
 
-void HDC_Accelerator::reset_bundling_state() {
+void HDC_Accelerator::reset_bundling_buffer_only() {
     m_current_class_count = 0;
     m_current_class_id = -1;
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {

@@ -67,8 +67,8 @@ private:
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const;
     void bind_ngram(hv_t &encoded) const;
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
-    void reset_training_state();
-    void reset_bundling_state();
+    void reset_training_state_local();
+    void reset_bundling_buffer_only();
     void finalize_current_class();
     void reset_ngram_buffer();
 
