@@ -21,6 +21,10 @@
 #define N_GRAM_SIZE 3
 #endif
 
+#ifndef NUM_DATASETS
+#define NUM_DATASETS 4
+#endif
+
 #ifndef ENCODER_PES
 #define ENCODER_PES 8
 #endif

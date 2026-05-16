@@ -37,11 +37,123 @@ int parse_header_int_field(const std::string &line, const char *key) {
     return std::atoi(line.substr(start, end - start).c_str());
 }
 
+void clear_evaluation_result(EvaluationResult &result) {
+    result.correct = 0;
+    result.not_correct = 0;
+    result.transition_error = 0;
+    result.total = 0;
+    result.overall_accuracy = 0.0;
+    result.non_transition_accuracy = 0.0;
+    for (int actual = 0; actual < NUM_CLASSES; ++actual) {
+        for (int predicted = 0; predicted < NUM_CLASSES; ++predicted) {
+            result.confusion_matrix[actual][predicted] = 0;
+        }
+    }
+}
+
 } // namespace
 
 Controller::Controller(sc_core::sc_module_name name)
-    : sc_module(name), m_memory("hdc_memory"), m_accelerator("hdc_accelerator") {
+    : sc_module(name),
+      m_done(false),
+      m_memory("hdc_memory"),
+      m_cmd_fifo("cmd_fifo", 16),
+      m_rsp_fifo("rsp_fifo", 16),
+      m_accelerator("hdc_accelerator") {
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        m_dataset_configs[dataset].dataset_id = dataset;
+        m_dataset_configs[dataset].cim_path = 0;
+        m_dataset_configs[dataset].quantizer_path = 0;
+        m_dataset_configs[dataset].dataset = 0;
+        m_dataset_configs[dataset].configured = false;
+        clear_evaluation_result(m_test_results[dataset]);
+    }
+
+    m_accelerator.cmd_in(m_cmd_fifo);
+    m_accelerator.rsp_out(m_rsp_fifo);
     m_accelerator.bind_memory(&m_memory);
+    SC_THREAD(main_thread);
+}
+
+void Controller::configure(int dataset_id,
+                           const char *cim_path,
+                           const char *quantizer_path,
+                           const FootDataset *dataset) {
+    if (dataset_id < 0 || dataset_id >= NUM_DATASETS) {
+        SC_REPORT_FATAL("Controller", "dataset_id out of range");
+    }
+    if (cim_path == 0 || quantizer_path == 0 || dataset == 0) {
+        SC_REPORT_FATAL("Controller", "invalid dataset configuration");
+    }
+
+    DatasetConfig &config = m_dataset_configs[dataset_id];
+    config.dataset_id = dataset_id;
+    config.cim_path = cim_path;
+    config.quantizer_path = quantizer_path;
+    config.dataset = dataset;
+    config.configured = true;
+}
+
+bool Controller::done() const {
+    return m_done;
+}
+
+const EvaluationResult &Controller::test_result(int dataset_id) const {
+    if (dataset_id < 0 || dataset_id >= NUM_DATASETS) {
+        SC_REPORT_FATAL("Controller", "test_result dataset_id out of range");
+    }
+    return m_test_results[dataset_id];
+}
+
+void Controller::main_thread() {
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        const DatasetConfig &config = m_dataset_configs[dataset];
+        if (!config.configured) {
+            SC_REPORT_FATAL("Controller", "dataset not configured before simulation start");
+        }
+
+        m_memory.clear_all();
+        load_cim(config.cim_path);
+        load_quantizer(config.quantizer_path);
+
+        train_dataset(config.dataset->training.raw_data(),
+                      config.dataset->training.raw_labels(),
+                      config.dataset->training.samples);
+
+        m_test_results[dataset] =
+            evaluate_dataset(config.dataset->testing.raw_data(),
+                             config.dataset->testing.raw_labels(),
+                             config.dataset->testing.samples);
+    }
+
+    AccelCommand shutdown = {};
+    shutdown.kind = AccelCommandKind::Shutdown;
+    m_cmd_fifo.write(shutdown);
+    sc_core::wait(sc_core::SC_ZERO_TIME);
+
+    m_done = true;
+    sc_core::sc_stop();
+}
+
+void Controller::copy_quantized_sample(const level_t *levels, QuantizedSample &sample) const {
+    if (levels == 0) {
+        SC_REPORT_FATAL("Controller", "quantized levels must not be null");
+    }
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        sample.levels[feature] = levels[feature];
+    }
+}
+
+void Controller::send_command(const AccelCommand &command) {
+    m_cmd_fifo.write(command);
+}
+
+AccelResponse Controller::send_inference_command(const AccelCommand &command) {
+    m_cmd_fifo.write(command);
+
+    AccelResponse response;
+    m_rsp_fifo.read(response);
+    return response;
 }
 
 void Controller::load_cim(const char *path) {
@@ -233,21 +345,34 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
     }
 
     m_memory.clear_assoc_mem();
-    m_accelerator.reset_training_state();
+    AccelCommand command = {};
+    command.kind = AccelCommandKind::ResetTraining;
+    command.class_id = 0;
+    send_command(command);
 
     level_t quantized_sample[NUM_FEATURES];
     quantize_sample(raw_data, quantized_sample);
-    m_accelerator.push_training_sample(labels[0], quantized_sample);
+    command.kind = AccelCommandKind::TrainSample;
+    command.class_id = static_cast<unsigned>(labels[0]);
+    copy_quantized_sample(quantized_sample, command.sample);
+    send_command(command);
 
     for (int j = 1; j < num_samples - 1; ++j) {
         if (labels[j] != labels[j - 1]) {
-            m_accelerator.push_invalid_training_step();
+            command.kind = AccelCommandKind::InvalidTrainingStep;
+            command.class_id = 0;
+            send_command(command);
         }
         quantize_sample(&raw_data[j * NUM_FEATURES], quantized_sample);
-        m_accelerator.push_training_sample(labels[j], quantized_sample);
+        command.kind = AccelCommandKind::TrainSample;
+        command.class_id = static_cast<unsigned>(labels[j]);
+        copy_quantized_sample(quantized_sample, command.sample);
+        send_command(command);
     }
 
-    m_accelerator.push_invalid_training_step();
+    command.kind = AccelCommandKind::InvalidTrainingStep;
+    command.class_id = 0;
+    send_command(command);
 }
 
 int Controller::get_ngram_real_label(const int *labels, int size) const {
@@ -282,34 +407,31 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     }
 
     EvaluationResult result;
-    result.correct = 0;
-    result.not_correct = 0;
-    result.transition_error = 0;
-    result.total = 0;
-    result.overall_accuracy = 0.0;
-    result.non_transition_accuracy = 0.0;
-    for (int i = 0; i < NUM_CLASSES; ++i) {
-        for (int j = 0; j < NUM_CLASSES; ++j) {
-            result.confusion_matrix[i][j] = 0;
-        }
-    }
+    clear_evaluation_result(result);
 
-    m_accelerator.reset_inference_state();
+    AccelCommand command = {};
+    command.kind = AccelCommandKind::ResetInference;
+    command.class_id = 0;
+    send_command(command);
+
     level_t quantized_sample[NUM_FEATURES];
-    distance_counter_t distances[NUM_CLASSES];
     for (int sample = 0; sample < num_samples; ++sample) {
         quantize_sample(&raw_data[sample * NUM_FEATURES], quantized_sample);
-        if (!m_accelerator.push_inference_sample(quantized_sample, distances)) {
+        command.kind = AccelCommandKind::InferSample;
+        command.class_id = 0;
+        copy_quantized_sample(quantized_sample, command.sample);
+        const AccelResponse response = send_inference_command(command);
+        if (!response.valid_prediction) {
             continue;
         }
 
         const int ngram_start = sample - N_GRAM_SIZE + 1;
         const int actual = get_ngram_real_label(&labels[ngram_start], N_GRAM_SIZE);
         int predicted = 0;
-        distance_counter_t best_distance = distances[0];
+        distance_counter_t best_distance = response.distances[0];
         for (int class_id = 1; class_id < NUM_CLASSES; ++class_id) {
-            if (distances[class_id] < best_distance) {
-                best_distance = distances[class_id];
+            if (response.distances[class_id] < best_distance) {
+                best_distance = response.distances[class_id];
                 predicted = class_id;
             }
         }

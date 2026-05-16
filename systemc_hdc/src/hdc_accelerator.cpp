@@ -35,12 +35,66 @@ void permute_right(const hv_t &src, unsigned shift, hv_t &dst) {
 } // namespace
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
-    : sc_module(name), m_memory(0) {
+    : sc_module(name), cmd_in("cmd_in"), rsp_out("rsp_out"), m_memory(0) {
+    SC_THREAD(command_thread);
     reset_training_state();
 }
 
 void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
     m_memory = memory;
+}
+
+void HDC_Accelerator::fill_inference_response(bool valid_prediction,
+                                              const distance_counter_t *distances,
+                                              AccelResponse &response) const {
+    response.valid_prediction = valid_prediction;
+    response.predicted_class = 0;
+
+    distance_counter_t best_distance = 0;
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        const distance_counter_t distance =
+            (valid_prediction && distances != 0) ? distances[class_id] : distance_counter_t(0);
+        response.distances[class_id] = distance;
+        if (valid_prediction && (class_id == 0 || distance < best_distance)) {
+            best_distance = distance;
+            response.predicted_class = static_cast<unsigned>(class_id);
+        }
+    }
+}
+
+void HDC_Accelerator::command_thread() {
+    while (true) {
+        const AccelCommand command = cmd_in.read();
+        switch (command.kind) {
+        case AccelCommandKind::ResetTraining:
+            reset_training_state();
+            break;
+
+        case AccelCommandKind::ResetInference:
+            reset_inference_state();
+            break;
+
+        case AccelCommandKind::TrainSample:
+            push_training_sample(static_cast<int>(command.class_id.to_uint()), command.sample.levels);
+            break;
+
+        case AccelCommandKind::InvalidTrainingStep:
+            push_invalid_training_step();
+            break;
+
+        case AccelCommandKind::InferSample: {
+            distance_counter_t distances[NUM_CLASSES];
+            const bool valid_prediction = push_inference_sample(command.sample.levels, distances);
+            AccelResponse response;
+            fill_inference_response(valid_prediction, distances, response);
+            rsp_out.write(response);
+            break;
+        }
+
+        case AccelCommandKind::Shutdown:
+            return;
+        }
+    }
 }
 
 void HDC_Accelerator::reset_training_state() {

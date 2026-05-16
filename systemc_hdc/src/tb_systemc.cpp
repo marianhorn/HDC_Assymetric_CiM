@@ -24,27 +24,25 @@ int sc_main(int, char *[]) {
     double mean_test_accuracy = 0.0;
     double mean_test_accuracy_no_transitions = 0.0;
     int processed_datasets = 0;
+    FootDataset datasets[NUM_DATASETS];
+    char cim_paths[NUM_DATASETS][128];
+    char quantizer_paths[NUM_DATASETS][128];
+    Controller controller("controller");
 
-    for (int dataset = 0; dataset < 4; ++dataset) {
-        char cim_path[128];
-        char quantizer_path[128];
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        std::snprintf(cim_paths[dataset], sizeof(cim_paths[dataset]), "import/cim_dataset%02d.txt", dataset);
+        std::snprintf(quantizer_paths[dataset], sizeof(quantizer_paths[dataset]), "import/quantizer_dataset%02d.txt", dataset);
+        datasets[dataset] = load_foot_dataset_by_id(dataset);
+        controller.configure(dataset, cim_paths[dataset], quantizer_paths[dataset], &datasets[dataset]);
+    }
 
-        std::snprintf(cim_path, sizeof(cim_path), "import/cim_dataset%02d.txt", dataset);
-        std::snprintf(quantizer_path, sizeof(quantizer_path), "import/quantizer_dataset%02d.txt", dataset);
+    sc_core::sc_start();
+    if (!controller.done()) {
+        SC_REPORT_FATAL("tb_systemc", "controller did not finish");
+    }
 
-        Controller controller(sc_core::sc_gen_unique_name("controller"));
-        controller.load_cim(cim_path);
-        controller.load_quantizer(quantizer_path);
-
-        const FootDataset real_dataset = load_foot_dataset_by_id(dataset);
-        controller.train_dataset(real_dataset.training.raw_data(),
-                                 real_dataset.training.raw_labels(),
-                                 real_dataset.training.samples);
-
-        const EvaluationResult test_result =
-            controller.evaluate_dataset(real_dataset.testing.raw_data(),
-                                        real_dataset.testing.raw_labels(),
-                                        real_dataset.testing.samples);
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        const EvaluationResult &test_result = controller.test_result(dataset);
 
         std::cout << "\nDataset " << dataset << std::endl;
         print_eval_result("Test", test_result);

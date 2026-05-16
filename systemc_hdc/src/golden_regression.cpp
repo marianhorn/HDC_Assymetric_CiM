@@ -51,27 +51,25 @@ int sc_main(int argc, char *argv[]) {
     regression_text << "# Deterministic prediction output for datasets 0..3\n";
     regression_text << "# Fields must stay unchanged after architecture refactors.\n\n";
 
-    for (int dataset = 0; dataset < 4; ++dataset) {
-        char cim_path[128];
-        char quantizer_path[128];
+    FootDataset datasets[NUM_DATASETS];
+    char cim_paths[NUM_DATASETS][128];
+    char quantizer_paths[NUM_DATASETS][128];
+    Controller controller("controller");
 
-        std::snprintf(cim_path, sizeof(cim_path), "import/cim_dataset%02d.txt", dataset);
-        std::snprintf(quantizer_path, sizeof(quantizer_path), "import/quantizer_dataset%02d.txt", dataset);
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        std::snprintf(cim_paths[dataset], sizeof(cim_paths[dataset]), "import/cim_dataset%02d.txt", dataset);
+        std::snprintf(quantizer_paths[dataset], sizeof(quantizer_paths[dataset]), "import/quantizer_dataset%02d.txt", dataset);
+        datasets[dataset] = load_foot_dataset_by_id(dataset);
+        controller.configure(dataset, cim_paths[dataset], quantizer_paths[dataset], &datasets[dataset]);
+    }
 
-        Controller controller(sc_core::sc_gen_unique_name("controller"));
-        controller.load_cim(cim_path);
-        controller.load_quantizer(quantizer_path);
+    sc_core::sc_start();
+    if (!controller.done()) {
+        SC_REPORT_FATAL("golden_regression", "controller did not finish");
+    }
 
-        const FootDataset foot_dataset = load_foot_dataset_by_id(dataset);
-        controller.train_dataset(foot_dataset.training.raw_data(),
-                                 foot_dataset.training.raw_labels(),
-                                 foot_dataset.training.samples);
-
-        const EvaluationResult result =
-            controller.evaluate_dataset(foot_dataset.testing.raw_data(),
-                                        foot_dataset.testing.raw_labels(),
-                                        foot_dataset.testing.samples);
-
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        const EvaluationResult &result = controller.test_result(dataset);
         write_eval_result(regression_text, dataset, result);
     }
 
