@@ -35,8 +35,21 @@ void permute_right(const hv_t &src, unsigned shift, hv_t &dst) {
 } // namespace
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
-    : sc_module(name), cmd_in("cmd_in"), rsp_out("rsp_out"), m_memory(0) {
+    : sc_module(name),
+      cmd_in("cmd_in"),
+      rsp_out("rsp_out"),
+      m_encoder_in_fifo("encoder_in_fifo", 8),
+      m_encoder_out_fifo("encoder_out_fifo", 8),
+      m_bundler_in_fifo("bundler_in_fifo", 8),
+      m_distance_in_fifo("distance_in_fifo", 8),
+      m_train_done_fifo("train_done_fifo", 8),
+      m_distance_done_fifo("distance_done_fifo", 8),
+      m_memory(0) {
     SC_THREAD(command_thread);
+    SC_THREAD(encoder_thread);
+    SC_THREAD(ngram_thread);
+    SC_THREAD(bundler_thread);
+    SC_THREAD(distance_thread);
     reset_training_state();
 }
 
@@ -92,6 +105,48 @@ void HDC_Accelerator::command_thread() {
         }
 
         case AccelCommandKind::Shutdown:
+            PipelineItem shutdown = {};
+            shutdown.kind = AccelCommandKind::Shutdown;
+            m_encoder_in_fifo.write(shutdown);
+            return;
+        }
+    }
+}
+
+void HDC_Accelerator::encoder_thread() {
+    while (true) {
+        const PipelineItem item = m_encoder_in_fifo.read();
+        if (item.kind == AccelCommandKind::Shutdown) {
+            m_encoder_out_fifo.write(item);
+            return;
+        }
+    }
+}
+
+void HDC_Accelerator::ngram_thread() {
+    while (true) {
+        const PipelineItem item = m_encoder_out_fifo.read();
+        if (item.kind == AccelCommandKind::Shutdown) {
+            m_bundler_in_fifo.write(item);
+            m_distance_in_fifo.write(item);
+            return;
+        }
+    }
+}
+
+void HDC_Accelerator::bundler_thread() {
+    while (true) {
+        const PipelineItem item = m_bundler_in_fifo.read();
+        if (item.kind == AccelCommandKind::Shutdown) {
+            return;
+        }
+    }
+}
+
+void HDC_Accelerator::distance_thread() {
+    while (true) {
+        const PipelineItem item = m_distance_in_fifo.read();
+        if (item.kind == AccelCommandKind::Shutdown) {
             return;
         }
     }
