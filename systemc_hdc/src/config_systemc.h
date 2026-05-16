@@ -21,4 +21,28 @@
 #define N_GRAM_SIZE 3
 #endif
 
+#ifndef ENCODER_PES
+#define ENCODER_PES 8
+#endif
+
+#ifndef DISTANCE_CLASS_PES
+#define DISTANCE_CLASS_PES NUM_CLASSES
+#endif
+
+#ifndef BUNDLER_PES
+#define BUNDLER_PES 8
+#endif
+
+#ifndef ACCEL_LATENCY_ENCODE_NS
+#define ACCEL_LATENCY_ENCODE_NS 1
+#endif
+
+#ifndef ACCEL_LATENCY_NGRAM_NS
+#define ACCEL_LATENCY_NGRAM_NS 1
+#endif
+
+#ifndef ACCEL_LATENCY_DISTANCE_NS
+#define ACCEL_LATENCY_DISTANCE_NS 1
+#endif
+
 #endif
