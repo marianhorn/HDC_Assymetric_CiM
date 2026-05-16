@@ -158,12 +158,9 @@ void HDC_Accelerator::command_thread() {
 void HDC_Accelerator::encoder_thread() {
     while (true) {
         PipelineItem item = m_encoder_in_fifo.read();
-        if (item.kind == AccelCommandKind::Shutdown) {
-            m_encoder_out_fifo.write(item);
-            return;
-        }
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             encode_sample(item.sample.levels, item.encoded);
+            sc_core::wait(ACCEL_LATENCY_ENCODE_NS, sc_core::SC_NS);
         }
         m_encoder_out_fifo.write(item);
     }
