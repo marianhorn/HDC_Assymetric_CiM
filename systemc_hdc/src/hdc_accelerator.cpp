@@ -42,7 +42,7 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_encoder_out_fifo("encoder_out_fifo", 8),
       m_bundler_in_fifo("bundler_in_fifo", 8),
       m_distance_in_fifo("distance_in_fifo", 8),
-      m_train_done_fifo("train_done_fifo", 8),
+      m_control_done_fifo("control_done_fifo", 8),
       m_distance_done_fifo("distance_done_fifo", 8),
       m_memory(0) {
     SC_THREAD(command_thread);
@@ -75,36 +75,73 @@ void HDC_Accelerator::fill_inference_response(bool valid_prediction,
     }
 }
 
+void HDC_Accelerator::fill_distance_response(bool valid_prediction,
+                                             const distance_counter_t *distances,
+                                             DistanceResponse &response) const {
+    response.valid_prediction = valid_prediction;
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        response.distances[class_id] =
+            (valid_prediction && distances != 0) ? distances[class_id] : distance_counter_t(0);
+    }
+}
+
 void HDC_Accelerator::command_thread() {
     while (true) {
         const AccelCommand command = cmd_in.read();
         switch (command.kind) {
-        case AccelCommandKind::ResetTraining:
-            reset_training_state();
+        case AccelCommandKind::ResetTraining: {
+            PipelineItem item = {};
+            item.kind = AccelCommandKind::ResetTraining;
+            item.valid_ngram = false;
+            m_encoder_in_fifo.write(item);
+            m_control_done_fifo.read();
             break;
+        }
 
-        case AccelCommandKind::ResetInference:
-            reset_inference_state();
+        case AccelCommandKind::ResetInference: {
+            PipelineItem item = {};
+            item.kind = AccelCommandKind::ResetInference;
+            item.valid_ngram = false;
+            m_encoder_in_fifo.write(item);
+            m_control_done_fifo.read();
             break;
+        }
 
-        case AccelCommandKind::TrainSample:
-            push_training_sample(static_cast<int>(command.class_id.to_uint()), command.sample.levels);
+        case AccelCommandKind::TrainSample: {
+            PipelineItem item = {};
+            item.kind = AccelCommandKind::TrainSample;
+            item.class_id = command.class_id;
+            item.sample = command.sample;
+            item.valid_ngram = false;
+            m_encoder_in_fifo.write(item);
+            m_control_done_fifo.read();
             break;
+        }
 
         case AccelCommandKind::InvalidTrainingStep: {
             PipelineItem item = {};
             item.kind = AccelCommandKind::InvalidTrainingStep;
             item.valid_ngram = false;
             m_encoder_in_fifo.write(item);
-            m_train_done_fifo.read();
+            m_control_done_fifo.read();
             break;
         }
 
         case AccelCommandKind::InferSample: {
-            distance_counter_t distances[NUM_CLASSES];
-            const bool valid_prediction = push_inference_sample(command.sample.levels, distances);
-            AccelResponse response;
-            fill_inference_response(valid_prediction, distances, response);
+            PipelineItem item = {};
+            item.kind = AccelCommandKind::InferSample;
+            item.class_id = 0;
+            item.sample = command.sample;
+            item.valid_ngram = false;
+            m_encoder_in_fifo.write(item);
+
+            const DistanceResponse distance_response = m_distance_done_fifo.read();
+            AccelResponse response = {};
+            response.valid_prediction = distance_response.valid_prediction;
+            response.predicted_class = 0;
+            for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+                response.distances[class_id] = distance_response.distances[class_id];
+            }
             rsp_out.write(response);
             break;
         }
@@ -120,10 +157,13 @@ void HDC_Accelerator::command_thread() {
 
 void HDC_Accelerator::encoder_thread() {
     while (true) {
-        const PipelineItem item = m_encoder_in_fifo.read();
+        PipelineItem item = m_encoder_in_fifo.read();
         if (item.kind == AccelCommandKind::Shutdown) {
             m_encoder_out_fifo.write(item);
             return;
+        }
+        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+            encode_sample(item.sample.levels, item.encoded);
         }
         m_encoder_out_fifo.write(item);
     }
@@ -131,14 +171,49 @@ void HDC_Accelerator::encoder_thread() {
 
 void HDC_Accelerator::ngram_thread() {
     while (true) {
-        const PipelineItem item = m_encoder_out_fifo.read();
+        PipelineItem item = m_encoder_out_fifo.read();
         if (item.kind == AccelCommandKind::Shutdown) {
             m_bundler_in_fifo.write(item);
             m_distance_in_fifo.write(item);
             return;
         }
-        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+
+        switch (item.kind) {
+        case AccelCommandKind::ResetTraining:
+            reset_ngram_buffer();
             m_bundler_in_fifo.write(item);
+            break;
+
+        case AccelCommandKind::ResetInference:
+            reset_ngram_buffer();
+            m_control_done_fifo.write(true);
+            break;
+
+        case AccelCommandKind::TrainSample:
+            push_encoded_sample_to_ngram_buffer(item.encoded);
+            if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
+                bind_ngram(item.ngram);
+                item.valid_ngram = true;
+            }
+            m_bundler_in_fifo.write(item);
+            break;
+
+        case AccelCommandKind::InvalidTrainingStep:
+            reset_ngram_buffer();
+            m_bundler_in_fifo.write(item);
+            break;
+
+        case AccelCommandKind::InferSample:
+            push_encoded_sample_to_ngram_buffer(item.encoded);
+            if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
+                bind_ngram(item.ngram);
+                item.valid_ngram = true;
+            }
+            m_distance_in_fifo.write(item);
+            break;
+
+        case AccelCommandKind::Shutdown:
+            break;
         }
     }
 }
@@ -149,9 +224,39 @@ void HDC_Accelerator::bundler_thread() {
         if (item.kind == AccelCommandKind::Shutdown) {
             return;
         }
-        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
-            push_invalid_training_step();
-            m_train_done_fifo.write(true);
+
+        switch (item.kind) {
+        case AccelCommandKind::ResetTraining:
+            reset_bundling_state();
+            m_control_done_fifo.write(true);
+            break;
+
+        case AccelCommandKind::TrainSample: {
+            const int class_id = static_cast<int>(item.class_id.to_uint());
+            if (class_id < 0 || class_id >= NUM_CLASSES) {
+                SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
+            }
+            if (m_current_class_id < 0) {
+                m_current_class_id = class_id;
+            } else if (m_current_class_id != class_id) {
+                SC_REPORT_FATAL("HDC_Accelerator", "class changed without invalid training step");
+            }
+            if (item.valid_ngram) {
+                add_ngram_to_bundling_buffer(item.ngram);
+            }
+            m_control_done_fifo.write(true);
+            break;
+        }
+
+        case AccelCommandKind::InvalidTrainingStep:
+            finalize_current_class();
+            m_control_done_fifo.write(true);
+            break;
+
+        case AccelCommandKind::ResetInference:
+        case AccelCommandKind::InferSample:
+        case AccelCommandKind::Shutdown:
+            break;
         }
     }
 }
@@ -162,11 +267,29 @@ void HDC_Accelerator::distance_thread() {
         if (item.kind == AccelCommandKind::Shutdown) {
             return;
         }
+
+        if (item.kind == AccelCommandKind::InferSample) {
+            distance_counter_t distances[NUM_CLASSES];
+            if (item.valid_ngram) {
+                compute_hamming_distances(item.ngram, distances);
+                DistanceResponse response;
+                fill_distance_response(true, distances, response);
+                m_distance_done_fifo.write(response);
+            } else {
+                DistanceResponse response;
+                fill_distance_response(false, 0, response);
+                m_distance_done_fifo.write(response);
+            }
+        }
     }
 }
 
 void HDC_Accelerator::reset_training_state() {
     reset_ngram_buffer();
+    reset_bundling_state();
+}
+
+void HDC_Accelerator::reset_bundling_state() {
     m_current_class_count = 0;
     m_current_class_id = -1;
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
@@ -219,15 +342,6 @@ void HDC_Accelerator::finalize_current_class() {
     m_current_class_id = -1;
 }
 
-void HDC_Accelerator::push_invalid_training_step() {
-    finalize_current_class();
-    reset_ngram_buffer();
-}
-
-void HDC_Accelerator::reset_inference_state() {
-    reset_ngram_buffer();
-}
-
 void HDC_Accelerator::bind_ngram(hv_t &encoded) const {
     const int oldest_slot = m_ngram_buffer_write_pos;
     encoded = m_ngram_buffer[oldest_slot];
@@ -240,53 +354,12 @@ void HDC_Accelerator::bind_ngram(hv_t &encoded) const {
     }
 }
 
-void HDC_Accelerator::push_sample_to_ngram_buffer(const level_t *quantized_sample) {
-    if (quantized_sample == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "quantized_sample must not be null");
-    }
-
-    encode_sample(quantized_sample, m_ngram_buffer[m_ngram_buffer_write_pos]);
-
+void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample) {
+    m_ngram_buffer[m_ngram_buffer_write_pos] = encoded_sample;
     m_ngram_buffer_write_pos = (m_ngram_buffer_write_pos + 1) % N_GRAM_SIZE;
     if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
         ++m_ngram_buffer_fill_count;
     }
-}
-
-void HDC_Accelerator::push_training_sample(int class_id, const level_t *quantized_sample) {
-    if (class_id < 0 || class_id >= NUM_CLASSES) {
-        SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
-    }
-
-    if (m_current_class_id < 0) {
-        m_current_class_id = class_id;
-    } else if (m_current_class_id != class_id) {
-        SC_REPORT_FATAL("HDC_Accelerator", "class changed without invalid training step");
-    }
-
-    push_sample_to_ngram_buffer(quantized_sample);
-
-    if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
-        hv_t encoded_ngram;
-        bind_ngram(encoded_ngram);
-        add_ngram_to_bundling_buffer(encoded_ngram);
-    }
-}
-
-bool HDC_Accelerator::push_inference_sample(const level_t *quantized_sample, distance_counter_t *distances) {
-    if (distances == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "distances must not be null");
-    }
-
-    push_sample_to_ngram_buffer(quantized_sample);
-    if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
-        return false;
-    }
-
-    hv_t encoded_ngram;
-    bind_ngram(encoded_ngram);
-    compute_hamming_distances(encoded_ngram, distances);
-    return true;
 }
 
 void HDC_Accelerator::encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const {

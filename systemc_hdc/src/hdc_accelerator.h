@@ -20,7 +20,6 @@ struct PipelineItem {
 
 struct DistanceResponse {
     bool valid_prediction;
-    class_t predicted_class;
     distance_counter_t distances[NUM_CLASSES];
 };
 
@@ -32,7 +31,6 @@ inline std::ostream &operator<<(std::ostream &os, const PipelineItem &item) {
 
 inline std::ostream &operator<<(std::ostream &os, const DistanceResponse &response) {
     os << "DistanceResponse{valid_prediction=" << response.valid_prediction
-       << ", predicted_class=" << response.predicted_class.to_uint()
        << ", distances=[";
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         if (class_id > 0) {
@@ -51,11 +49,6 @@ public:
     SC_CTOR(HDC_Accelerator);
 
     void bind_memory(HDC_Memory *memory);
-    void reset_training_state();
-    void push_training_sample(int class_id, const level_t *quantized_sample);
-    void push_invalid_training_step();
-    void reset_inference_state();
-    bool push_inference_sample(const level_t *quantized_sample, distance_counter_t *distances);
 
 private:
     void command_thread();
@@ -66,11 +59,16 @@ private:
     void fill_inference_response(bool valid_prediction,
                                  const distance_counter_t *distances,
                                  AccelResponse &response) const;
+    void fill_distance_response(bool valid_prediction,
+                                const distance_counter_t *distances,
+                                DistanceResponse &response) const;
     void encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const;
-    void push_sample_to_ngram_buffer(const level_t *quantized_sample);
+    void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const;
     void bind_ngram(hv_t &encoded) const;
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
+    void reset_training_state();
+    void reset_bundling_state();
     void finalize_current_class();
     void reset_ngram_buffer();
 
@@ -78,7 +76,7 @@ private:
     sc_core::sc_fifo<PipelineItem> m_encoder_out_fifo;
     sc_core::sc_fifo<PipelineItem> m_bundler_in_fifo;
     sc_core::sc_fifo<PipelineItem> m_distance_in_fifo;
-    sc_core::sc_fifo<bool> m_train_done_fifo;
+    sc_core::sc_fifo<bool> m_control_done_fifo;
     sc_core::sc_fifo<DistanceResponse> m_distance_done_fifo;
     HDC_Memory *m_memory;
     hv_t m_ngram_buffer[N_GRAM_SIZE];
