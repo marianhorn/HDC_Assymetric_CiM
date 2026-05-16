@@ -90,6 +90,7 @@ void HDC_Accelerator::command_thread() {
         const AccelCommand command = cmd_in.read();
         switch (command.kind) {
         case AccelCommandKind::ResetTraining: {
+            reset_bundling_state();
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetTraining;
             item.valid_ngram = false;
@@ -175,42 +176,36 @@ void HDC_Accelerator::ngram_thread() {
             return;
         }
 
-        switch (item.kind) {
-        case AccelCommandKind::ResetTraining:
+        if (item.kind == AccelCommandKind::ResetTraining || item.kind == AccelCommandKind::ResetInference) {
             reset_ngram_buffer();
-            m_bundler_in_fifo.write(item);
-            break;
-
-        case AccelCommandKind::ResetInference:
-            reset_ngram_buffer();
+            item.valid_ngram = false;
             m_control_done_fifo.write(true);
-            break;
+            continue;
+        }
 
-        case AccelCommandKind::TrainSample:
-            push_encoded_sample_to_ngram_buffer(item.encoded);
-            if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
-                bind_ngram(item.ngram);
-                item.valid_ngram = true;
-            }
-            m_bundler_in_fifo.write(item);
-            break;
-
-        case AccelCommandKind::InvalidTrainingStep:
+        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             reset_ngram_buffer();
+            item.valid_ngram = false;
             m_bundler_in_fifo.write(item);
-            break;
+            continue;
+        }
 
-        case AccelCommandKind::InferSample:
+        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             push_encoded_sample_to_ngram_buffer(item.encoded);
             if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
                 bind_ngram(item.ngram);
                 item.valid_ngram = true;
+            } else {
+                item.valid_ngram = false;
             }
-            m_distance_in_fifo.write(item);
-            break;
 
-        case AccelCommandKind::Shutdown:
-            break;
+            sc_core::wait(ACCEL_LATENCY_NGRAM_NS, sc_core::SC_NS);
+
+            if (item.kind == AccelCommandKind::TrainSample) {
+                m_bundler_in_fifo.write(item);
+            } else {
+                m_distance_in_fifo.write(item);
+            }
         }
     }
 }
@@ -223,11 +218,6 @@ void HDC_Accelerator::bundler_thread() {
         }
 
         switch (item.kind) {
-        case AccelCommandKind::ResetTraining:
-            reset_bundling_state();
-            m_control_done_fifo.write(true);
-            break;
-
         case AccelCommandKind::TrainSample: {
             const int class_id = static_cast<int>(item.class_id.to_uint());
             if (class_id < 0 || class_id >= NUM_CLASSES) {
@@ -251,6 +241,7 @@ void HDC_Accelerator::bundler_thread() {
             break;
 
         case AccelCommandKind::ResetInference:
+        case AccelCommandKind::ResetTraining:
         case AccelCommandKind::InferSample:
         case AccelCommandKind::Shutdown:
             break;
