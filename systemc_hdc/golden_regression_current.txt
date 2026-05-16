@@ -1,0 +1,64 @@
+# SystemC HDC golden functional regression
+# Deterministic prediction output for datasets 0..3
+# Fields must stay unchanged after architecture refactors.
+
+dataset=0
+overall_accuracy=0.987327188940
+non_transition_accuracy=0.987327188940
+correct=857
+not_correct=11
+transition_error=0
+total=868
+confusion_matrix=
+173 0 0 0 0
+0 174 0 0 0
+0 0 174 0 0
+0 0 0 174 0
+0 0 11 0 162
+end_dataset=0
+
+dataset=1
+overall_accuracy=0.714285714286
+non_transition_accuracy=0.716763005780
+correct=620
+not_correct=245
+transition_error=3
+total=868
+confusion_matrix=
+173 0 0 0 0
+0 174 0 0 0
+19 0 155 0 0
+0 1 0 4 169
+0 55 0 4 114
+end_dataset=1
+
+dataset=2
+overall_accuracy=0.882488479263
+non_transition_accuracy=0.882488479263
+correct=766
+not_correct=102
+transition_error=0
+total=868
+confusion_matrix=
+173 0 0 0 0
+0 174 0 0 0
+0 0 174 0 0
+0 0 0 174 0
+0 1 42 59 71
+end_dataset=2
+
+dataset=3
+overall_accuracy=0.972350230415
+non_transition_accuracy=0.973471741638
+correct=844
+not_correct=23
+transition_error=1
+total=868
+confusion_matrix=
+149 0 0 0 24
+0 174 0 0 0
+0 0 174 0 0
+0 0 0 174 0
+0 0 0 0 173
+end_dataset=3
+

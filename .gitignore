@@ -72,4 +72,5 @@ CiMs/
 __pycache__/
 systemc_hdc/build/
 systemc_hdc/systemc_hdc_tb
+systemc_hdc/systemc_hdc_golden_regression
 analysis/resource_saving/*/runs/
