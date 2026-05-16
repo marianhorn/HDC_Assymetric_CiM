@@ -228,6 +228,7 @@ void HDC_Accelerator::bundler_thread() {
 
                 add_ngram_to_bundling_buffer(item.ngram);
             }
+            sc_core::wait(ACCEL_LATENCY_BUNDLE_NS, sc_core::SC_NS);
             m_control_done_fifo.write(true);
             continue;
         }
@@ -235,6 +236,7 @@ void HDC_Accelerator::bundler_thread() {
         if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             finalize_current_class();
             reset_bundling_buffer_only();
+            sc_core::wait(ACCEL_LATENCY_BUNDLE_NS, sc_core::SC_NS);
             m_control_done_fifo.write(true);
             continue;
         }
