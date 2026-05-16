@@ -166,9 +166,14 @@ void HDC_Accelerator::ngram_thread() {
             return;
         }
 
-        if (item.kind == AccelCommandKind::ResetTraining || item.kind == AccelCommandKind::ResetInference) {
+        if (item.kind == AccelCommandKind::ResetTraining) {
             reset_ngram_buffer();
-            item.valid_ngram = false;
+            m_control_done_fifo.write(true);
+            continue;
+        }
+
+        if (item.kind == AccelCommandKind::ResetInference) {
+            reset_ngram_buffer();
             m_control_done_fifo.write(true);
             continue;
         }
