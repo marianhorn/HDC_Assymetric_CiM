@@ -60,8 +60,12 @@ private:
                                  const distance_counter_t *distances,
                                  AccelResponse &response) const;
     void encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const;
+    void encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample);
+    void encoder_pe_thread(unsigned pe_id);
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const;
+    void compute_hamming_distances_parallel(const hv_t &query, distance_counter_t *distances);
+    void distance_class_pe_thread(unsigned class_id);
     void bind_ngram(hv_t &encoded) const;
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
     void reset_training_state_local();
@@ -75,6 +79,16 @@ private:
     sc_core::sc_fifo<PipelineItem> m_distance_in_fifo;
     sc_core::sc_fifo<bool> m_control_done_fifo;
     sc_core::sc_fifo<DistanceResponse> m_distance_done_fifo;
+    sc_core::sc_event m_encode_start_event;
+    sc_core::sc_event m_encode_done_event[ENCODER_PES];
+    QuantizedSample m_encode_current_sample;
+    hv_t m_encode_current_output;
+    bool m_encode_done_flags[ENCODER_PES];
+    sc_core::sc_event m_distance_start_event;
+    sc_core::sc_event m_distance_done_event[NUM_CLASSES];
+    hv_t m_distance_current_query;
+    distance_counter_t m_distance_current_result[NUM_CLASSES];
+    bool m_distance_done_flags[NUM_CLASSES];
     HDC_Memory *m_memory;
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     int m_ngram_buffer_write_pos;

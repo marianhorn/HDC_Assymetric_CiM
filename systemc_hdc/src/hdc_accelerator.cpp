@@ -1,4 +1,5 @@
 #include "hdc_accelerator.h"
+#include "sysc/kernel/sc_spawn.h"
 
 namespace hdc_systemc {
 
@@ -45,11 +46,30 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_control_done_fifo("control_done_fifo", 8),
       m_distance_done_fifo("distance_done_fifo", 8),
       m_memory(0) {
+    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
+        m_encode_done_flags[pe] = false;
+    }
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_distance_current_result[class_id] = 0;
+        m_distance_done_flags[class_id] = false;
+    }
+
     SC_THREAD(command_thread);
     SC_THREAD(encoder_thread);
     SC_THREAD(ngram_thread);
     SC_THREAD(bundler_thread);
     SC_THREAD(distance_thread);
+    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
+        sc_core::sc_spawn(
+            sc_core::sc_bind(&HDC_Accelerator::encoder_pe_thread, this, pe),
+            sc_core::sc_gen_unique_name("encoder_pe"));
+    }
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        sc_core::sc_spawn(
+            sc_core::sc_bind(&HDC_Accelerator::distance_class_pe_thread, this, class_id),
+            sc_core::sc_gen_unique_name("distance_class_pe"));
+    }
+
     reset_training_state_local();
 }
 
@@ -150,7 +170,7 @@ void HDC_Accelerator::encoder_thread() {
     while (true) {
         PipelineItem item = m_encoder_in_fifo.read();
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
-            encode_sample(item.sample.levels, item.encoded);
+            encode_sample_parallel(item.sample, item.encoded);
             sc_core::wait(ACCEL_LATENCY_ENCODE_NS, sc_core::SC_NS);
         }
         m_encoder_out_fifo.write(item);
@@ -261,7 +281,7 @@ void HDC_Accelerator::distance_thread() {
         }
 
         response.valid_prediction = true;
-        compute_hamming_distances(item.ngram, response.distances);
+        compute_hamming_distances_parallel(item.ngram, response.distances);
         sc_core::wait(ACCEL_LATENCY_DISTANCE_NS, sc_core::SC_NS);
         m_distance_done_fifo.write(response);
     }
@@ -366,6 +386,52 @@ void HDC_Accelerator::encode_sample(const level_t *quantized_sample, hv_t &encod
     }
 }
 
+void HDC_Accelerator::encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample) {
+    if (m_memory == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
+    }
+
+    m_encode_current_sample = sample;
+    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
+        m_encode_done_flags[pe] = false;
+    }
+
+    m_encode_start_event.notify(sc_core::SC_ZERO_TIME);
+    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
+        while (!m_encode_done_flags[pe]) {
+            sc_core::wait(m_encode_done_event[pe]);
+        }
+    }
+
+    encoded_sample = m_encode_current_output;
+}
+
+void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
+    while (true) {
+        sc_core::wait(m_encode_start_event);
+
+        const unsigned begin = pe_id * VECTOR_DIMENSION / ENCODER_PES;
+        const unsigned end = (pe_id + 1) * VECTOR_DIMENSION / ENCODER_PES;
+        const feature_counter_t threshold = NUM_FEATURES / 2;
+
+        for (unsigned d = begin; d < end; ++d) {
+            feature_counter_t ones = 0;
+            for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                const hv_t &feature_hv =
+                    m_memory->read_cim(m_encode_current_sample.levels[feature], feature);
+                if (get_bit(feature_hv, static_cast<int>(d))) {
+                    ++ones;
+                }
+            }
+
+            set_bit(m_encode_current_output, static_cast<int>(d), ones >= threshold);
+        }
+
+        m_encode_done_flags[pe_id] = true;
+        m_encode_done_event[pe_id].notify(sc_core::SC_ZERO_TIME);
+    }
+}
+
 void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const {
     if (m_memory == 0) {
         SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
@@ -383,6 +449,50 @@ void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_coun
             }
         }
         distances[class_id] = distance;
+    }
+}
+
+void HDC_Accelerator::compute_hamming_distances_parallel(const hv_t &query, distance_counter_t *distances) {
+    if (m_memory == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
+    }
+    if (distances == 0) {
+        SC_REPORT_FATAL("HDC_Accelerator", "distances must not be null");
+    }
+
+    m_distance_current_query = query;
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_distance_done_flags[class_id] = false;
+    }
+
+    m_distance_start_event.notify(sc_core::SC_ZERO_TIME);
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        while (!m_distance_done_flags[class_id]) {
+            sc_core::wait(m_distance_done_event[class_id]);
+        }
+    }
+
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        distances[class_id] = m_distance_current_result[class_id];
+    }
+}
+
+void HDC_Accelerator::distance_class_pe_thread(unsigned class_id) {
+    while (true) {
+        sc_core::wait(m_distance_start_event);
+
+        const hv_t &class_vector = m_memory->read_assoc_class(class_id);
+        distance_counter_t distance = 0;
+        for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
+            if (get_bit(m_distance_current_query, static_cast<int>(d)) !=
+                get_bit(class_vector, static_cast<int>(d))) {
+                ++distance;
+            }
+        }
+
+        m_distance_current_result[class_id] = distance;
+        m_distance_done_flags[class_id] = true;
+        m_distance_done_event[class_id].notify(sc_core::SC_ZERO_TIME);
     }
 }
 
