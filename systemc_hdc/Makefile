@@ -20,7 +20,7 @@ TB_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/tb_systemc.cpp
 GOLDEN_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/golden_regression.cpp
 TB_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(TB_SOURCES))
 GOLDEN_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(GOLDEN_SOURCES))
-HEADERS := $(SRC_DIR)/systemc_types.h $(SRC_DIR)/hdc_memory.h $(SRC_DIR)/hdc_accelerator.h $(SRC_DIR)/controller.h $(SRC_DIR)/foot_dataset_loader.h $(SRC_DIR)/config_systemc.h
+HEADERS := $(SRC_DIR)/systemc_types.h $(SRC_DIR)/hdc_transactions.h $(SRC_DIR)/hdc_memory.h $(SRC_DIR)/hdc_accelerator.h $(SRC_DIR)/controller.h $(SRC_DIR)/foot_dataset_loader.h $(SRC_DIR)/config_systemc.h
 
 .PHONY: all golden clean run run-golden
 
