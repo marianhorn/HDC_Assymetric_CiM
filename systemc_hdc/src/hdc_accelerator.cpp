@@ -75,16 +75,6 @@ void HDC_Accelerator::fill_inference_response(bool valid_prediction,
     }
 }
 
-void HDC_Accelerator::fill_distance_response(bool valid_prediction,
-                                             const distance_counter_t *distances,
-                                             DistanceResponse &response) const {
-    response.valid_prediction = valid_prediction;
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        response.distances[class_id] =
-            (valid_prediction && distances != 0) ? distances[class_id] : distance_counter_t(0);
-    }
-}
-
 void HDC_Accelerator::command_thread() {
     while (true) {
         const AccelCommand command = cmd_in.read();
@@ -253,19 +243,20 @@ void HDC_Accelerator::distance_thread() {
             return;
         }
 
-        if (item.kind == AccelCommandKind::InferSample) {
-            distance_counter_t distances[NUM_CLASSES];
-            if (item.valid_ngram) {
-                compute_hamming_distances(item.ngram, distances);
-                DistanceResponse response;
-                fill_distance_response(true, distances, response);
-                m_distance_done_fifo.write(response);
-            } else {
-                DistanceResponse response;
-                fill_distance_response(false, 0, response);
-                m_distance_done_fifo.write(response);
+        DistanceResponse response;
+        if (!item.valid_ngram) {
+            response.valid_prediction = false;
+            for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+                response.distances[class_id] = 0;
             }
+            m_distance_done_fifo.write(response);
+            continue;
         }
+
+        response.valid_prediction = true;
+        compute_hamming_distances(item.ngram, response.distances);
+        sc_core::wait(ACCEL_LATENCY_DISTANCE_NS, sc_core::SC_NS);
+        m_distance_done_fifo.write(response);
     }
 }
 

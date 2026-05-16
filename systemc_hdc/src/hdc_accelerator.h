@@ -59,9 +59,6 @@ private:
     void fill_inference_response(bool valid_prediction,
                                  const distance_counter_t *distances,
                                  AccelResponse &response) const;
-    void fill_distance_response(bool valid_prediction,
-                                const distance_counter_t *distances,
-                                DistanceResponse &response) const;
     void encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const;
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const;
