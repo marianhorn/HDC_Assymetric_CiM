@@ -56,14 +56,9 @@ private:
     void ngram_thread();
     void bundler_thread();
     void distance_thread();
-    void fill_inference_response(bool valid_prediction,
-                                 const distance_counter_t *distances,
-                                 AccelResponse &response) const;
-    void encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const;
     void encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample);
     void encoder_pe_thread(unsigned pe_id);
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
-    void compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const;
     void compute_hamming_distances_parallel(const hv_t &query, distance_counter_t *distances);
     void distance_class_pe_thread(unsigned class_id);
     void bind_ngram(hv_t &encoded) const;

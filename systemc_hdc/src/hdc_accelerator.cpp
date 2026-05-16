@@ -77,24 +77,6 @@ void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
     m_memory = memory;
 }
 
-void HDC_Accelerator::fill_inference_response(bool valid_prediction,
-                                              const distance_counter_t *distances,
-                                              AccelResponse &response) const {
-    response.valid_prediction = valid_prediction;
-    response.predicted_class = 0;
-
-    distance_counter_t best_distance = 0;
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        const distance_counter_t distance =
-            (valid_prediction && distances != 0) ? distances[class_id] : distance_counter_t(0);
-        response.distances[class_id] = distance;
-        if (valid_prediction && (class_id == 0 || distance < best_distance)) {
-            best_distance = distance;
-            response.predicted_class = static_cast<unsigned>(class_id);
-        }
-    }
-}
-
 void HDC_Accelerator::command_thread() {
     while (true) {
         const AccelCommand command = cmd_in.read();
@@ -365,27 +347,6 @@ void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sa
     }
 }
 
-void HDC_Accelerator::encode_sample(const level_t *quantized_sample, hv_t &encoded_sample) const {
-    if (m_memory == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
-    }
-    if (quantized_sample == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "quantized_sample must not be null");
-    }
-
-    const feature_counter_t threshold = NUM_FEATURES / 2;
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        feature_counter_t ones = 0;
-        for (int feature = 0; feature < NUM_FEATURES; ++feature) {
-            const hv_t &feature_hv = m_memory->read_cim(quantized_sample[feature], static_cast<unsigned>(feature));
-            if (get_bit(feature_hv, d)) {
-                ++ones;
-            }
-        }
-        set_bit(encoded_sample, d, ones >= threshold);
-    }
-}
-
 void HDC_Accelerator::encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample) {
     if (m_memory == 0) {
         SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
@@ -429,26 +390,6 @@ void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
 
         m_encode_done_flags[pe_id] = true;
         m_encode_done_event[pe_id].notify(sc_core::SC_ZERO_TIME);
-    }
-}
-
-void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_counter_t *distances) const {
-    if (m_memory == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
-    }
-    if (distances == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "distances must not be null");
-    }
-
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        distance_counter_t distance = 0;
-        const hv_t &class_vector = m_memory->read_assoc_class(static_cast<unsigned>(class_id));
-        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-            if (get_bit(query, d) != get_bit(class_vector, d)) {
-                ++distance;
-            }
-        }
-        distances[class_id] = distance;
     }
 }
 
