@@ -91,9 +91,14 @@ void HDC_Accelerator::command_thread() {
             push_training_sample(static_cast<int>(command.class_id.to_uint()), command.sample.levels);
             break;
 
-        case AccelCommandKind::InvalidTrainingStep:
-            push_invalid_training_step();
+        case AccelCommandKind::InvalidTrainingStep: {
+            PipelineItem item = {};
+            item.kind = AccelCommandKind::InvalidTrainingStep;
+            item.valid_ngram = false;
+            m_encoder_in_fifo.write(item);
+            m_train_done_fifo.read();
             break;
+        }
 
         case AccelCommandKind::InferSample: {
             distance_counter_t distances[NUM_CLASSES];
@@ -120,6 +125,7 @@ void HDC_Accelerator::encoder_thread() {
             m_encoder_out_fifo.write(item);
             return;
         }
+        m_encoder_out_fifo.write(item);
     }
 }
 
@@ -131,6 +137,9 @@ void HDC_Accelerator::ngram_thread() {
             m_distance_in_fifo.write(item);
             return;
         }
+        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+            m_bundler_in_fifo.write(item);
+        }
     }
 }
 
@@ -139,6 +148,10 @@ void HDC_Accelerator::bundler_thread() {
         const PipelineItem item = m_bundler_in_fifo.read();
         if (item.kind == AccelCommandKind::Shutdown) {
             return;
+        }
+        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+            push_invalid_training_step();
+            m_train_done_fifo.write(true);
         }
     }
 }
