@@ -45,6 +45,7 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
         m_ngram_done_flags[pe] = false;
     }
+    reset_stats();
 
     SC_THREAD(command_thread);
     SC_THREAD(encoder_thread);
@@ -74,9 +75,27 @@ void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
     m_memory = memory;
 }
 
+void HDC_Accelerator::reset_stats() {
+    m_stats.command_count = 0;
+    m_stats.train_samples = 0;
+    m_stats.infer_samples = 0;
+    m_stats.encoded_samples = 0;
+    m_stats.ngram_samples = 0;
+    m_stats.valid_ngrams = 0;
+    m_stats.bundled_ngrams = 0;
+    m_stats.bundle_flushes = 0;
+    m_stats.distance_requests = 0;
+    m_stats.valid_distance_requests = 0;
+}
+
+const AcceleratorStats &HDC_Accelerator::stats() const {
+    return m_stats;
+}
+
 void HDC_Accelerator::command_thread() {
     while (true) {
         const AccelCommand command = cmd_in.read();
+        ++m_stats.command_count;
         switch (command.kind) {
         case AccelCommandKind::ResetTraining: {
             reset_bundling_buffer_only();
@@ -98,6 +117,7 @@ void HDC_Accelerator::command_thread() {
         }
 
         case AccelCommandKind::TrainSample: {
+            ++m_stats.train_samples;
             PipelineItem item = {};
             item.kind = AccelCommandKind::TrainSample;
             item.class_id = command.class_id;
@@ -118,6 +138,7 @@ void HDC_Accelerator::command_thread() {
         }
 
         case AccelCommandKind::InferSample: {
+            ++m_stats.infer_samples;
             PipelineItem item = {};
             item.kind = AccelCommandKind::InferSample;
             item.class_id = 0;
@@ -163,6 +184,7 @@ void HDC_Accelerator::encoder_thread() {
 
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             encode_sample_parallel(item.sample, item.encoded);
+            ++m_stats.encoded_samples;
             sc_core::wait(ACCEL_LATENCY_ENCODE_NS, sc_core::SC_NS);
         }
         m_encoder_out_fifo.write(item);
@@ -198,10 +220,12 @@ void HDC_Accelerator::ngram_thread() {
         }
 
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+            ++m_stats.ngram_samples;
             push_encoded_sample_to_ngram_buffer(item.encoded);
             if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
                 bind_ngram_parallel(item.ngram);
                 item.valid_ngram = true;
+                ++m_stats.valid_ngrams;
             } else {
                 item.valid_ngram = false;
             }
@@ -249,6 +273,7 @@ void HDC_Accelerator::bundler_thread() {
         if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             finalize_current_class();
             reset_bundling_buffer_only();
+            ++m_stats.bundle_flushes;
             sc_core::wait(ACCEL_LATENCY_BUNDLE_NS, sc_core::SC_NS);
             m_control_done_fifo.write(true);
             continue;
@@ -264,6 +289,7 @@ void HDC_Accelerator::distance_thread() {
         }
 
         DistanceResponse response;
+        ++m_stats.distance_requests;
         if (!item.valid_ngram) {
             response.valid_prediction = false;
             for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
@@ -274,6 +300,7 @@ void HDC_Accelerator::distance_thread() {
         }
 
         response.valid_prediction = true;
+        ++m_stats.valid_distance_requests;
         compute_hamming_distances_parallel(item.ngram, response.distances);
         sc_core::wait(ACCEL_LATENCY_DISTANCE_NS, sc_core::SC_NS);
         m_distance_done_fifo.write(response);
@@ -308,6 +335,7 @@ void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
         }
     }
     ++m_current_class_count;
+    ++m_stats.bundled_ngrams;
 }
 
 void HDC_Accelerator::finalize_current_class() {

@@ -49,6 +49,8 @@ public:
     SC_CTOR(HDC_Accelerator);
 
     void bind_memory(HDC_Memory *memory);
+    void reset_stats();
+    const AcceleratorStats &stats() const;
 
 private:
     void command_thread();
@@ -93,6 +95,7 @@ private:
     const hv_t *m_ngram_work_rhs;
     hv_t *m_ngram_work_output;
     bool m_ngram_done_flags[NGRAM_PES];
+    AcceleratorStats m_stats;
     HDC_Memory *m_memory;
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     int m_ngram_buffer_write_pos;

@@ -11,6 +11,8 @@ public:
     SC_CTOR(HDC_Memory);
 
     void clear_all();
+    void reset_stats();
+    const MemoryStats &stats() const;
 
     //CIM
     void set_cim(const hv_t *flat_cim);
@@ -32,6 +34,7 @@ private:
     hv_t m_assoc_mem[NUM_CLASSES];
     bool m_cim_loaded;
     bool m_quantizer_loaded;
+    mutable MemoryStats m_stats;
 };
 
 } // namespace hdc_systemc

@@ -1,6 +1,7 @@
 #ifndef SYSTEMC_HDC_SYSTEMC_TYPES_H
 #define SYSTEMC_HDC_SYSTEMC_TYPES_H
 
+#include <cstdint>
 #include <systemc>
 #include "config_systemc.h"
 
@@ -37,6 +38,30 @@ struct EvaluationResult {
     double overall_accuracy;
     double non_transition_accuracy;
     unsigned confusion_matrix[NUM_CLASSES][NUM_CLASSES];
+};
+
+struct MemoryStats {
+    std::uint64_t quantizer_row_reads;
+    std::uint64_t quantizer_row_read_bytes;
+    std::uint64_t cim_reads;
+    std::uint64_t cim_read_bytes;
+    std::uint64_t assoc_reads;
+    std::uint64_t assoc_read_bytes;
+    std::uint64_t assoc_writes;
+    std::uint64_t assoc_write_bytes;
+};
+
+struct AcceleratorStats {
+    std::uint64_t command_count;
+    std::uint64_t train_samples;
+    std::uint64_t infer_samples;
+    std::uint64_t encoded_samples;
+    std::uint64_t ngram_samples;
+    std::uint64_t valid_ngrams;
+    std::uint64_t bundled_ngrams;
+    std::uint64_t bundle_flushes;
+    std::uint64_t distance_requests;
+    std::uint64_t valid_distance_requests;
 };
 
 } // namespace hdc_systemc
