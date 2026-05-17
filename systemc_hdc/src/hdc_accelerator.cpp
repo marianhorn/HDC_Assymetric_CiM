@@ -68,7 +68,7 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
             sc_core::sc_gen_unique_name("distance_class_pe"));
     }
 
-    reset_training_state_local();
+    reset_all_local_state();
 }
 
 void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
@@ -307,7 +307,7 @@ void HDC_Accelerator::distance_thread() {
     }
 }
 
-void HDC_Accelerator::reset_training_state_local() {
+void HDC_Accelerator::reset_all_local_state() {
     reset_ngram_buffer();
     reset_bundling_buffer_only();
 }
