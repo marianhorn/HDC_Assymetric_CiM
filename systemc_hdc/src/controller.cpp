@@ -129,7 +129,12 @@ void Controller::main_thread() {
     AccelCommand shutdown = {};
     shutdown.kind = AccelCommandKind::Shutdown;
     m_cmd_fifo.write(shutdown);
-    sc_core::wait(sc_core::SC_ZERO_TIME);
+
+    AccelResponse shutdown_response;
+    m_rsp_fifo.read(shutdown_response);
+    if (!shutdown_response.is_shutdown_ack) {
+        SC_REPORT_FATAL("Controller", "Expected shutdown acknowledgment from accelerator");
+    }
 
     m_done = true;
     sc_core::sc_stop();

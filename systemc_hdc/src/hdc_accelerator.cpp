@@ -131,6 +131,7 @@ void HDC_Accelerator::command_thread() {
             const DistanceResponse distance_response = m_distance_done_fifo.read();
             AccelResponse response = {};
             response.valid_prediction = distance_response.valid_prediction;
+            response.is_shutdown_ack = false;
             response.predicted_class = 0;
             for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 response.distances[class_id] = distance_response.distances[class_id];
@@ -143,6 +144,13 @@ void HDC_Accelerator::command_thread() {
             PipelineItem shutdown = {};
             shutdown.kind = AccelCommandKind::Shutdown;
             m_encoder_in_fifo.write(shutdown);
+            m_control_done_fifo.read();
+
+            AccelResponse response = {};
+            response.valid_prediction = false;
+            response.is_shutdown_ack = true;
+            response.predicted_class = 0;
+            rsp_out.write(response);
             return;
         }
     }
@@ -151,6 +159,11 @@ void HDC_Accelerator::command_thread() {
 void HDC_Accelerator::encoder_thread() {
     while (true) {
         PipelineItem item = m_encoder_in_fifo.read();
+        if (item.kind == AccelCommandKind::Shutdown) {
+            m_encoder_out_fifo.write(item);
+            return;
+        }
+
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             encode_sample_parallel(item.sample, item.encoded);
             sc_core::wait(ACCEL_LATENCY_ENCODE_NS, sc_core::SC_NS);
@@ -163,8 +176,8 @@ void HDC_Accelerator::ngram_thread() {
     while (true) {
         PipelineItem item = m_encoder_out_fifo.read();
         if (item.kind == AccelCommandKind::Shutdown) {
-            m_bundler_in_fifo.write(item);
             m_distance_in_fifo.write(item);
+            m_bundler_in_fifo.write(item);
             return;
         }
 
@@ -211,6 +224,7 @@ void HDC_Accelerator::bundler_thread() {
     while (true) {
         const PipelineItem item = m_bundler_in_fifo.read();
         if (item.kind == AccelCommandKind::Shutdown) {
+            m_control_done_fifo.write(true);
             return;
         }
 

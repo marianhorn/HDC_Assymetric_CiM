@@ -27,6 +27,7 @@ struct AccelCommand {
 
 struct AccelResponse {
     bool valid_prediction;
+    bool is_shutdown_ack;
     class_t predicted_class;
     distance_counter_t distances[NUM_CLASSES];
 };
@@ -68,6 +69,7 @@ inline std::ostream &operator<<(std::ostream &os, const AccelCommand &command) {
 
 inline std::ostream &operator<<(std::ostream &os, const AccelResponse &response) {
     os << "AccelResponse{valid_prediction=" << response.valid_prediction
+       << ", is_shutdown_ack=" << response.is_shutdown_ack
        << ", predicted_class=" << response.predicted_class.to_uint()
        << ", distances=[";
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
