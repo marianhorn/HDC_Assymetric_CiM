@@ -61,7 +61,9 @@ private:
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
     void compute_hamming_distances_parallel(const hv_t &query, distance_counter_t *distances);
     void distance_class_pe_thread(unsigned class_id);
-    void bind_ngram(hv_t &encoded) const;
+    void ngram_pe_thread(unsigned pe_id);
+    void bind_ngram_parallel(hv_t &encoded_ngram);
+    void permute_xor_parallel(const hv_t &input, const hv_t &rhs, hv_t &output);
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
     void reset_training_state_local();
     void reset_bundling_buffer_only();
@@ -84,6 +86,13 @@ private:
     hv_t m_distance_current_query;
     distance_counter_t m_distance_current_result[NUM_CLASSES];
     bool m_distance_done_flags[NUM_CLASSES];
+    sc_core::sc_event m_ngram_start_event;
+    sc_core::sc_event m_ngram_done_event[NGRAM_PES];
+    hv_t m_ngram_current_output;
+    const hv_t *m_ngram_work_input;
+    const hv_t *m_ngram_work_rhs;
+    hv_t *m_ngram_work_output;
+    bool m_ngram_done_flags[NGRAM_PES];
     HDC_Memory *m_memory;
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     int m_ngram_buffer_write_pos;

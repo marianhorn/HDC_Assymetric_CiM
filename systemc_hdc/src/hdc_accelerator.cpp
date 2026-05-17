@@ -13,23 +13,9 @@ void set_bit(hv_t &hv, int index, bool value) {
     hv[index] = value ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
 }
 
-void xor_hv(const hv_t &lhs, const hv_t &rhs, hv_t &dst) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        set_bit(dst, d, get_bit(lhs, d) ^ get_bit(rhs, d));
-    }
-}
-
 void clear_hv(hv_t &hv) {
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
         hv[d] = sc_dt::SC_LOGIC_0;
-    }
-}
-
-void permute_right(const hv_t &src, unsigned shift, hv_t &dst) {
-    const unsigned effective_shift = shift % VECTOR_DIMENSION;
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        const int out_index = (d + static_cast<int>(effective_shift)) % VECTOR_DIMENSION;
-        dst[out_index] = src[d];
     }
 }
 
@@ -45,6 +31,9 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_distance_in_fifo("distance_in_fifo", 8),
       m_control_done_fifo("control_done_fifo", 8),
       m_distance_done_fifo("distance_done_fifo", 8),
+      m_ngram_work_input(0),
+      m_ngram_work_rhs(0),
+      m_ngram_work_output(0),
       m_memory(0) {
     for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
         m_encode_done_flags[pe] = false;
@@ -52,6 +41,9 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         m_distance_current_result[class_id] = 0;
         m_distance_done_flags[class_id] = false;
+    }
+    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
+        m_ngram_done_flags[pe] = false;
     }
 
     SC_THREAD(command_thread);
@@ -63,6 +55,11 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
         sc_core::sc_spawn(
             sc_core::sc_bind(&HDC_Accelerator::encoder_pe_thread, this, pe),
             sc_core::sc_gen_unique_name("encoder_pe"));
+    }
+    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
+        sc_core::sc_spawn(
+            sc_core::sc_bind(&HDC_Accelerator::ngram_pe_thread, this, pe),
+            sc_core::sc_gen_unique_name("ngram_pe"));
     }
     for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         sc_core::sc_spawn(
@@ -203,7 +200,7 @@ void HDC_Accelerator::ngram_thread() {
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             push_encoded_sample_to_ngram_buffer(item.encoded);
             if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
-                bind_ngram(item.ngram);
+                bind_ngram_parallel(item.ngram);
                 item.valid_ngram = true;
             } else {
                 item.valid_ngram = false;
@@ -341,15 +338,49 @@ void HDC_Accelerator::finalize_current_class() {
     m_current_class_id = -1;
 }
 
-void HDC_Accelerator::bind_ngram(hv_t &encoded) const {
+void HDC_Accelerator::bind_ngram_parallel(hv_t &encoded_ngram) {
     const int oldest_slot = m_ngram_buffer_write_pos;
-    encoded = m_ngram_buffer[oldest_slot];
+    encoded_ngram = m_ngram_buffer[oldest_slot];
 
-    hv_t permuted_result;
     for (int i = 1; i < N_GRAM_SIZE; ++i) {
         const int slot = (oldest_slot + i) % N_GRAM_SIZE;
-        permute_right(encoded, 1u, permuted_result);
-        xor_hv(permuted_result, m_ngram_buffer[slot], encoded);
+        permute_xor_parallel(encoded_ngram, m_ngram_buffer[slot], m_ngram_current_output);
+        encoded_ngram = m_ngram_current_output;
+    }
+}
+
+void HDC_Accelerator::permute_xor_parallel(const hv_t &input, const hv_t &rhs, hv_t &output) {
+    m_ngram_work_input = &input;
+    m_ngram_work_rhs = &rhs;
+    m_ngram_work_output = &output;
+    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
+        m_ngram_done_flags[pe] = false;
+    }
+
+    m_ngram_start_event.notify(sc_core::SC_ZERO_TIME);
+    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
+        while (!m_ngram_done_flags[pe]) {
+            sc_core::wait(m_ngram_done_event[pe]);
+        }
+    }
+}
+
+void HDC_Accelerator::ngram_pe_thread(unsigned pe_id) {
+    while (true) {
+        sc_core::wait(m_ngram_start_event);
+
+        const unsigned begin = pe_id * VECTOR_DIMENSION / NGRAM_PES;
+        const unsigned end = (pe_id + 1) * VECTOR_DIMENSION / NGRAM_PES;
+        for (unsigned d = begin; d < end; ++d) {
+            const unsigned source_index = (d + VECTOR_DIMENSION - 1) % VECTOR_DIMENSION;
+            const bool bit =
+                get_bit(*m_ngram_work_input, static_cast<int>(source_index)) ^
+                get_bit(*m_ngram_work_rhs, static_cast<int>(d));
+            set_bit(*m_ngram_work_output, static_cast<int>(d), bit);
+        }
+
+        m_ngram_done_flags[pe_id] = true;
+        m_ngram_done_event[pe_id].notify(sc_core::SC_ZERO_TIME);
     }
 }
 

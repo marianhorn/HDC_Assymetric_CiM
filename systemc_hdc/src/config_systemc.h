@@ -29,13 +29,12 @@
 #define ENCODER_PES 8
 #endif
 
-#ifndef DISTANCE_CLASS_PES
-#define DISTANCE_CLASS_PES NUM_CLASSES
+#ifndef NGRAM_PES
+#define NGRAM_PES 8
 #endif
 
-#ifndef BUNDLER_PES
-#define BUNDLER_PES 8
-#endif
+// Distance computation is parallelized across classes.
+// The accelerator instantiates one distance PE per class.
 
 #ifndef ACCEL_LATENCY_ENCODE_NS
 #define ACCEL_LATENCY_ENCODE_NS 1
