@@ -1,7 +1,8 @@
 SYSTEMC_HOME ?= $(firstword $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
 CXX ?= g++
-TARGET ?= systemc_hdc_tb
+TARGET ?= main
 GOLDEN_TARGET ?= systemc_hdc_golden_regression
+LEGACY_TARGETS := systemc_hdc_tb
 SRC_DIR := src
 BUILD_DIR := build
 
@@ -16,7 +17,7 @@ CXXFLAGS ?= -std=c++17 -Wall -Wextra -pedantic -I$(SRC_DIR) -I. -I$(SYSTEMC_INCL
 LDFLAGS ?= -L$(SYSTEMC_LIB_DIR) -Wl,-rpath,$(SYSTEMC_LIB_DIR) -lsystemc -lm
 
 COMMON_SOURCES := $(SRC_DIR)/hdc_memory.cpp $(SRC_DIR)/hdc_accelerator.cpp $(SRC_DIR)/controller.cpp $(SRC_DIR)/foot_dataset_loader.cpp
-TB_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/tb_systemc.cpp
+TB_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/main.cpp
 GOLDEN_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/golden_regression.cpp
 TB_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(TB_SOURCES))
 GOLDEN_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(GOLDEN_SOURCES))
@@ -47,4 +48,4 @@ run-golden: $(GOLDEN_TARGET)
 	./$(GOLDEN_TARGET)
 
 clean:
-	rm -f $(TB_OBJECTS) $(GOLDEN_OBJECTS) $(TARGET) $(GOLDEN_TARGET)
+	rm -f $(TB_OBJECTS) $(GOLDEN_OBJECTS) $(TARGET) $(GOLDEN_TARGET) $(LEGACY_TARGETS)

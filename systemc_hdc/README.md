@@ -20,7 +20,7 @@ This folder contains a standalone SystemC implementation of the current `foot` p
 - `src/hdc_accelerator.h/.cpp`: timestamp encoding, fusion n-gram encoding, Hamming distances
 - `src/controller.h/.cpp`: training/evaluation flow and orchestration
 - `src/foot_dataset_loader.h/.cpp`: simple loader for the existing `foot/data/datasetXX/*.csv` files
-- `src/tb_systemc.cpp`: small untimed reference testbench
+- `src/main.cpp`: SystemC simulation entry point
 - `system_architecture.md`: target hardware-style architecture description
 - `Makefile`: standalone build entry
 
@@ -30,7 +30,7 @@ This folder contains a standalone SystemC implementation of the current `foot` p
 - `Controller` now exposes file-based import calls:
   - `load_cim_file(...)`
   - `load_quantizer_file(...)`
-- `tb_systemc.cpp` now also runs one real-data smoke path:
+- `main.cpp` now also runs one real-data smoke path:
   - imports `import/cim_dataset00.txt`
   - imports `import/quantizer_dataset00.txt`
   - loads `foot/data/dataset00/*.csv`

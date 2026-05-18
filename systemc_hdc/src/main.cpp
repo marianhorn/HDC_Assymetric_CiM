@@ -73,7 +73,7 @@ int sc_main(int, char *[]) {
 
     sc_core::sc_start();
     if (!controller.done()) {
-        SC_REPORT_FATAL("tb_systemc", "controller did not finish");
+        SC_REPORT_FATAL("main", "controller did not finish");
     }
 
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
