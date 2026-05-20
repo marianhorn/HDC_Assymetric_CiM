@@ -81,8 +81,8 @@ Controller::Controller(sc_core::sc_module_name name)
     : sc_module(name),
       m_done(false),
       m_memory("hdc_memory"),
-      m_cmd_fifo("cmd_fifo", 16),
-      m_rsp_fifo("rsp_fifo", 16),
+      m_cmd_fifo("cmd_fifo", 64),
+      m_rsp_fifo("rsp_fifo", 64),
       m_accelerator("hdc_accelerator") {
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         m_dataset_configs[dataset].dataset_id = dataset;
@@ -207,14 +207,6 @@ void Controller::copy_quantized_sample(const level_t *levels, QuantizedSample &s
 
 void Controller::send_command(const AccelCommand &command) {
     m_cmd_fifo.write(command);
-}
-
-AccelResponse Controller::send_inference_command(const AccelCommand &command) {
-    m_cmd_fifo.write(command);
-
-    AccelResponse response;
-    m_rsp_fifo.read(response);
-    return response;
 }
 
 void Controller::load_cim(const char *path) {
@@ -476,12 +468,30 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     send_command(command);
 
     level_t quantized_sample[NUM_FEATURES];
-    for (int sample = 0; sample < num_samples; ++sample) {
-        quantize_sample(&raw_data[sample * NUM_FEATURES], quantized_sample);
-        command.kind = AccelCommandKind::InferSample;
-        command.class_id = 0;
-        copy_quantized_sample(quantized_sample, command.sample);
-        const AccelResponse response = send_inference_command(command);
+    int issued = 0;
+    int received = 0;
+    int outstanding = 0;
+
+    while (received < num_samples) {
+        while (issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
+            quantize_sample(&raw_data[issued * NUM_FEATURES], quantized_sample);
+            command.kind = AccelCommandKind::InferSample;
+            command.class_id = 0;
+            copy_quantized_sample(quantized_sample, command.sample);
+            send_command(command);
+            ++issued;
+            ++outstanding;
+        }
+
+        AccelResponse response = {};
+        m_rsp_fifo.read(response);
+        const int sample = received;
+        ++received;
+        --outstanding;
+
+        if (response.is_shutdown_ack) {
+            SC_REPORT_FATAL("Controller", "unexpected shutdown acknowledgment during inference");
+        }
         if (!response.valid_prediction) {
             continue;
         }

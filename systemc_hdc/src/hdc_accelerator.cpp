@@ -25,15 +25,16 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     : sc_module(name),
       cmd_in("cmd_in"),
       rsp_out("rsp_out"),
-      m_encoder_in_fifo("encoder_in_fifo", 8),
-      m_encoder_out_fifo("encoder_out_fifo", 8),
-      m_bundler_in_fifo("bundler_in_fifo", 8),
-      m_distance_in_fifo("distance_in_fifo", 8),
+      m_encoder_in_fifo("encoder_in_fifo", 32),
+      m_encoder_out_fifo("encoder_out_fifo", 32),
+      m_bundler_in_fifo("bundler_in_fifo", 32),
+      m_distance_in_fifo("distance_in_fifo", 32),
       m_control_done_fifo("control_done_fifo", 8),
-      m_distance_done_fifo("distance_done_fifo", 8),
+      m_distance_done_fifo("distance_done_fifo", 32),
       m_ngram_work_input(0),
       m_ngram_work_rhs(0),
       m_ngram_work_output(0),
+      m_infer_outstanding(0),
       m_memory(0) {
     for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
         m_encode_done_flags[pe] = false;
@@ -92,12 +93,29 @@ const AcceleratorStats &HDC_Accelerator::stats() const {
     return m_stats;
 }
 
+// Data commands are pipelined: TrainSample and InferSample are dispatched
+// without waiting for completion. Control commands are blocking stream
+// boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::command_thread() {
     while (true) {
-        const AccelCommand command = cmd_in.read();
+        forward_completed_distance_responses();
+
+        AccelCommand command = {};
+        if (!cmd_in.nb_read(command)) {
+            if (m_distance_done_fifo.num_available() == 0) {
+                sc_core::wait(1, sc_core::SC_NS);
+            }
+            continue;
+        }
+
         ++m_stats.command_count;
         switch (command.kind) {
         case AccelCommandKind::ResetTraining: {
+            if (m_infer_outstanding != 0) {
+                SC_REPORT_FATAL("HDC_Accelerator",
+                                "ResetTraining received with outstanding inference responses");
+            }
+
             reset_bundling_buffer_only();
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetTraining;
@@ -108,6 +126,11 @@ void HDC_Accelerator::command_thread() {
         }
 
         case AccelCommandKind::ResetInference: {
+            if (m_infer_outstanding != 0) {
+                SC_REPORT_FATAL("HDC_Accelerator",
+                                "ResetInference received with outstanding inference responses");
+            }
+
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetInference;
             item.valid_ngram = false;
@@ -124,11 +147,12 @@ void HDC_Accelerator::command_thread() {
             item.sample = command.sample;
             item.valid_ngram = false;
             m_encoder_in_fifo.write(item);
-            m_control_done_fifo.read();
             break;
         }
 
         case AccelCommandKind::InvalidTrainingStep: {
+            // InvalidTrainingStep is a flush token for the current training class segment.
+            // Since it uses the same FIFO path as samples, previous samples are bundled first.
             PipelineItem item = {};
             item.kind = AccelCommandKind::InvalidTrainingStep;
             item.valid_ngram = false;
@@ -145,22 +169,21 @@ void HDC_Accelerator::command_thread() {
             item.sample = command.sample;
             item.valid_ngram = false;
             m_encoder_in_fifo.write(item);
-
-            const DistanceResponse distance_response = m_distance_done_fifo.read();
-            AccelResponse response = {};
-            response.valid_prediction = distance_response.valid_prediction;
-            response.is_shutdown_ack = false;
-            response.predicted_class = 0;
-            for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-                response.distances[class_id] = distance_response.distances[class_id];
-            }
-            rsp_out.write(response);
+            ++m_infer_outstanding;
             break;
         }
 
-        case AccelCommandKind::Shutdown:
+        case AccelCommandKind::Shutdown: {
+            while (m_infer_outstanding > 0) {
+                forward_completed_distance_responses();
+                if (m_infer_outstanding > 0) {
+                    sc_core::wait(1, sc_core::SC_NS);
+                }
+            }
+
             PipelineItem shutdown = {};
             shutdown.kind = AccelCommandKind::Shutdown;
+            shutdown.valid_ngram = false;
             m_encoder_in_fifo.write(shutdown);
             m_control_done_fifo.read();
 
@@ -171,6 +194,28 @@ void HDC_Accelerator::command_thread() {
             rsp_out.write(response);
             return;
         }
+        }
+    }
+}
+
+void HDC_Accelerator::forward_completed_distance_responses() {
+    DistanceResponse distance_response = {};
+    while (m_distance_done_fifo.nb_read(distance_response)) {
+        if (m_infer_outstanding <= 0) {
+            SC_REPORT_FATAL("HDC_Accelerator",
+                            "distance response without outstanding inference command");
+        }
+
+        AccelResponse response = {};
+        response.valid_prediction = distance_response.valid_prediction;
+        response.is_shutdown_ack = false;
+        response.predicted_class = 0;
+        for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            response.distances[class_id] = distance_response.distances[class_id];
+        }
+
+        rsp_out.write(response);
+        --m_infer_outstanding;
     }
 }
 
@@ -266,7 +311,6 @@ void HDC_Accelerator::bundler_thread() {
                 add_ngram_to_bundling_buffer(item.ngram);
             }
             sc_core::wait(ACCEL_LATENCY_BUNDLE_NS, sc_core::SC_NS);
-            m_control_done_fifo.write(true);
             continue;
         }
 
@@ -288,7 +332,7 @@ void HDC_Accelerator::distance_thread() {
             return;
         }
 
-        DistanceResponse response;
+        DistanceResponse response = {};
         ++m_stats.distance_requests;
         if (!item.valid_ngram) {
             response.valid_prediction = false;

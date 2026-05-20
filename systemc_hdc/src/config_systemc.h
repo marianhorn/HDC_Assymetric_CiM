@@ -36,6 +36,11 @@
 // Distance computation is parallelized across classes.
 // The accelerator instantiates one distance PE per class.
 
+#ifndef MAX_SAMPLES_IN_PIPELINE
+#define MAX_SAMPLES_IN_PIPELINE 32
+#endif
+
+
 #ifndef ACCEL_LATENCY_ENCODE_NS
 #define ACCEL_LATENCY_ENCODE_NS 1
 #endif

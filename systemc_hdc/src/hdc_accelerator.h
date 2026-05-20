@@ -59,6 +59,7 @@ private:
     void ngram_thread();
     void bundler_thread();
     void distance_thread();
+    void forward_completed_distance_responses();
 
     // Encoder datapath.
     void encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample);
@@ -121,6 +122,7 @@ private:
     bool m_distance_done_flags[NUM_CLASSES];
 
     AcceleratorStats m_stats;
+    int m_infer_outstanding;
     HDC_Memory *m_memory;
 };
 

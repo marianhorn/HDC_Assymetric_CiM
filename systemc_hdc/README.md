@@ -321,6 +321,7 @@ N_GRAM_SIZE
 NUM_DATASETS
 ENCODER_PES
 NGRAM_PES
+MAX_SAMPLES_IN_PIPELINE
 ACCEL_LATENCY_ENCODE_NS
 ACCEL_LATENCY_NGRAM_NS
 ACCEL_LATENCY_BUNDLE_NS
@@ -358,7 +359,7 @@ Current limitations:
 
 - not RTL
 - no clocked register-transfer implementation
-- controller uses a mostly blocking command/response style
+- controller streams data commands with a bounded inference window; reset, flush, and shutdown commands remain blocking stream boundaries
 - memory is functional and does not model ports, banks, contention, or bandwidth stalls
 - import files must already exist and match the compiled configuration
 - bundling is sequential

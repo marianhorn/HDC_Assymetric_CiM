@@ -43,7 +43,6 @@ private:
     int get_ngram_real_label(const int *labels, int size) const;
     void copy_quantized_sample(const level_t *levels, QuantizedSample &sample) const;
     void send_command(const AccelCommand &command);
-    AccelResponse send_inference_command(const AccelCommand &command);
 
     DatasetConfig m_dataset_configs[NUM_DATASETS];
     EvaluationResult m_test_results[NUM_DATASETS];
