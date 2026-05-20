@@ -109,8 +109,8 @@ private:
     int m_ngram_buffer_write_pos;
     int m_ngram_buffer_fill_count;
 
-    // Bundling state for the currently trained class segment.
-    train_counter_t m_bundling_buffer[VECTOR_DIMENSION];
+    // Signed bundling score for the currently trained class segment.
+    train_score_t m_bundling_score[VECTOR_DIMENSION];
     train_counter_t m_current_class_count;
     int m_current_class_id;
 

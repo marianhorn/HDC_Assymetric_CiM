@@ -360,7 +360,7 @@ void HDC_Accelerator::reset_bundling_buffer_only() {
     m_current_class_count = 0;
     m_current_class_id = -1;
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        m_bundling_buffer[d] = 0;
+        m_bundling_score[d] = 0;
     }
 }
 
@@ -375,7 +375,9 @@ void HDC_Accelerator::reset_ngram_buffer() {
 void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
         if (get_bit(encoded_ngram, d)) {
-            ++m_bundling_buffer[d];
+            ++m_bundling_score[d];
+        } else {
+            --m_bundling_score[d];
         }
     }
     ++m_current_class_count;
@@ -399,10 +401,22 @@ void HDC_Accelerator::finalize_current_class() {
 
     hv_t class_vector;
     clear_hv(class_vector);
-    const train_counter_t threshold = m_current_class_count / 2;
+    // Exact equivalent of the previous rule:
+    //     ones >= floor(half of m_current_class_count)
+    //
+    // Signed score:
+    //     score = ones - zeros = 2 * ones - m_current_class_count
+    //
+    // Therefore:
+    //     even count: score >= 0
+    //     odd count:  score >= -1
+    //
+    // This avoids division while preserving the old bundling result.
+    const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
+    const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        set_bit(class_vector, d, m_bundling_buffer[d] >= threshold);
-        m_bundling_buffer[d] = 0;
+        set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
+        m_bundling_score[d] = 0;
     }
     m_memory->write_assoc_class(static_cast<unsigned>(m_current_class_id), class_vector);
 
@@ -490,19 +504,29 @@ void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
 
         const unsigned begin = pe_id * VECTOR_DIMENSION / ENCODER_PES;
         const unsigned end = (pe_id + 1) * VECTOR_DIMENSION / ENCODER_PES;
-        const feature_counter_t threshold = NUM_FEATURES / 2;
+        // Feature bundling uses signed +1/-1 accumulation instead of counting ones.
+        // This is exactly equivalent to:
+        //     ones >= floor(half of NUM_FEATURES)
+        // but avoids division/comparator-to-half in the bundled datapath.
+        //
+        // For NUM_FEATURES even: score >= 0
+        // For NUM_FEATURES odd:  score >= -1
+        const feature_score_t signed_threshold =
+            (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
 
         for (unsigned d = begin; d < end; ++d) {
-            feature_counter_t ones = 0;
+            feature_score_t score = 0;
             for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
                 const hv_t &feature_hv =
                     m_memory->read_cim(m_encode_current_sample.levels[feature], feature);
                 if (get_bit(feature_hv, static_cast<int>(d))) {
-                    ++ones;
+                    ++score;
+                } else {
+                    --score;
                 }
             }
 
-            set_bit(m_encode_current_output, static_cast<int>(d), ones >= threshold);
+            set_bit(m_encode_current_output, static_cast<int>(d), score >= signed_threshold);
         }
 
         m_encode_done_flags[pe_id] = true;

@@ -26,8 +26,10 @@ static constexpr unsigned TRAIN_COUNT_BITS = 32;
 typedef sc_dt::sc_uint<LEVEL_BITS> level_t;
 typedef sc_dt::sc_uint<CLASS_BITS> class_t;
 typedef sc_dt::sc_uint<FEATURE_COUNT_BITS> feature_counter_t;
+typedef sc_dt::sc_int<FEATURE_COUNT_BITS + 1> feature_score_t;
 typedef sc_dt::sc_uint<DISTANCE_BITS> distance_counter_t;
 typedef sc_dt::sc_uint<TRAIN_COUNT_BITS> train_counter_t;
+typedef sc_dt::sc_int<TRAIN_COUNT_BITS + 1> train_score_t;
 typedef sc_dt::sc_bv<VECTOR_DIMENSION> hv_t;
 
 struct EvaluationResult {
