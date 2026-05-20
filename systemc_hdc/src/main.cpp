@@ -42,18 +42,41 @@ void print_memory_stats(const MemoryStats &stats) {
               << ", bytes=" << total_write_bytes << std::endl;
 }
 
-void print_accelerator_stats(const AcceleratorStats &stats) {
-    std::cout << "Accelerator stats:" << std::endl;
-    std::cout << "  commands: " << stats.command_count << std::endl;
-    std::cout << "  train samples: " << stats.train_samples << std::endl;
-    std::cout << "  inference samples: " << stats.infer_samples << std::endl;
-    std::cout << "  encoded samples: " << stats.encoded_samples << std::endl;
-    std::cout << "  ngram samples: " << stats.ngram_samples << std::endl;
-    std::cout << "  valid ngrams: " << stats.valid_ngrams << std::endl;
-    std::cout << "  bundled ngrams: " << stats.bundled_ngrams << std::endl;
-    std::cout << "  bundle flushes: " << stats.bundle_flushes << std::endl;
-    std::cout << "  distance requests: " << stats.distance_requests << std::endl;
-    std::cout << "  valid distance requests: " << stats.valid_distance_requests << std::endl;
+void print_accelerator_stats_table_header() {
+    std::cout
+        << "\nAccelerator stats summary\n"
+        << "dataset"
+        << "\tsim_time"
+        << "\tcommands"
+        << "\ttrain"
+        << "\tinfer"
+        << "\tencoded"
+        << "\tngrams"
+        << "\tvalid_ng"
+        << "\tbundled"
+        << "\tflushes"
+        << "\tdist_req"
+        << "\tvalid_dist"
+        << std::endl;
+}
+
+void print_accelerator_stats_table_row(int dataset,
+                                       const sc_core::sc_time &sim_time,
+                                       const AcceleratorStats &stats) {
+    std::cout
+        << dataset
+        << '\t' << sim_time
+        << '\t' << stats.command_count
+        << '\t' << stats.train_samples
+        << '\t' << stats.infer_samples
+        << '\t' << stats.encoded_samples
+        << '\t' << stats.ngram_samples
+        << '\t' << stats.valid_ngrams
+        << '\t' << stats.bundled_ngrams
+        << '\t' << stats.bundle_flushes
+        << '\t' << stats.distance_requests
+        << '\t' << stats.valid_distance_requests
+        << std::endl;
 }
 
 } // namespace
@@ -83,7 +106,13 @@ int sc_main(int, char *[]) {
         print_eval_result("Test", test_result);
         std::cout << "Simulation time: " << controller.dataset_sim_time(dataset) << std::endl;
         print_memory_stats(controller.memory_stats(dataset));
-        print_accelerator_stats(controller.accelerator_stats(dataset));
+    }
+
+    print_accelerator_stats_table_header();
+    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
+        print_accelerator_stats_table_row(dataset,
+                                          controller.dataset_sim_time(dataset),
+                                          controller.accelerator_stats(dataset));
     }
 
     return EXIT_SUCCESS;
