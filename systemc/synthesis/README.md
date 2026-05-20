@@ -96,49 +96,16 @@ Command types are defined in `src/hdc_transactions.h`:
 - `InferSample`
 - `Shutdown`
 
-## Parallelism Model
+## Datapath Execution
 
-The accelerator models hardware parallelism with SystemC threads and events. This is still an architectural model, not RTL.
+The synthesis variant keeps the command/FIFO pipeline structure but executes each datapath stage serially inside its owning thread.
 
-### Encoding Parallelism
+- `encoder_thread`: serial sample encoding across dimensions and features
+- `ngram_thread`: serial n-gram binding using `permute(input) XOR rhs`
+- `distance_thread`: serial Hamming distance computation over all classes
+- `bundler_thread`: sequential training-side bundling and class finalization
 
-Controlled by:
-
-```cpp
-ENCODER_PES
-```
-
-Encoding is parallelized across hypervector dimensions. Each encoder PE computes a slice of the output hypervector. For every output dimension, it reads the relevant CiM bits for all features and applies the majority rule.
-
-### N-Gram Binding Parallelism
-
-Controlled by:
-
-```cpp
-NGRAM_PES
-```
-
-N-gram binding is also parallelized across hypervector dimensions. Each n-gram PE computes a slice of:
-
-```text
-output = permute(input) XOR rhs
-```
-
-The implementation avoids in-place hazards by writing each parallel permute/XOR step into a temporary output vector.
-
-### Distance Parallelism
-
-Distance computation is parallelized across classes. The accelerator spawns one distance PE per class:
-
-```text
-NUM_CLASSES distance PEs
-```
-
-Each class PE computes the Hamming distance between the query hypervector and one associative-memory class vector.
-
-### Bundling
-
-Bundling is currently sequential. It is training-side only and updates one class bundling buffer before writing the final class vector to associative memory.
+This keeps behavior aligned with the simulation model while simplifying the code for downstream HLS/synthesis work.
 
 ## Captured Metrics
 
@@ -304,8 +271,6 @@ NUM_LEVELS
 NUM_CLASSES
 N_GRAM_SIZE
 NUM_DATASETS
-ENCODER_PES
-NGRAM_PES
 MAX_SAMPLES_IN_PIPELINE
 ```
 

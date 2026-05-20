@@ -1,5 +1,4 @@
 #include "hdc_accelerator.h"
-#include "sysc/kernel/sc_spawn.h"
 
 namespace hdc_systemc {
 
@@ -31,21 +30,8 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_distance_in_fifo("distance_in_fifo", 32),
       m_control_done_fifo("control_done_fifo", 8),
       m_distance_done_fifo("distance_done_fifo", 32),
-      m_ngram_work_input(0),
-      m_ngram_work_rhs(0),
-      m_ngram_work_output(0),
       m_infer_outstanding(0),
       m_memory(0) {
-    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
-        m_encode_done_flags[pe] = false;
-    }
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        m_distance_current_result[class_id] = 0;
-        m_distance_done_flags[class_id] = false;
-    }
-    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
-        m_ngram_done_flags[pe] = false;
-    }
     reset_stats();
 
     SC_THREAD(command_thread);
@@ -53,21 +39,6 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     SC_THREAD(ngram_thread);
     SC_THREAD(bundler_thread);
     SC_THREAD(distance_thread);
-    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
-        sc_core::sc_spawn(
-            sc_core::sc_bind(&HDC_Accelerator::encoder_pe_thread, this, pe),
-            sc_core::sc_gen_unique_name("encoder_pe"));
-    }
-    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
-        sc_core::sc_spawn(
-            sc_core::sc_bind(&HDC_Accelerator::ngram_pe_thread, this, pe),
-            sc_core::sc_gen_unique_name("ngram_pe"));
-    }
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        sc_core::sc_spawn(
-            sc_core::sc_bind(&HDC_Accelerator::distance_class_pe_thread, this, class_id),
-            sc_core::sc_gen_unique_name("distance_class_pe"));
-    }
 
     reset_all_local_state();
 }
@@ -213,7 +184,7 @@ void HDC_Accelerator::encoder_thread() {
         }
 
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
-            encode_sample_parallel(item.sample, item.encoded);
+            encode_sample(item.sample, item.encoded);
             ++m_stats.encoded_samples;
         }
         m_encoder_out_fifo.write(item);
@@ -252,7 +223,7 @@ void HDC_Accelerator::ngram_thread() {
             ++m_stats.ngram_samples;
             push_encoded_sample_to_ngram_buffer(item.encoded);
             if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
-                bind_ngram_parallel(item.ngram);
+                bind_ngram(item.ngram);
                 item.valid_ngram = true;
                 ++m_stats.valid_ngrams;
             } else {
@@ -319,7 +290,7 @@ void HDC_Accelerator::distance_thread() {
 
         response.valid_prediction = true;
         ++m_stats.valid_distance_requests;
-        compute_hamming_distances_parallel(item.ngram, response.distances);
+        compute_hamming_distances(item.ngram, response.distances);
         m_distance_done_fifo.write(response);
     }
 }
@@ -383,49 +354,23 @@ void HDC_Accelerator::finalize_current_class() {
     m_current_class_id = -1;
 }
 
-void HDC_Accelerator::bind_ngram_parallel(hv_t &encoded_ngram) {
+void HDC_Accelerator::bind_ngram(hv_t &encoded_ngram) {
     const int oldest_slot = m_ngram_buffer_write_pos;
     encoded_ngram = m_ngram_buffer[oldest_slot];
+    hv_t next_encoded;
 
     for (int i = 1; i < N_GRAM_SIZE; ++i) {
         const int slot = (oldest_slot + i) % N_GRAM_SIZE;
-        permute_xor_parallel(encoded_ngram, m_ngram_buffer[slot], m_ngram_current_output);
-        encoded_ngram = m_ngram_current_output;
+        permute_xor(encoded_ngram, m_ngram_buffer[slot], next_encoded);
+        encoded_ngram = next_encoded;
     }
 }
 
-void HDC_Accelerator::permute_xor_parallel(const hv_t &input, const hv_t &rhs, hv_t &output) {
-    m_ngram_work_input = &input;
-    m_ngram_work_rhs = &rhs;
-    m_ngram_work_output = &output;
-    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
-        m_ngram_done_flags[pe] = false;
-    }
-
-    m_ngram_start_event.notify(sc_core::SC_ZERO_TIME);
-    for (unsigned pe = 0; pe < NGRAM_PES; ++pe) {
-        while (!m_ngram_done_flags[pe]) {
-            sc_core::wait(m_ngram_done_event[pe]);
-        }
-    }
-}
-
-void HDC_Accelerator::ngram_pe_thread(unsigned pe_id) {
-    while (true) {
-        sc_core::wait(m_ngram_start_event);
-
-        const unsigned begin = pe_id * VECTOR_DIMENSION / NGRAM_PES;
-        const unsigned end = (pe_id + 1) * VECTOR_DIMENSION / NGRAM_PES;
-        for (unsigned d = begin; d < end; ++d) {
-            const unsigned source_index = (d + VECTOR_DIMENSION - 1) % VECTOR_DIMENSION;
-            const bool bit =
-                get_bit(*m_ngram_work_input, static_cast<int>(source_index)) ^
-                get_bit(*m_ngram_work_rhs, static_cast<int>(d));
-            set_bit(*m_ngram_work_output, static_cast<int>(d), bit);
-        }
-
-        m_ngram_done_flags[pe_id] = true;
-        m_ngram_done_event[pe_id].notify(sc_core::SC_ZERO_TIME);
+void HDC_Accelerator::permute_xor(const hv_t &input, const hv_t &rhs, hv_t &output) {
+    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        const int source_index = (d + VECTOR_DIMENSION - 1) % VECTOR_DIMENSION;
+        const bool bit = get_bit(input, source_index) ^ get_bit(rhs, d);
+        set_bit(output, d, bit);
     }
 }
 
@@ -437,92 +382,41 @@ void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sa
     }
 }
 
-void HDC_Accelerator::encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample) {
-    m_encode_current_sample = sample;
-    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
-        m_encode_done_flags[pe] = false;
-    }
+void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded_sample) {
+    // Feature bundling uses signed +1/-1 accumulation instead of counting ones.
+    // This is exactly equivalent to:
+    //     ones >= floor(half of NUM_FEATURES)
+    //
+    // For NUM_FEATURES even: score >= 0
+    // For NUM_FEATURES odd:  score >= -1
+    const feature_score_t signed_threshold =
+        (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
 
-    m_encode_start_event.notify(sc_core::SC_ZERO_TIME);
-    for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
-        while (!m_encode_done_flags[pe]) {
-            sc_core::wait(m_encode_done_event[pe]);
-        }
-    }
-
-    encoded_sample = m_encode_current_output;
-}
-
-void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
-    while (true) {
-        sc_core::wait(m_encode_start_event);
-
-        const unsigned begin = pe_id * VECTOR_DIMENSION / ENCODER_PES;
-        const unsigned end = (pe_id + 1) * VECTOR_DIMENSION / ENCODER_PES;
-        // Feature bundling uses signed +1/-1 accumulation instead of counting ones.
-        // This is exactly equivalent to:
-        //     ones >= floor(half of NUM_FEATURES)
-        // but avoids division/comparator-to-half in the bundled datapath.
-        //
-        // For NUM_FEATURES even: score >= 0
-        // For NUM_FEATURES odd:  score >= -1
-        const feature_score_t signed_threshold =
-            (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
-
-        for (unsigned d = begin; d < end; ++d) {
-            feature_score_t score = 0;
-            for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-                const hv_t &feature_hv =
-                    m_memory->read_cim(m_encode_current_sample.levels[feature], feature);
-                if (get_bit(feature_hv, static_cast<int>(d))) {
-                    ++score;
-                } else {
-                    --score;
-                }
+    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        feature_score_t score = 0;
+        for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+            const hv_t &feature_hv = m_memory->read_cim(sample.levels[feature], feature);
+            if (get_bit(feature_hv, d)) {
+                ++score;
+            } else {
+                --score;
             }
-
-            set_bit(m_encode_current_output, static_cast<int>(d), score >= signed_threshold);
         }
 
-        m_encode_done_flags[pe_id] = true;
-        m_encode_done_event[pe_id].notify(sc_core::SC_ZERO_TIME);
+        set_bit(encoded_sample, d, score >= signed_threshold);
     }
 }
 
-void HDC_Accelerator::compute_hamming_distances_parallel(const hv_t &query, distance_counter_t *distances) {
-    m_distance_current_query = query;
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        m_distance_done_flags[class_id] = false;
-    }
-
-    m_distance_start_event.notify(sc_core::SC_ZERO_TIME);
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        while (!m_distance_done_flags[class_id]) {
-            sc_core::wait(m_distance_done_event[class_id]);
-        }
-    }
-
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        distances[class_id] = m_distance_current_result[class_id];
-    }
-}
-
-void HDC_Accelerator::distance_class_pe_thread(unsigned class_id) {
-    while (true) {
-        sc_core::wait(m_distance_start_event);
-
-        const hv_t &class_vector = m_memory->read_assoc_class(class_id);
+void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_counter_t *distances) {
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        const hv_t &class_vector = m_memory->read_assoc_class(static_cast<unsigned>(class_id));
         distance_counter_t distance = 0;
-        for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-            if (get_bit(m_distance_current_query, static_cast<int>(d)) !=
-                get_bit(class_vector, static_cast<int>(d))) {
+        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+            if (get_bit(query, d) != get_bit(class_vector, d)) {
                 ++distance;
             }
         }
-
-        m_distance_current_result[class_id] = distance;
-        m_distance_done_flags[class_id] = true;
-        m_distance_done_event[class_id].notify(sc_core::SC_ZERO_TIME);
+        distances[class_id] = distance;
     }
 }
 

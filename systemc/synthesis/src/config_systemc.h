@@ -25,17 +25,6 @@
 #define NUM_DATASETS 4
 #endif
 
-#ifndef ENCODER_PES
-#define ENCODER_PES 8
-#endif
-
-#ifndef NGRAM_PES
-#define NGRAM_PES 8
-#endif
-
-// Distance computation is parallelized across classes.
-// The accelerator instantiates one distance PE per class.
-
 #ifndef MAX_SAMPLES_IN_PIPELINE
 #define MAX_SAMPLES_IN_PIPELINE 32
 #endif
