@@ -41,32 +41,4 @@
 #endif
 
 
-#ifndef ACCEL_LATENCY_ENCODE_NS
-#define ACCEL_LATENCY_ENCODE_NS 1
-#endif
-
-#ifndef ACCEL_LATENCY_NGRAM_NS
-#define ACCEL_LATENCY_NGRAM_NS 1
-#endif
-
-#ifndef ACCEL_LATENCY_BUNDLE_NS
-#define ACCEL_LATENCY_BUNDLE_NS 1
-#endif
-
-#ifndef ACCEL_LATENCY_DISTANCE_NS
-#define ACCEL_LATENCY_DISTANCE_NS 1
-#endif
-
-#ifndef MEM_LATENCY_CIM_READ_NS
-#define MEM_LATENCY_CIM_READ_NS 1
-#endif
-
-#ifndef MEM_LATENCY_AM_READ_NS
-#define MEM_LATENCY_AM_READ_NS 1
-#endif
-
-#ifndef MEM_LATENCY_AM_WRITE_NS
-#define MEM_LATENCY_AM_WRITE_NS 1
-#endif
-
 #endif

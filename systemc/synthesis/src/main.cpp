@@ -46,7 +46,6 @@ void print_accelerator_stats_table_header() {
     std::cout
         << "\nAccelerator stats summary\n"
         << "dataset"
-        << "\tsim_time"
         << "\tcommands"
         << "\ttrain"
         << "\tinfer"
@@ -61,11 +60,9 @@ void print_accelerator_stats_table_header() {
 }
 
 void print_accelerator_stats_table_row(int dataset,
-                                       const sc_core::sc_time &sim_time,
                                        const AcceleratorStats &stats) {
     std::cout
         << dataset
-        << '\t' << sim_time
         << '\t' << stats.command_count
         << '\t' << stats.train_samples
         << '\t' << stats.infer_samples
@@ -104,14 +101,12 @@ int sc_main(int, char *[]) {
 
         std::cout << "\nDataset " << dataset << std::endl;
         print_eval_result("Test", test_result);
-        std::cout << "Simulation time: " << controller.dataset_sim_time(dataset) << std::endl;
         print_memory_stats(controller.memory_stats(dataset));
     }
 
     print_accelerator_stats_table_header();
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         print_accelerator_stats_table_row(dataset,
-                                          controller.dataset_sim_time(dataset),
                                           controller.accelerator_stats(dataset));
     }
 

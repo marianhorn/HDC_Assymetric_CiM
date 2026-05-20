@@ -93,7 +93,6 @@ Controller::Controller(sc_core::sc_module_name name)
         clear_evaluation_result(m_test_results[dataset]);
         clear_memory_stats(m_memory_stats[dataset]);
         clear_accelerator_stats(m_accelerator_stats[dataset]);
-        m_dataset_sim_times[dataset] = sc_core::SC_ZERO_TIME;
     }
 
     m_accelerator.cmd_in(m_cmd_fifo);
@@ -146,13 +145,6 @@ const AcceleratorStats &Controller::accelerator_stats(int dataset_id) const {
     return m_accelerator_stats[dataset_id];
 }
 
-const sc_core::sc_time &Controller::dataset_sim_time(int dataset_id) const {
-    if (dataset_id < 0 || dataset_id >= NUM_DATASETS) {
-        SC_REPORT_FATAL("Controller", "dataset_sim_time dataset_id out of range");
-    }
-    return m_dataset_sim_times[dataset_id];
-}
-
 void Controller::main_thread() {
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         const DatasetConfig &config = m_dataset_configs[dataset];
@@ -166,8 +158,6 @@ void Controller::main_thread() {
         m_memory.reset_stats();
         m_accelerator.reset_stats();
 
-        const sc_core::sc_time dataset_start_time = sc_core::sc_time_stamp();
-
         train_dataset(config.dataset->training.raw_data(),
                       config.dataset->training.raw_labels(),
                       config.dataset->training.samples);
@@ -177,7 +167,6 @@ void Controller::main_thread() {
                              config.dataset->testing.raw_labels(),
                              config.dataset->testing.samples);
 
-        m_dataset_sim_times[dataset] = sc_core::sc_time_stamp() - dataset_start_time;
         m_memory_stats[dataset] = m_memory.stats();
         m_accelerator_stats[dataset] = m_accelerator.stats();
     }

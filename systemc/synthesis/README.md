@@ -55,7 +55,7 @@ It also counts memory traffic:
 - associative-memory reads and bytes
 - associative-memory writes and bytes
 
-The current memory model is functional: accesses return immediately and counters are updated. It does not yet model ports, banks, contention, arbitration, or per-access latency.
+The current memory model is functional: accesses return immediately and counters are updated. It does not yet model ports, banks, contention, arbitration, or bandwidth stalls.
 
 ### HDC_Accelerator
 
@@ -139,21 +139,6 @@ Each class PE computes the Hamming distance between the query hypervector and on
 ### Bundling
 
 Bundling is currently sequential. It is training-side only and updates one class bundling buffer before writing the final class vector to associative memory.
-
-## Simulation Timing
-
-Simulation time is SystemC modeled time, not wall-clock runtime.
-
-The latency constants are defined in `src/config_systemc.h`:
-
-```cpp
-ACCEL_LATENCY_ENCODE_NS
-ACCEL_LATENCY_NGRAM_NS
-ACCEL_LATENCY_BUNDLE_NS
-ACCEL_LATENCY_DISTANCE_NS
-```
-
-The model advances time with `wait(...)` calls in the accelerator pipeline stages. The printed per-dataset simulation time is measured around training plus test evaluation for that dataset.
 
 ## Captured Metrics
 
@@ -306,7 +291,7 @@ Expected result after behavior-preserving refactors:
 no diff
 ```
 
-Use this after changing controller/accelerator/memory logic. Timing and counters may evolve intentionally, but prediction output should not change unless the algorithm changed on purpose.
+Use this after changing controller/accelerator/memory logic. Counters may evolve intentionally, but prediction output should not change unless the algorithm changed on purpose.
 
 ## Configuration
 
@@ -322,10 +307,6 @@ NUM_DATASETS
 ENCODER_PES
 NGRAM_PES
 MAX_SAMPLES_IN_PIPELINE
-ACCEL_LATENCY_ENCODE_NS
-ACCEL_LATENCY_NGRAM_NS
-ACCEL_LATENCY_BUNDLE_NS
-ACCEL_LATENCY_DISTANCE_NS
 ```
 
 The import file headers are checked against the active SystemC configuration. If `NUM_LEVELS`, `NUM_FEATURES`, or `VECTOR_DIMENSION` do not match the imported files, the simulation fails early.
@@ -353,7 +334,7 @@ Current scope:
 - software-side quantization in the controller
 - hardware-side encoding, n-gram binding, bundling, and Hamming distance
 - all configured foot datasets
-- per-dataset functional, timing, memory, and accelerator metrics
+- per-dataset functional, memory, and accelerator metrics
 
 Current limitations:
 

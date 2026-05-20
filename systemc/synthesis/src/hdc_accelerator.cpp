@@ -103,7 +103,7 @@ void HDC_Accelerator::command_thread() {
         AccelCommand command = {};
         if (!cmd_in.nb_read(command)) {
             if (m_distance_done_fifo.num_available() == 0) {
-                sc_core::wait(1, sc_core::SC_NS);
+                sc_core::wait(cmd_in.data_written_event() | m_distance_done_fifo.data_written_event());
             }
             continue;
         }
@@ -167,7 +167,7 @@ void HDC_Accelerator::command_thread() {
             while (m_infer_outstanding > 0) {
                 forward_completed_distance_responses();
                 if (m_infer_outstanding > 0) {
-                    sc_core::wait(1, sc_core::SC_NS);
+                    sc_core::wait(m_distance_done_fifo.data_written_event());
                 }
             }
 
@@ -215,7 +215,6 @@ void HDC_Accelerator::encoder_thread() {
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             encode_sample_parallel(item.sample, item.encoded);
             ++m_stats.encoded_samples;
-            sc_core::wait(ACCEL_LATENCY_ENCODE_NS, sc_core::SC_NS);
         }
         m_encoder_out_fifo.write(item);
     }
@@ -260,8 +259,6 @@ void HDC_Accelerator::ngram_thread() {
                 item.valid_ngram = false;
             }
 
-            sc_core::wait(ACCEL_LATENCY_NGRAM_NS, sc_core::SC_NS);
-
             if (item.kind == AccelCommandKind::TrainSample) {
                 m_bundler_in_fifo.write(item);
             } else {
@@ -289,7 +286,6 @@ void HDC_Accelerator::bundler_thread() {
 
                 add_ngram_to_bundling_buffer(item.ngram);
             }
-            sc_core::wait(ACCEL_LATENCY_BUNDLE_NS, sc_core::SC_NS);
             continue;
         }
 
@@ -297,7 +293,6 @@ void HDC_Accelerator::bundler_thread() {
             finalize_current_class();
             reset_bundling_buffer_only();
             ++m_stats.bundle_flushes;
-            sc_core::wait(ACCEL_LATENCY_BUNDLE_NS, sc_core::SC_NS);
             m_control_done_fifo.write(true);
             continue;
         }
@@ -325,7 +320,6 @@ void HDC_Accelerator::distance_thread() {
         response.valid_prediction = true;
         ++m_stats.valid_distance_requests;
         compute_hamming_distances_parallel(item.ngram, response.distances);
-        sc_core::wait(ACCEL_LATENCY_DISTANCE_NS, sc_core::SC_NS);
         m_distance_done_fifo.write(response);
     }
 }
@@ -383,7 +377,6 @@ void HDC_Accelerator::finalize_current_class() {
         set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
-    sc_core::wait(MEM_LATENCY_AM_WRITE_NS, sc_core::SC_NS);
     m_memory->write_assoc_class(static_cast<unsigned>(m_current_class_id), class_vector);
 
     m_current_class_count = 0;
@@ -479,7 +472,6 @@ void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
         for (unsigned d = begin; d < end; ++d) {
             feature_score_t score = 0;
             for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-                sc_core::wait(MEM_LATENCY_CIM_READ_NS, sc_core::SC_NS);
                 const hv_t &feature_hv =
                     m_memory->read_cim(m_encode_current_sample.levels[feature], feature);
                 if (get_bit(feature_hv, static_cast<int>(d))) {
@@ -519,7 +511,6 @@ void HDC_Accelerator::distance_class_pe_thread(unsigned class_id) {
     while (true) {
         sc_core::wait(m_distance_start_event);
 
-        sc_core::wait(MEM_LATENCY_AM_READ_NS, sc_core::SC_NS);
         const hv_t &class_vector = m_memory->read_assoc_class(class_id);
         distance_counter_t distance = 0;
         for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
