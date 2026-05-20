@@ -111,11 +111,6 @@ void HDC_Accelerator::command_thread() {
         ++m_stats.command_count;
         switch (command.kind) {
         case AccelCommandKind::ResetTraining: {
-            if (m_infer_outstanding != 0) {
-                SC_REPORT_FATAL("HDC_Accelerator",
-                                "ResetTraining received with outstanding inference responses");
-            }
-
             reset_bundling_buffer_only();
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetTraining;
@@ -126,11 +121,6 @@ void HDC_Accelerator::command_thread() {
         }
 
         case AccelCommandKind::ResetInference: {
-            if (m_infer_outstanding != 0) {
-                SC_REPORT_FATAL("HDC_Accelerator",
-                                "ResetInference received with outstanding inference responses");
-            }
-
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetInference;
             item.valid_ngram = false;
@@ -201,11 +191,6 @@ void HDC_Accelerator::command_thread() {
 void HDC_Accelerator::forward_completed_distance_responses() {
     DistanceResponse distance_response = {};
     while (m_distance_done_fifo.nb_read(distance_response)) {
-        if (m_infer_outstanding <= 0) {
-            SC_REPORT_FATAL("HDC_Accelerator",
-                            "distance response without outstanding inference command");
-        }
-
         AccelResponse response = {};
         response.valid_prediction = distance_response.valid_prediction;
         response.is_shutdown_ack = false;
@@ -297,15 +282,9 @@ void HDC_Accelerator::bundler_thread() {
         if (item.kind == AccelCommandKind::TrainSample) {
             if (item.valid_ngram) {
                 const int class_id = item.class_id.to_int();
-                if (class_id < 0 || class_id >= NUM_CLASSES) {
-                    SC_REPORT_FATAL("HDC_Accelerator", "class index out of range");
-                }
 
                 if (m_current_class_id < 0) {
                     m_current_class_id = class_id;
-                }
-                if (class_id != m_current_class_id) {
-                    SC_REPORT_FATAL("HDC_Accelerator", "Training class changed without flush");
                 }
 
                 add_ngram_to_bundling_buffer(item.ngram);
@@ -385,20 +364,6 @@ void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
 }
 
 void HDC_Accelerator::finalize_current_class() {
-    if (m_memory == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
-    }
-    if (m_current_class_id < 0) {
-        return;
-    }
-    if (m_current_class_id >= NUM_CLASSES) {
-        SC_REPORT_FATAL("HDC_Accelerator", "active class index out of range");
-    }
-    if (m_current_class_count == 0) {
-        m_current_class_id = -1;
-        return;
-    }
-
     hv_t class_vector;
     clear_hv(class_vector);
     // Exact equivalent of the previous rule:
@@ -480,10 +445,6 @@ void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sa
 }
 
 void HDC_Accelerator::encode_sample_parallel(const QuantizedSample &sample, hv_t &encoded_sample) {
-    if (m_memory == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
-    }
-
     m_encode_current_sample = sample;
     for (unsigned pe = 0; pe < ENCODER_PES; ++pe) {
         m_encode_done_flags[pe] = false;
@@ -537,13 +498,6 @@ void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
 }
 
 void HDC_Accelerator::compute_hamming_distances_parallel(const hv_t &query, distance_counter_t *distances) {
-    if (m_memory == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "memory not bound");
-    }
-    if (distances == 0) {
-        SC_REPORT_FATAL("HDC_Accelerator", "distances must not be null");
-    }
-
     m_distance_current_query = query;
     for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         m_distance_done_flags[class_id] = false;

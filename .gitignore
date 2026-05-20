@@ -74,4 +74,12 @@ systemc_hdc/build/
 systemc_hdc/main
 systemc_hdc/systemc_hdc_tb
 systemc_hdc/systemc_hdc_golden_regression
+systemc/simulation/build/
+systemc/simulation/main
+systemc/simulation/systemc_hdc_tb
+systemc/simulation/systemc_hdc_golden_regression
+systemc/synthesis/build/
+systemc/synthesis/main
+systemc/synthesis/systemc_hdc_tb
+systemc/synthesis/systemc_hdc_golden_regression
 analysis/resource_saving/*/runs/
