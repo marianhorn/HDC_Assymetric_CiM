@@ -1,3 +1,5 @@
+// SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
+// It is the SystemC testbench entry point and prints functional/statistical results.
 #include <cstdlib>
 #include <cstdio>
 #include <cstdint>

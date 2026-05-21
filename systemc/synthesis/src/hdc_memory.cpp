@@ -1,3 +1,5 @@
+// SIMULATION MEMORY MODEL: Functional memory backing for the accelerator simulation.
+// This is documented as outside the final HLS memory-interface style for now.
 #include "hdc_memory.h"
 namespace hdc_systemc {
 

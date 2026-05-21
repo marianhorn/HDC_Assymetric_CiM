@@ -1,3 +1,5 @@
+// SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
+// It defines host-side containers for CSV-loaded foot EMG datasets.
 #ifndef SYSTEMC_HDC_FOOT_DATASET_LOADER_H
 #define SYSTEMC_HDC_FOOT_DATASET_LOADER_H
 

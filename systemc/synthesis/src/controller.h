@@ -1,3 +1,5 @@
+// SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
+// It models the RISC-V/software side that loads files, quantizes raw EMG, and drives the accelerator.
 #ifndef SYSTEMC_HDC_CONTROLLER_H
 #define SYSTEMC_HDC_CONTROLLER_H
 

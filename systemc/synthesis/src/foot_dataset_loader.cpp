@@ -1,3 +1,5 @@
+// SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
+// It performs CSV parsing and raw EMG dataset loading for the testbench.
 #include "foot_dataset_loader.h"
 #include <fstream>
 #include <sstream>

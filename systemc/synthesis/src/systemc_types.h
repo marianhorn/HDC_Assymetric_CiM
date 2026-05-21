@@ -1,3 +1,5 @@
+// SHARED TYPE DEFINITIONS: Used by both the accelerator model and simulation harness.
+// Evaluation and statistic structs are simulation-only; accelerator boundary data lives in hdc_transactions.h.
 #ifndef SYSTEMC_HDC_SYSTEMC_TYPES_H
 #define SYSTEMC_HDC_SYSTEMC_TYPES_H
 

@@ -1,3 +1,5 @@
+// SYNTHESIS TARGET: This module is intended to be refactored toward HLS/SystemC synthesis.
+// The synthesis boundary for the first hardware version is HDC_Accelerator only.
 #ifndef SYSTEMC_HDC_HDC_ACCELERATOR_H
 #define SYSTEMC_HDC_HDC_ACCELERATOR_H
 

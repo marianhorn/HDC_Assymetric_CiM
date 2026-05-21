@@ -1,3 +1,5 @@
+// SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
+// It contains file loading, floating-point quantization, dataset control, and metrics collection.
 #include "controller.h"
 #include <fstream>
 #include <sstream>

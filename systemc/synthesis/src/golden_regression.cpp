@@ -1,3 +1,5 @@
+// SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
+// It is a deterministic functional regression harness for refactoring checks.
 #include <cstdlib>
 #include <cstdio>
 #include <fstream>

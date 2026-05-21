@@ -1,3 +1,5 @@
+// SIMULATION / SYNTHESIS CONFIGURATION: Shared constants for the current SystemC model.
+// Only constants needed by HDC_Accelerator should be treated as part of the synthesis boundary.
 #ifndef SYSTEMC_HDC_CONFIG_SYSTEMC_H
 #define SYSTEMC_HDC_CONFIG_SYSTEMC_H
 

@@ -1,3 +1,5 @@
+// SIMULATION MEMORY MODEL: Used by HDC_Accelerator today, but not final hardware-style memory.
+// Later synthesis phases should replace/clean this with explicit arrays, banks, or ports.
 #ifndef SYSTEMC_HDC_HDC_MEMORY_H
 #define SYSTEMC_HDC_HDC_MEMORY_H
 

@@ -1,3 +1,5 @@
+// ACCELERATOR BOUNDARY TYPES: Commands carry only command kind, class id, and quantized samples.
+// Do not add raw EMG values, double fields, or floating-point quantizer data to this interface.
 #ifndef SYSTEMC_HDC_TRANSACTIONS_H
 #define SYSTEMC_HDC_TRANSACTIONS_H
 

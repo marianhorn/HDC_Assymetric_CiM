@@ -1,3 +1,5 @@
+// SYNTHESIS TARGET: This module is intended to be refactored toward HLS/SystemC synthesis.
+// Keep dataset loading, floating-point quantization, and testbench code outside this file.
 #include "hdc_accelerator.h"
 
 namespace hdc_systemc {
