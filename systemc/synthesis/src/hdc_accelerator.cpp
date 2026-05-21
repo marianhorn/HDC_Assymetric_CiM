@@ -15,7 +15,7 @@ void set_bit(hv_t &hv, int index, bool value) {
 }
 
 void clear_hv(hv_t &hv) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         hv[d] = sc_dt::SC_LOGIC_0;
     }
 }
@@ -140,7 +140,7 @@ void HDC_Accelerator::response_stage() {
         response.valid_prediction = m_distance_done_data.valid_prediction;
         response.is_shutdown_ack = false;
         response.predicted_class = 0;
-        for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
             response.distances[class_id] = m_distance_done_data.distances[class_id];
         }
 
@@ -242,10 +242,10 @@ void HDC_Accelerator::train_stage() {
 
     if (item.kind == AccelCommandKind::TrainSample) {
             if (item.valid_ngram) {
-                const int class_id = item.class_id.to_int();
+                const unsigned class_id = item.class_id.to_uint();
 
                 if (m_current_class_id < 0) {
-                    m_current_class_id = class_id;
+                    m_current_class_id = static_cast<int>(class_id);
                 }
 
                 add_ngram_to_bundling_buffer(item.ngram);
@@ -273,7 +273,7 @@ void HDC_Accelerator::distance_stage() {
     DistanceResponse response = {};
     if (!item.valid_ngram) {
             response.valid_prediction = false;
-            for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 response.distances[class_id] = 0;
             }
             m_distance_done_data = response;
@@ -312,7 +312,7 @@ void HDC_Accelerator::reset_all_local_state() {
 void HDC_Accelerator::reset_bundling_buffer_only() {
     m_current_class_count = 0;
     m_current_class_id = -1;
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         m_bundling_score[d] = 0;
     }
 }
@@ -320,13 +320,13 @@ void HDC_Accelerator::reset_bundling_buffer_only() {
 void HDC_Accelerator::reset_ngram_buffer() {
     m_ngram_buffer_write_pos = 0;
     m_ngram_buffer_fill_count = 0;
-    for (int slot = 0; slot < N_GRAM_SIZE; ++slot) {
+    for (unsigned slot = 0; slot < N_GRAM_SIZE; ++slot) {
         clear_hv(m_ngram_buffer[slot]);
     }
 }
 
 void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         if (get_bit(encoded_ngram, d)) {
             ++m_bundling_score[d];
         } else {
@@ -352,7 +352,7 @@ void HDC_Accelerator::finalize_current_class() {
     // This avoids division while preserving the old bundling result.
     const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
     const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
@@ -363,20 +363,20 @@ void HDC_Accelerator::finalize_current_class() {
 }
 
 void HDC_Accelerator::bind_ngram(hv_t &encoded_ngram) {
-    const int oldest_slot = m_ngram_buffer_write_pos;
+    const unsigned oldest_slot = m_ngram_buffer_write_pos;
     encoded_ngram = m_ngram_buffer[oldest_slot];
     hv_t next_encoded;
 
-    for (int i = 1; i < N_GRAM_SIZE; ++i) {
-        const int slot = (oldest_slot + i) % N_GRAM_SIZE;
+    for (unsigned i = 1; i < N_GRAM_SIZE; ++i) {
+        const unsigned slot = (oldest_slot + i) % N_GRAM_SIZE;
         permute_xor(encoded_ngram, m_ngram_buffer[slot], next_encoded);
         encoded_ngram = next_encoded;
     }
 }
 
 void HDC_Accelerator::permute_xor(const hv_t &input, const hv_t &rhs, hv_t &output) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        const int source_index = (d + VECTOR_DIMENSION - 1) % VECTOR_DIMENSION;
+    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
+        const unsigned source_index = (d + VECTOR_DIMENSION - 1u) % VECTOR_DIMENSION;
         const bool bit = get_bit(input, source_index) ^ get_bit(rhs, d);
         set_bit(output, d, bit);
     }
@@ -400,9 +400,9 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
     const feature_score_t signed_threshold =
         (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
 
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         feature_score_t score = 0;
-        for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
             const hv_t &feature_hv = m_cim[sample.levels[feature].to_uint()][feature];
             if (get_bit(feature_hv, d)) {
                 ++score;
@@ -416,10 +416,10 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
 }
 
 void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_counter_t *distances) {
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         const hv_t &class_vector = m_assoc_mem[class_id];
         distance_counter_t distance = 0;
-        for (int d = 0; d < VECTOR_DIMENSION; ++d) {
+        for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
             if (get_bit(query, d) != get_bit(class_vector, d)) {
                 ++distance;
             }

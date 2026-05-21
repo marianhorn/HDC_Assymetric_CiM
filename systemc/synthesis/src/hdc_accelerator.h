@@ -87,8 +87,8 @@ private:
     bool m_control_busy;
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];
-    int m_ngram_buffer_write_pos;
-    int m_ngram_buffer_fill_count;
+    unsigned m_ngram_buffer_write_pos;
+    unsigned m_ngram_buffer_fill_count;
 
     // Signed bundling score for the currently trained class segment.
     train_score_t m_bundling_score[VECTOR_DIMENSION];
