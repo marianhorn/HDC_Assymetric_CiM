@@ -377,7 +377,7 @@ void HDC_Accelerator::bind_ngram(hv_t &encoded_ngram) {
 
 void HDC_Accelerator::permute_xor(const hv_t &input, const hv_t &rhs, hv_t &output) {
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        const unsigned source_index = (d + VECTOR_DIMENSION - 1u) % VECTOR_DIMENSION;
+        const unsigned source_index = (d == 0) ? (VECTOR_DIMENSION - 1u) : (d - 1u);
         const bool bit = get_bit(input, source_index) ^ get_bit(rhs, d);
         set_bit(output, d, bit);
     }
@@ -385,7 +385,10 @@ void HDC_Accelerator::permute_xor(const hv_t &input, const hv_t &rhs, hv_t &outp
 
 void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample) {
     m_ngram_buffer[m_ngram_buffer_write_pos] = encoded_sample;
-    m_ngram_buffer_write_pos = (m_ngram_buffer_write_pos + 1) % N_GRAM_SIZE;
+    ++m_ngram_buffer_write_pos;
+    if (m_ngram_buffer_write_pos == N_GRAM_SIZE) {
+        m_ngram_buffer_write_pos = 0;
+    }
     if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
         ++m_ngram_buffer_fill_count;
     }
