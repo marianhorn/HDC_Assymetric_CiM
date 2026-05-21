@@ -64,19 +64,6 @@ void clear_memory_stats(MemoryStats &stats) {
     stats.assoc_write_bytes = 0;
 }
 
-void clear_accelerator_stats(AcceleratorStats &stats) {
-    stats.command_count = 0;
-    stats.train_samples = 0;
-    stats.infer_samples = 0;
-    stats.encoded_samples = 0;
-    stats.ngram_samples = 0;
-    stats.valid_ngrams = 0;
-    stats.bundled_ngrams = 0;
-    stats.bundle_flushes = 0;
-    stats.distance_requests = 0;
-    stats.valid_distance_requests = 0;
-}
-
 } // namespace
 
 Controller::Controller(sc_core::sc_module_name name)
@@ -94,7 +81,6 @@ Controller::Controller(sc_core::sc_module_name name)
         m_dataset_configs[dataset].configured = false;
         clear_evaluation_result(m_test_results[dataset]);
         clear_memory_stats(m_memory_stats[dataset]);
-        clear_accelerator_stats(m_accelerator_stats[dataset]);
     }
 
     m_accelerator.cmd_in(m_cmd_fifo);
@@ -140,13 +126,6 @@ const MemoryStats &Controller::memory_stats(int dataset_id) const {
     return m_memory_stats[dataset_id];
 }
 
-const AcceleratorStats &Controller::accelerator_stats(int dataset_id) const {
-    if (dataset_id < 0 || dataset_id >= NUM_DATASETS) {
-        SC_REPORT_FATAL("Controller", "accelerator_stats dataset_id out of range");
-    }
-    return m_accelerator_stats[dataset_id];
-}
-
 void Controller::main_thread() {
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         const DatasetConfig &config = m_dataset_configs[dataset];
@@ -158,7 +137,6 @@ void Controller::main_thread() {
         load_cim(config.cim_path);
         load_quantizer(config.quantizer_path);
         m_memory.reset_stats();
-        m_accelerator.reset_stats();
 
         train_dataset(config.dataset->training.raw_data(),
                       config.dataset->training.raw_labels(),
@@ -170,17 +148,6 @@ void Controller::main_thread() {
                              config.dataset->testing.samples);
 
         m_memory_stats[dataset] = m_memory.stats();
-        m_accelerator_stats[dataset] = m_accelerator.stats();
-    }
-
-    AccelCommand shutdown = {};
-    shutdown.kind = AccelCommandKind::Shutdown;
-    m_cmd_fifo.write(shutdown);
-
-    AccelResponse shutdown_response;
-    m_rsp_fifo.read(shutdown_response);
-    if (!shutdown_response.is_shutdown_ack) {
-        SC_REPORT_FATAL("Controller", "Expected shutdown acknowledgment from accelerator");
     }
 
     m_done = true;

@@ -55,19 +55,6 @@ struct MemoryStats {
     std::uint64_t assoc_write_bytes;
 };
 
-struct AcceleratorStats {
-    std::uint64_t command_count;
-    std::uint64_t train_samples;
-    std::uint64_t infer_samples;
-    std::uint64_t encoded_samples;
-    std::uint64_t ngram_samples;
-    std::uint64_t valid_ngrams;
-    std::uint64_t bundled_ngrams;
-    std::uint64_t bundle_flushes;
-    std::uint64_t distance_requests;
-    std::uint64_t valid_distance_requests;
-};
-
 } // namespace hdc_systemc
 
 #endif

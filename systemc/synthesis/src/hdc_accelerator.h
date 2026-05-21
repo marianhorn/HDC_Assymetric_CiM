@@ -25,22 +25,14 @@ struct DistanceResponse {
     distance_counter_t distances[NUM_CLASSES];
 };
 
-inline std::ostream &operator<<(std::ostream &os, const PipelineItem &item) {
-    return os << "PipelineItem{kind=" << item.kind
-              << ", class_id=" << item.class_id.to_uint()
-              << ", valid_ngram=" << item.valid_ngram << '}';
+// Required by sc_fifo<T> print/dump instantiation for custom internal FIFO types.
+// Keep opaque: this is not accelerator debug output.
+inline std::ostream &operator<<(std::ostream &os, const PipelineItem &) {
+    return os << "PipelineItem";
 }
 
-inline std::ostream &operator<<(std::ostream &os, const DistanceResponse &response) {
-    os << "DistanceResponse{valid_prediction=" << response.valid_prediction
-       << ", distances=[";
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        if (class_id > 0) {
-            os << ',';
-        }
-        os << response.distances[class_id].to_uint();
-    }
-    return os << "]}";
+inline std::ostream &operator<<(std::ostream &os, const DistanceResponse &) {
+    return os << "DistanceResponse";
 }
 
 SC_MODULE(HDC_Accelerator) {
@@ -51,8 +43,6 @@ public:
     SC_CTOR(HDC_Accelerator);
 
     void bind_memory(HDC_Memory *memory);
-    void reset_stats();
-    const AcceleratorStats &stats() const;
 
 private:
     // Pipeline stage threads.
@@ -98,7 +88,6 @@ private:
     train_counter_t m_current_class_count;
     int m_current_class_id;
 
-    AcceleratorStats m_stats;
     int m_infer_outstanding;
     HDC_Memory *m_memory;
 };

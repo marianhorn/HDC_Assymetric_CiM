@@ -23,7 +23,6 @@ public:
     bool done() const;
     const EvaluationResult &test_result(int dataset_id) const;
     const MemoryStats &memory_stats(int dataset_id) const;
-    const AcceleratorStats &accelerator_stats(int dataset_id) const;
 
 private:
     struct DatasetConfig {
@@ -48,7 +47,6 @@ private:
     DatasetConfig m_dataset_configs[NUM_DATASETS];
     EvaluationResult m_test_results[NUM_DATASETS];
     MemoryStats m_memory_stats[NUM_DATASETS];
-    AcceleratorStats m_accelerator_stats[NUM_DATASETS];
     bool m_done;
     HDC_Memory m_memory;
     sc_core::sc_fifo<AccelCommand> m_cmd_fifo;

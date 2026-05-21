@@ -44,40 +44,6 @@ void print_memory_stats(const MemoryStats &stats) {
               << ", bytes=" << total_write_bytes << std::endl;
 }
 
-void print_accelerator_stats_table_header() {
-    std::cout
-        << "\nAccelerator stats summary\n"
-        << "dataset"
-        << "\tcommands"
-        << "\ttrain"
-        << "\tinfer"
-        << "\tencoded"
-        << "\tngrams"
-        << "\tvalid_ng"
-        << "\tbundled"
-        << "\tflushes"
-        << "\tdist_req"
-        << "\tvalid_dist"
-        << std::endl;
-}
-
-void print_accelerator_stats_table_row(int dataset,
-                                       const AcceleratorStats &stats) {
-    std::cout
-        << dataset
-        << '\t' << stats.command_count
-        << '\t' << stats.train_samples
-        << '\t' << stats.infer_samples
-        << '\t' << stats.encoded_samples
-        << '\t' << stats.ngram_samples
-        << '\t' << stats.valid_ngrams
-        << '\t' << stats.bundled_ngrams
-        << '\t' << stats.bundle_flushes
-        << '\t' << stats.distance_requests
-        << '\t' << stats.valid_distance_requests
-        << std::endl;
-}
-
 } // namespace
 
 int sc_main(int, char *[]) {
@@ -104,12 +70,6 @@ int sc_main(int, char *[]) {
         std::cout << "\nDataset " << dataset << std::endl;
         print_eval_result("Test", test_result);
         print_memory_stats(controller.memory_stats(dataset));
-    }
-
-    print_accelerator_stats_table_header();
-    for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
-        print_accelerator_stats_table_row(dataset,
-                                          controller.accelerator_stats(dataset));
     }
 
     return EXIT_SUCCESS;

@@ -34,53 +34,14 @@ struct AccelResponse {
     distance_counter_t distances[NUM_CLASSES];
 };
 
-inline std::ostream &operator<<(std::ostream &os, AccelCommandKind kind) {
-    switch (kind) {
-    case AccelCommandKind::ResetTraining:
-        return os << "ResetTraining";
-    case AccelCommandKind::ResetInference:
-        return os << "ResetInference";
-    case AccelCommandKind::TrainSample:
-        return os << "TrainSample";
-    case AccelCommandKind::InvalidTrainingStep:
-        return os << "InvalidTrainingStep";
-    case AccelCommandKind::InferSample:
-        return os << "InferSample";
-    case AccelCommandKind::Shutdown:
-        return os << "Shutdown";
-    }
-    return os << "Unknown";
+// Required by sc_fifo<T> print/dump instantiation for custom transaction types.
+// Keep opaque: this is not accelerator debug output.
+inline std::ostream &operator<<(std::ostream &os, const AccelCommand &) {
+    return os << "AccelCommand";
 }
 
-inline std::ostream &operator<<(std::ostream &os, const QuantizedSample &sample) {
-    os << "levels=[";
-    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
-        if (feature > 0) {
-            os << ',';
-        }
-        os << sample.levels[feature].to_uint();
-    }
-    return os << ']';
-}
-
-inline std::ostream &operator<<(std::ostream &os, const AccelCommand &command) {
-    return os << "AccelCommand{kind=" << command.kind
-              << ", class_id=" << command.class_id.to_uint()
-              << ", " << command.sample << '}';
-}
-
-inline std::ostream &operator<<(std::ostream &os, const AccelResponse &response) {
-    os << "AccelResponse{valid_prediction=" << response.valid_prediction
-       << ", is_shutdown_ack=" << response.is_shutdown_ack
-       << ", predicted_class=" << response.predicted_class.to_uint()
-       << ", distances=[";
-    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        if (class_id > 0) {
-            os << ',';
-        }
-        os << response.distances[class_id].to_uint();
-    }
-    return os << "]}";
+inline std::ostream &operator<<(std::ostream &os, const AccelResponse &) {
+    return os << "AccelResponse";
 }
 
 } // namespace hdc_systemc
