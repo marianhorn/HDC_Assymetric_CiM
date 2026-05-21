@@ -75,23 +75,18 @@ private:
 
     EncoderPacket m_encoder_in_data;
     bool m_encoder_in_valid;
-    bool m_encoder_in_ready;
 
     EncoderPacket m_encoder_out_data;
     bool m_encoder_out_valid;
-    bool m_encoder_out_ready;
 
     NGramPacket m_bundler_in_data;
     bool m_bundler_in_valid;
-    bool m_bundler_in_ready;
 
     NGramPacket m_distance_in_data;
     bool m_distance_in_valid;
-    bool m_distance_in_ready;
 
     DistancePacket m_distance_done_data;
     bool m_distance_done_valid;
-    bool m_distance_done_ready;
 
     bool m_control_done_valid;
     bool m_control_busy;

@@ -33,15 +33,10 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       rsp_ready("rsp_ready"),
       rsp_data("rsp_data"),
       m_encoder_in_valid(false),
-      m_encoder_in_ready(true),
       m_encoder_out_valid(false),
-      m_encoder_out_ready(true),
       m_bundler_in_valid(false),
-      m_bundler_in_ready(true),
       m_distance_in_valid(false),
-      m_distance_in_ready(true),
       m_distance_done_valid(false),
-      m_distance_done_ready(true),
       m_control_done_valid(false),
       m_control_busy(false) {
     SC_CTHREAD(pipeline_fsm, clk.pos());
@@ -84,11 +79,10 @@ void HDC_Accelerator::command_stage() {
         return;
     }
 
-    m_encoder_in_ready = !m_encoder_in_valid;
-    const bool can_accept = m_encoder_in_ready;
-    cmd_ready.write(can_accept);
+    const bool can_accept_command = !m_encoder_in_valid;
+    cmd_ready.write(can_accept_command);
 
-    if (!(cmd_valid.read() && can_accept)) {
+    if (!(cmd_valid.read() && can_accept_command)) {
         return;
     }
 
@@ -134,7 +128,7 @@ void HDC_Accelerator::command_stage() {
 }
 
 void HDC_Accelerator::response_stage() {
-    m_distance_done_ready = rsp_ready.read();
+    const bool can_consume_response = rsp_ready.read();
     if (m_distance_done_valid) {
         AccelResponse response = {};
         response.valid_prediction = m_distance_done_data.valid_prediction;
@@ -146,7 +140,7 @@ void HDC_Accelerator::response_stage() {
 
         rsp_valid.write(true);
         rsp_data.write(response);
-        if (m_distance_done_ready) {
+        if (can_consume_response) {
             m_distance_done_valid = false;
         }
     } else {
@@ -155,8 +149,8 @@ void HDC_Accelerator::response_stage() {
 }
 
 void HDC_Accelerator::encoder_stage() {
-    m_encoder_in_ready = !m_encoder_out_valid;
-    if (m_encoder_in_valid && m_encoder_in_ready) {
+    const bool can_encode = m_encoder_in_valid && !m_encoder_out_valid;
+    if (can_encode) {
         EncoderPacket item = m_encoder_in_data;
         m_encoder_in_valid = false;
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
@@ -168,7 +162,6 @@ void HDC_Accelerator::encoder_stage() {
 }
 
 void HDC_Accelerator::ngram_stage() {
-    m_encoder_out_ready = false;
     if (!m_encoder_out_valid) {
         return;
     }
@@ -176,7 +169,6 @@ void HDC_Accelerator::ngram_stage() {
     EncoderPacket item = m_encoder_out_data;
 
     if (item.kind == AccelCommandKind::ResetTraining) {
-            m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             reset_bundling_buffer_only();
@@ -185,7 +177,6 @@ void HDC_Accelerator::ngram_stage() {
     }
 
     if (item.kind == AccelCommandKind::ResetInference) {
-            m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             m_control_done_valid = true;
@@ -193,11 +184,10 @@ void HDC_Accelerator::ngram_stage() {
     }
 
     if (item.kind == AccelCommandKind::InvalidTrainingStep) {
-            m_bundler_in_ready = !m_bundler_in_valid;
-            if (!m_bundler_in_ready) {
+            const bool can_accept_bundler = !m_bundler_in_valid;
+            if (!can_accept_bundler) {
                 return;
             }
-            m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             NGramPacket packet = {};
@@ -211,13 +201,12 @@ void HDC_Accelerator::ngram_stage() {
 
     if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             const bool to_bundler = item.kind == AccelCommandKind::TrainSample;
-            m_bundler_in_ready = !m_bundler_in_valid;
-            m_distance_in_ready = !m_distance_in_valid;
-            if ((to_bundler && !m_bundler_in_ready) || (!to_bundler && !m_distance_in_ready)) {
+            const bool can_accept_bundler = !m_bundler_in_valid;
+            const bool can_accept_distance = !m_distance_in_valid;
+            if ((to_bundler && !can_accept_bundler) || (!to_bundler && !can_accept_distance)) {
                 return;
             }
 
-            m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             push_encoded_sample_to_ngram_buffer(item.encoded);
             NGramPacket packet = {};
@@ -244,7 +233,6 @@ void HDC_Accelerator::ngram_stage() {
 }
 
 void HDC_Accelerator::train_stage() {
-    m_bundler_in_ready = true;
     if (!m_bundler_in_valid) {
         return;
     }
@@ -274,8 +262,8 @@ void HDC_Accelerator::train_stage() {
 }
 
 void HDC_Accelerator::distance_stage() {
-    m_distance_in_ready = !m_distance_done_valid;
-    if (!m_distance_in_valid || !m_distance_in_ready) {
+    const bool can_accept_distance = !m_distance_done_valid;
+    if (!m_distance_in_valid || !can_accept_distance) {
         return;
     }
 
@@ -303,15 +291,10 @@ void HDC_Accelerator::distance_stage() {
 
 void HDC_Accelerator::reset_all_local_state() {
     m_encoder_in_valid = false;
-    m_encoder_in_ready = true;
     m_encoder_out_valid = false;
-    m_encoder_out_ready = true;
     m_bundler_in_valid = false;
-    m_bundler_in_ready = true;
     m_distance_in_valid = false;
-    m_distance_in_ready = true;
     m_distance_done_valid = false;
-    m_distance_done_ready = true;
     m_control_done_valid = false;
     m_control_busy = false;
     cmd_ready.write(false);
