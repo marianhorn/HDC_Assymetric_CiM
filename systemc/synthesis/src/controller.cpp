@@ -165,7 +165,7 @@ void Controller::copy_quantized_sample(const level_t *levels, QuantizedSample &s
 }
 
 void Controller::send_command(const AccelCommand &command) {
-    m_cmd_kind.write(static_cast<int>(command.kind));
+    m_cmd_kind.write(static_cast<unsigned>(command.kind));
     m_cmd_class_id.write(command.class_id);
     for (int feature = 0; feature < NUM_FEATURES; ++feature) {
         m_cmd_sample_levels[feature].write(command.sample.levels[feature]);
@@ -184,7 +184,6 @@ void Controller::send_command(const AccelCommand &command) {
 AccelResponse Controller::read_response() {
     AccelResponse response = {};
     response.valid_prediction = m_rsp_valid_prediction.read();
-    response.predicted_class = 0;
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         response.distances[class_id] = m_rsp_distances[class_id].read();
     }
@@ -472,7 +471,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
             command.kind = AccelCommandKind::InferSample;
             command.class_id = 0;
             copy_quantized_sample(quantized_sample, command.sample);
-            m_cmd_kind.write(static_cast<int>(command.kind));
+            m_cmd_kind.write(static_cast<unsigned>(command.kind));
             m_cmd_class_id.write(command.class_id);
             for (int feature = 0; feature < NUM_FEATURES; ++feature) {
                 m_cmd_sample_levels[feature].write(command.sample.levels[feature]);

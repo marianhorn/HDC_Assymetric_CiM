@@ -1,5 +1,5 @@
 // SHARED TYPE DEFINITIONS: Used by both the accelerator model and simulation harness.
-// Evaluation structs are simulation-only; accelerator boundary data lives in hdc_transactions.h.
+// Keep this header limited to fixed-width datapath and boundary types.
 #ifndef SYSTEMC_HDC_SYSTEMC_TYPES_H
 #define SYSTEMC_HDC_SYSTEMC_TYPES_H
 
@@ -20,28 +20,20 @@ constexpr unsigned required_bits(unsigned max_value_exclusive) {
 
 static constexpr unsigned LEVEL_BITS = required_bits(NUM_LEVELS);
 static constexpr unsigned CLASS_BITS = required_bits(NUM_CLASSES);
+static constexpr unsigned COMMAND_KIND_BITS = required_bits(5);
 static constexpr unsigned FEATURE_COUNT_BITS = required_bits(NUM_FEATURES + 1);
 static constexpr unsigned DISTANCE_BITS = required_bits(VECTOR_DIMENSION + 1);
 static constexpr unsigned TRAIN_COUNT_BITS = 32;
 
 typedef sc_dt::sc_uint<LEVEL_BITS> level_t;
 typedef sc_dt::sc_uint<CLASS_BITS> class_t;
+typedef sc_dt::sc_uint<COMMAND_KIND_BITS> command_kind_t;
 typedef sc_dt::sc_uint<FEATURE_COUNT_BITS> feature_counter_t;
 typedef sc_dt::sc_int<FEATURE_COUNT_BITS + 1> feature_score_t;
 typedef sc_dt::sc_uint<DISTANCE_BITS> distance_counter_t;
 typedef sc_dt::sc_uint<TRAIN_COUNT_BITS> train_counter_t;
 typedef sc_dt::sc_int<TRAIN_COUNT_BITS + 1> train_score_t;
 typedef sc_dt::sc_bv<VECTOR_DIMENSION> hv_t;
-
-struct EvaluationResult {
-    unsigned correct;
-    unsigned not_correct;
-    unsigned transition_error;
-    unsigned total;
-    double overall_accuracy;
-    double non_transition_accuracy;
-    unsigned confusion_matrix[NUM_CLASSES][NUM_CLASSES];
-};
 
 } // namespace hdc_systemc
 

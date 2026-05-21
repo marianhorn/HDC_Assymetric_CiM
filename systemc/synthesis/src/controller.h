@@ -5,6 +5,7 @@
 
 #include <systemc>
 #include "systemc_types.h"
+#include "evaluation_result.h"
 #include "hdc_transactions.h"
 #include "hdc_memory.h"
 #include "hdc_accelerator.h"
@@ -53,7 +54,7 @@ private:
     HDC_Memory m_memory;
     sc_core::sc_signal<bool> m_cmd_valid;
     sc_core::sc_signal<bool> m_cmd_ready;
-    sc_core::sc_signal<int> m_cmd_kind;
+    sc_core::sc_signal<command_kind_t> m_cmd_kind;
     sc_core::sc_signal<class_t> m_cmd_class_id;
     sc_core::sc_signal<level_t> m_cmd_sample_levels[NUM_FEATURES];
     sc_core::sc_signal<bool> m_rsp_valid;

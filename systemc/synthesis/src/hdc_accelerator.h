@@ -34,7 +34,7 @@ public:
     sc_core::sc_in<bool> rst;
     sc_core::sc_in<bool> cmd_valid;
     sc_core::sc_out<bool> cmd_ready;
-    sc_core::sc_in<int> cmd_kind;
+    sc_core::sc_in<command_kind_t> cmd_kind;
     sc_core::sc_in<class_t> cmd_class_id;
     sc_core::sc_in<level_t> cmd_sample_levels[NUM_FEATURES];
     sc_core::sc_out<bool> rsp_valid;
@@ -106,7 +106,8 @@ private:
     // Signed bundling score for the currently trained class segment.
     train_score_t m_bundling_score[VECTOR_DIMENSION];
     train_counter_t m_current_class_count;
-    int m_current_class_id;
+    class_t m_current_class_id;
+    bool m_current_class_valid;
 
     hv_t m_cim[NUM_LEVELS][NUM_FEATURES];
     hv_t m_assoc_mem[NUM_CLASSES];

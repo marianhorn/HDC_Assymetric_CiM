@@ -39,7 +39,8 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_distance_in_valid(false),
       m_distance_done_valid(false),
       m_control_done_valid(false),
-      m_control_busy(false) {
+      m_control_busy(false),
+      m_current_class_valid(false) {
     SC_CTHREAD(pipeline_fsm, clk.pos());
     reset_signal_is(rst, true);
 }
@@ -94,7 +95,7 @@ void HDC_Accelerator::command_stage() {
     }
 
     AccelCommand command = {};
-    command.kind = static_cast<AccelCommandKind>(cmd_kind.read());
+    command.kind = static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
     command.class_id = cmd_class_id.read();
     for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
         command.sample.levels[feature] = cmd_sample_levels[feature].read();
@@ -247,10 +248,9 @@ void HDC_Accelerator::train_stage() {
 
     if (item.kind == AccelCommandKind::TrainSample) {
             if (item.valid_ngram) {
-                const unsigned class_id = item.class_id.to_uint();
-
-                if (m_current_class_id < 0) {
-                    m_current_class_id = static_cast<int>(class_id);
+                if (!m_current_class_valid) {
+                    m_current_class_id = item.class_id;
+                    m_current_class_valid = true;
                 }
 
                 add_ngram_to_bundling_buffer(item.ngram);
@@ -313,7 +313,8 @@ void HDC_Accelerator::reset_all_local_state() {
 
 void HDC_Accelerator::reset_bundling_buffer_only() {
     m_current_class_count = 0;
-    m_current_class_id = -1;
+    m_current_class_id = 0;
+    m_current_class_valid = false;
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         m_bundling_score[d] = 0;
     }
@@ -339,7 +340,7 @@ void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
 }
 
 void HDC_Accelerator::finalize_current_class() {
-    if (m_current_class_id < 0) {
+    if (!m_current_class_valid) {
         m_current_class_count = 0;
         return;
     }
@@ -363,10 +364,11 @@ void HDC_Accelerator::finalize_current_class() {
         set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
-    m_assoc_mem[static_cast<unsigned>(m_current_class_id)] = class_vector;
+    m_assoc_mem[m_current_class_id.to_uint()] = class_vector;
 
     m_current_class_count = 0;
-    m_current_class_id = -1;
+    m_current_class_id = 0;
+    m_current_class_valid = false;
 }
 
 void HDC_Accelerator::bind_ngram(hv_t &encoded_ngram) {
