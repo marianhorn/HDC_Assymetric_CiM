@@ -184,7 +184,7 @@ void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
     }
 
     // Total flip budget K.
-    int total_flips = GA_MAX_FLIPS_CIM;
+    int total_flips = ITEM_MEM_TOTAL_FLIPS;
 
     // Level 0 is the min vector.
     vector_copy(item_mem->base_vectors[0], min_vector);
@@ -269,7 +269,7 @@ void init_continuous_item_memory_with_B(struct item_memory *item_mem,
 
     vector_copy(item_mem->base_vectors[0], min_vector);
 
-    int max_flips = GA_MAX_FLIPS_CIM;
+    int max_flips = ITEM_MEM_TOTAL_FLIPS;
 
     if (num_levels > 1) {
         int prev_target = 0;
@@ -347,7 +347,7 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
         rng_state = 1u;
     }
     // Total flip budget K.
-    int total_flips = GA_MAX_FLIPS_CIM;
+    int total_flips = ITEM_MEM_TOTAL_FLIPS;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();
@@ -444,7 +444,7 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
 
-    int max_flips = GA_MAX_FLIPS_CIM;
+    int max_flips = ITEM_MEM_TOTAL_FLIPS;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();

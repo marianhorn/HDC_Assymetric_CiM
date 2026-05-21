@@ -37,14 +37,8 @@
 #ifndef CUTTING_ANGLE_THRESHOLD
 #define CUTTING_ANGLE_THRESHOLD 0.9 // cutting angle threshold
 #endif
-#ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
-#endif
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
-#endif
-#ifndef RESULT_CSV_PATH
-#define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
 #endif
 #ifndef CIM_EXPORT_DIR
 #define CIM_EXPORT_DIR "CiMs/preoptimized" // default CiM import directory
@@ -55,58 +49,8 @@
 #ifndef VALIDATION_RATIO
 #define VALIDATION_RATIO 0.3 // validation split ratio
 #endif
-
-#ifndef GA_DEFAULT_POPULATION_SIZE
-#define GA_DEFAULT_POPULATION_SIZE 128 // GA population size
-#endif
-#ifndef GA_DEFAULT_GENERATIONS
-#define GA_DEFAULT_GENERATIONS 64 // GA generations
-#endif
-#ifndef GA_DEFAULT_CROSSOVER_RATE
-#define GA_DEFAULT_CROSSOVER_RATE 0.7 // GA crossover rate
-#endif
-#ifndef GA_DEFAULT_MUTATION_RATE
-#define GA_DEFAULT_MUTATION_RATE 0.2 // GA mutation rate
-#endif
-#ifndef GA_DEFAULT_TOURNAMENT_SIZE
-#define GA_DEFAULT_TOURNAMENT_SIZE 3 // GA tournament size
-#endif
-#ifndef GA_DEFAULT_LOG_EVERY
-#define GA_DEFAULT_LOG_EVERY 0 // GA log frequency
-#endif
-#ifndef GA_DEFAULT_SEED
-#define GA_DEFAULT_SEED 45 // GA RNG seed
-#endif
-#ifndef GA_MAX_FLIPS_CIM
-#define GA_MAX_FLIPS_CIM VECTOR_DIMENSION // CiM max flips budget
-#endif
-#ifndef GA_INIT_UNIFORM
-#define GA_INIT_UNIFORM 1 // GA init uniform vs equal
-#endif
-#ifndef GA_SELECTION_MODE
-#define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
-#endif
-#ifndef GA_PIPELINE
-#define GA_PIPELINE PIPELINE_CUSTOM // GA variation pipeline
-#endif
-
-#ifndef BINNING_MODE
-#define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
-#endif
-#ifndef GA_BINNING_EPSILON
-#define GA_BINNING_EPSILON 1.0 // smoothing for GA-refined transition weights
-#endif
-#ifndef GA_BINNING_ALPHA
-#define GA_BINNING_ALPHA 1.0 // inverse-width strength for GA-refined quantizer
-#endif
-#ifndef GA_CROSSOVER_ALPHA
-#define GA_CROSSOVER_ALPHA 1 // schedule curvature for custom crossover chunk size
-#endif
-#ifndef GA_CROSSOVER_CHUNK_WIDTH
-#define GA_CROSSOVER_CHUNK_WIDTH 0.2 // relative random width around scheduled chunk size
-#endif
-#ifndef GA_MUTATION_BETA
-#define GA_MUTATION_BETA 0 // schedule curvature for custom mutation step size
+#ifndef ITEM_MEM_TOTAL_FLIPS
+#define ITEM_MEM_TOTAL_FLIPS VECTOR_DIMENSION // CiM flip budget across levels
 #endif
 
 extern int output_mode;
@@ -116,20 +60,5 @@ extern int output_mode;
 #define OUTPUT_BASIC 1       // Print results
 #define OUTPUT_DETAILED 2    // Print intermediate information
 #define OUTPUT_DEBUG 3       // Print everything
-
-#define UNIFORM_BINNING 0    // use existing uniform value-to-level mapping
-#define QUANTILE_BINNING 1   // use per-feature quantile value-to-level mapping
-#define KMEANS_1D_BINNING 2  // use per-feature 1D k-means value-to-level mapping
-#define DECISION_TREE_1D_BINNING 3  // use per-feature supervised 1D decision-tree value-to-level mapping
-#define CHIMERGE_BINNING 4  // use per-feature supervised ChiMerge value-to-level mapping
-#define GA_REFINED_BINNING 5  // use one preprocessing GA run to refine per-feature thresholds
-
-
-#define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
-#define GA_SELECTION_MULTI 1    // GA selection: accuracy minus similarity
-#define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
-
-#define PIPELINE_NAIVE 0        // GA pipeline: existing operators
-#define PIPELINE_CUSTOM 1       // GA pipeline: custom event-list operators
 
 #endif
