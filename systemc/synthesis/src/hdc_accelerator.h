@@ -44,7 +44,13 @@ public:
 
     SC_CTOR(HDC_Accelerator);
 
+    // Simulation/pre-synthesis preload helper only.
+    // This is not a hardware runtime load interface; real deployment needs ROM
+    // initialization, generated constants, or a dedicated preload path later.
     void set_cim(unsigned level, unsigned feature, const hv_t &value);
+    // Simulation/pre-synthesis preload helper only.
+    // This is not a hardware runtime load interface; real deployment needs ROM
+    // initialization, generated constants, or a dedicated preload path later.
     void set_assoc_class(unsigned class_id, const hv_t &value);
 
 private:

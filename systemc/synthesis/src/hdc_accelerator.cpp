@@ -44,10 +44,16 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     reset_signal_is(rst, true);
 }
 
+// Simulation/pre-synthesis preload helper only.
+// This is not a hardware runtime load interface; real deployment needs ROM
+// initialization, generated constants, or a dedicated preload path later.
 void HDC_Accelerator::set_cim(unsigned level, unsigned feature, const hv_t &value) {
     m_cim[level][feature] = value;
 }
 
+// Simulation/pre-synthesis preload helper only.
+// This is not a hardware runtime load interface; real deployment needs ROM
+// initialization, generated constants, or a dedicated preload path later.
 void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
     m_assoc_mem[class_id] = value;
 }

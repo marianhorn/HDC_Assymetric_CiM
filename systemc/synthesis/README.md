@@ -58,6 +58,8 @@ Files:
 
 The accelerator represents the HDC hardware datapath. It communicates externally only through command/response FIFOs.
 
+It uses internal fixed-size memories for CiM and associative memory. In the current simulation model, CiM and associative-memory initialization happen through the preload helpers `set_cim()` and `set_assoc_class()`. Those helpers are simulation setup only; a real hardware build still needs ROM initialization, generated constants, or a dedicated preload interface before deployment.
+
 External command flow:
 
 ```text
