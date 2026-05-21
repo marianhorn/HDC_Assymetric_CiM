@@ -46,6 +46,9 @@
 #ifndef RESULT_CSV_PATH
 #define RESULT_CSV_PATH "analysis/results.csv" // results CSV output path
 #endif
+#ifndef CIM_EXPORT_DIR
+#define CIM_EXPORT_DIR "CiMs/preoptimized" // default CiM import directory
+#endif
 #ifndef ITEM_MEM_SEED
 #define ITEM_MEM_SEED 1 // seed for deterministic item-memory initialization
 #endif

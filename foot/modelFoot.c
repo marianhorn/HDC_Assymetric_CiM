@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include "../hdc_infrastructure/assoc_mem.h"
 #include "../hdc_infrastructure/item_mem.h"
-#include "../hdc_infrastructure/asymItemMemory.h"
 #include "../hdc_infrastructure/encoder.h"
 #include "../hdc_infrastructure/operations.h"
 #include "dataReaderFootEMG.h"
@@ -27,10 +26,6 @@ int main(void) {
 
     double mean_pre_val_accuracy = 0.0;
     double mean_pre_test_accuracy = 0.0;
-#if USE_GENETIC_ITEM_MEMORY
-    double mean_post_val_accuracy = 0.0;
-    double mean_post_test_accuracy = 0.0;
-#endif
     int processed_datasets = 0;
 
     for (int dataset = 0; dataset < 4; dataset++) {
@@ -45,10 +40,6 @@ int main(void) {
         int testingSamples = 0;
         struct timeseries_eval_result eval_pre_val = {0};
         struct timeseries_eval_result eval_pre_test = {0};
-#if USE_GENETIC_ITEM_MEMORY
-        struct timeseries_eval_result eval_post_val = {0};
-        struct timeseries_eval_result eval_post_test = {0};
-#endif
         char result_info[160];
 
         quantizer_clear();
@@ -58,7 +49,18 @@ int main(void) {
         }
 
         struct item_memory itemMem;
-        init_precomp_item_memory(&itemMem, NUM_LEVELS, NUM_FEATURES);
+        {
+            char cim_import_path[128];
+            snprintf(cim_import_path,
+                     sizeof(cim_import_path),
+                     "%s/cim_dataset%02d.csv",
+                     CIM_EXPORT_DIR,
+                     dataset);
+            load_precomp_item_mem_from_csv(&itemMem,
+                                           cim_import_path,
+                                           NUM_LEVELS,
+                                           NUM_FEATURES);
+        }
 
         struct encoder enc;
         init_encoder(&enc, &itemMem);
@@ -113,44 +115,6 @@ int main(void) {
             printf("    test accuracy: %.2f%%\n", eval_pre_test.overall_accuracy * 100.0);
         }
 
-#if USE_GENETIC_ITEM_MEMORY
-        optimize_item_memory(&itemMem,
-                             trainingData,
-                             trainingLabels,
-                             trainingSamples,
-                             validationData,
-                             validationLabels,
-                             validationSamples);
-
-        free_assoc_mem(&assMem);
-        init_assoc_mem(&assMem);
-        train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
-
-        if (validationData && validationLabels && validationSamples > 0) {
-            eval_post_val = evaluate_model_timeseries_direct(&enc, &assMem, validationData, validationLabels, validationSamples);
-        }
-        eval_post_test = evaluate_model_timeseries_direct(&enc, &assMem, testingData, testingLabels, testingSamples);
-
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-validation", dataset);
-        addResult(&eval_post_val, result_info);
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=dataset,dataset=%d,phase=postopt-test", dataset);
-        addResult(&eval_post_test, result_info);
-
-        mean_post_val_accuracy += eval_post_val.overall_accuracy;
-        mean_post_test_accuracy += eval_post_test.overall_accuracy;
-
-        if (output_mode >= OUTPUT_BASIC) {
-            printf("  Post-Optimization\n");
-            printf("    validation accuracy: ");
-            if (validationData && validationLabels && validationSamples > 0) {
-                printf("%.2f%%\n", eval_post_val.overall_accuracy * 100.0);
-            } else {
-                printf("n/a\n");
-            }
-            printf("    test accuracy: %.2f%%\n", eval_post_test.overall_accuracy * 100.0);
-        }
-#endif
-
         free_assoc_mem(&assMem);
         free_item_memory(&itemMem);
         freeData(trainingData, trainingSamples);
@@ -180,29 +144,11 @@ int main(void) {
         snprintf(result_info, sizeof(result_info), "model=mine,scope=overall,phase=preopt-test");
         addResult(&overall_pre_test, result_info);
 
-#if USE_GENETIC_ITEM_MEMORY
-        struct timeseries_eval_result overall_post_val = {0};
-        struct timeseries_eval_result overall_post_test = {0};
-
-        overall_post_val.overall_accuracy = mean_post_val_accuracy / (double)processed_datasets;
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=overall,phase=postopt-validation");
-        addResult(&overall_post_val, result_info);
-
-        overall_post_test.overall_accuracy = mean_post_test_accuracy / (double)processed_datasets;
-        snprintf(result_info, sizeof(result_info), "model=mine,scope=overall,phase=postopt-test");
-        addResult(&overall_post_test, result_info);
-#endif
-
         if (output_mode >= OUTPUT_BASIC) {
             printf("\nOverall\n");
             printf("  Pre-Optimization\n");
             printf("    validation accuracy: %.2f%%\n", 100.0 * mean_pre_val_accuracy / (double)processed_datasets);
             printf("    test accuracy: %.2f%%\n", 100.0 * mean_pre_test_accuracy / (double)processed_datasets);
-#if USE_GENETIC_ITEM_MEMORY
-            printf("  Post-Optimization\n");
-            printf("    validation accuracy: %.2f%%\n", 100.0 * mean_post_val_accuracy / (double)processed_datasets);
-            printf("    test accuracy: %.2f%%\n", 100.0 * mean_post_test_accuracy / (double)processed_datasets);
-#endif
         }
     }
 
