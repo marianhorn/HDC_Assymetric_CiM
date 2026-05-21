@@ -3,7 +3,6 @@
 #ifndef SYSTEMC_HDC_TRANSACTIONS_H
 #define SYSTEMC_HDC_TRANSACTIONS_H
 
-#include <ostream>
 #include <string>
 #include "systemc_types.h"
 
@@ -14,8 +13,7 @@ enum class AccelCommandKind {
     ResetInference,
     TrainSample,
     InvalidTrainingStep,
-    InferSample,
-    Shutdown
+    InferSample
 };
 
 struct QuantizedSample {
@@ -30,7 +28,6 @@ struct AccelCommand {
 
 struct AccelResponse {
     bool valid_prediction;
-    bool is_shutdown_ack;
     class_t predicted_class;
     distance_counter_t distances[NUM_CLASSES];
 };
@@ -60,7 +57,6 @@ inline bool operator!=(const AccelCommand &lhs, const AccelCommand &rhs) {
 
 inline bool operator==(const AccelResponse &lhs, const AccelResponse &rhs) {
     if (lhs.valid_prediction != rhs.valid_prediction ||
-        lhs.is_shutdown_ack != rhs.is_shutdown_ack ||
         lhs.predicted_class != rhs.predicted_class) {
         return false;
     }
@@ -79,16 +75,6 @@ inline bool operator!=(const AccelResponse &lhs, const AccelResponse &rhs) {
 inline void sc_trace(sc_core::sc_trace_file *, const QuantizedSample &, const std::string &) {}
 inline void sc_trace(sc_core::sc_trace_file *, const AccelCommand &, const std::string &) {}
 inline void sc_trace(sc_core::sc_trace_file *, const AccelResponse &, const std::string &) {}
-
-// Required by SystemC signal/port diagnostics for custom transaction types.
-// Keep opaque: this is not accelerator debug output.
-inline std::ostream &operator<<(std::ostream &os, const AccelCommand &) {
-    return os << "AccelCommand";
-}
-
-inline std::ostream &operator<<(std::ostream &os, const AccelResponse &) {
-    return os << "AccelResponse";
-}
 
 } // namespace hdc_systemc
 

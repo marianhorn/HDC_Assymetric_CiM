@@ -28,10 +28,11 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       rst("rst"),
       cmd_valid("cmd_valid"),
       cmd_ready("cmd_ready"),
-      cmd_data("cmd_data"),
+      cmd_kind("cmd_kind"),
+      cmd_class_id("cmd_class_id"),
       rsp_valid("rsp_valid"),
       rsp_ready("rsp_ready"),
-      rsp_data("rsp_data"),
+      rsp_valid_prediction("rsp_valid_prediction"),
       m_encoder_in_valid(false),
       m_encoder_out_valid(false),
       m_bundler_in_valid(false),
@@ -86,7 +87,12 @@ void HDC_Accelerator::command_stage() {
         return;
     }
 
-    AccelCommand command = cmd_data.read();
+    AccelCommand command = {};
+    command.kind = static_cast<AccelCommandKind>(cmd_kind.read());
+    command.class_id = cmd_class_id.read();
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        command.sample.levels[feature] = cmd_sample_levels[feature].read();
+    }
     EncoderPacket packet = {};
 
     switch (command.kind) {
@@ -118,9 +124,6 @@ void HDC_Accelerator::command_stage() {
             packet.class_id = 0;
             packet.sample = command.sample;
             break;
-
-    case AccelCommandKind::Shutdown:
-            return;
     }
 
     m_encoder_in_data = packet;
@@ -130,21 +133,17 @@ void HDC_Accelerator::command_stage() {
 void HDC_Accelerator::response_stage() {
     const bool can_consume_response = rsp_ready.read();
     if (m_distance_done_valid) {
-        AccelResponse response = {};
-        response.valid_prediction = m_distance_done_data.valid_prediction;
-        response.is_shutdown_ack = false;
-        response.predicted_class = m_distance_done_data.predicted_class;
-        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-            response.distances[class_id] = m_distance_done_data.distances[class_id];
-        }
-
         rsp_valid.write(true);
-        rsp_data.write(response);
+        rsp_valid_prediction.write(m_distance_done_data.valid_prediction);
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            rsp_distances[class_id].write(m_distance_done_data.distances[class_id]);
+        }
         if (can_consume_response) {
             m_distance_done_valid = false;
         }
     } else {
         rsp_valid.write(false);
+        rsp_valid_prediction.write(false);
     }
 }
 
@@ -273,7 +272,6 @@ void HDC_Accelerator::distance_stage() {
     DistancePacket response = {};
     if (!item.valid_ngram) {
             response.valid_prediction = false;
-            response.predicted_class = 0;
             for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 response.distances[class_id] = 0;
             }
@@ -283,7 +281,6 @@ void HDC_Accelerator::distance_stage() {
     }
 
     response.valid_prediction = true;
-    response.predicted_class = 0;
     compute_hamming_distances(item.ngram, response.distances);
     m_distance_done_data = response;
     m_distance_done_valid = true;

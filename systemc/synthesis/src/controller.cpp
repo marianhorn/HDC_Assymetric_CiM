@@ -63,10 +63,9 @@ Controller::Controller(sc_core::sc_module_name name)
       m_memory("hdc_memory"),
       m_cmd_valid("cmd_valid"),
       m_cmd_ready("cmd_ready"),
-      m_cmd_data("cmd_data"),
       m_rsp_valid("rsp_valid"),
       m_rsp_ready("rsp_ready"),
-      m_rsp_data("rsp_data"),
+      m_rsp_valid_prediction("rsp_valid_prediction"),
       m_accelerator("hdc_accelerator") {
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         m_dataset_configs[dataset].dataset_id = dataset;
@@ -81,10 +80,17 @@ Controller::Controller(sc_core::sc_module_name name)
     m_accelerator.rst(rst);
     m_accelerator.cmd_valid(m_cmd_valid);
     m_accelerator.cmd_ready(m_cmd_ready);
-    m_accelerator.cmd_data(m_cmd_data);
+    m_accelerator.cmd_kind(m_cmd_kind);
+    m_accelerator.cmd_class_id(m_cmd_class_id);
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        m_accelerator.cmd_sample_levels[feature](m_cmd_sample_levels[feature]);
+    }
     m_accelerator.rsp_valid(m_rsp_valid);
     m_accelerator.rsp_ready(m_rsp_ready);
-    m_accelerator.rsp_data(m_rsp_data);
+    m_accelerator.rsp_valid_prediction(m_rsp_valid_prediction);
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_accelerator.rsp_distances[class_id](m_rsp_distances[class_id]);
+    }
     SC_THREAD(main_thread);
 }
 
@@ -159,7 +165,11 @@ void Controller::copy_quantized_sample(const level_t *levels, QuantizedSample &s
 }
 
 void Controller::send_command(const AccelCommand &command) {
-    m_cmd_data.write(command);
+    m_cmd_kind.write(static_cast<int>(command.kind));
+    m_cmd_class_id.write(command.class_id);
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        m_cmd_sample_levels[feature].write(command.sample.levels[feature]);
+    }
     m_cmd_valid.write(true);
     while (true) {
         wait(clk.posedge_event());
@@ -169,6 +179,16 @@ void Controller::send_command(const AccelCommand &command) {
         }
     }
     m_cmd_valid.write(false);
+}
+
+AccelResponse Controller::read_response() {
+    AccelResponse response = {};
+    response.valid_prediction = m_rsp_valid_prediction.read();
+    response.predicted_class = 0;
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        response.distances[class_id] = m_rsp_distances[class_id].read();
+    }
+    return response;
 }
 
 void Controller::load_cim(const char *path) {
@@ -452,7 +472,11 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
             command.kind = AccelCommandKind::InferSample;
             command.class_id = 0;
             copy_quantized_sample(quantized_sample, command.sample);
-            m_cmd_data.write(command);
+            m_cmd_kind.write(static_cast<int>(command.kind));
+            m_cmd_class_id.write(command.class_id);
+            for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+                m_cmd_sample_levels[feature].write(command.sample.levels[feature]);
+            }
             m_cmd_valid.write(true);
             command_pending = true;
         }
@@ -472,14 +496,11 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
             continue;
         }
 
-        AccelResponse response = m_rsp_data.read();
+        AccelResponse response = read_response();
         const int sample = received;
         ++received;
         --outstanding;
 
-        if (response.is_shutdown_ack) {
-            SC_REPORT_FATAL("Controller", "unexpected shutdown acknowledgment during inference");
-        }
         if (!response.valid_prediction) {
             continue;
         }

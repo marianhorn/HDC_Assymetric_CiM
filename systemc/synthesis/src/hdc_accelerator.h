@@ -25,7 +25,6 @@ struct NGramPacket {
 
 struct DistancePacket {
     bool valid_prediction;
-    class_t predicted_class;
     distance_counter_t distances[NUM_CLASSES];
 };
 
@@ -35,10 +34,13 @@ public:
     sc_core::sc_in<bool> rst;
     sc_core::sc_in<bool> cmd_valid;
     sc_core::sc_out<bool> cmd_ready;
-    sc_core::sc_in<AccelCommand> cmd_data;
+    sc_core::sc_in<int> cmd_kind;
+    sc_core::sc_in<class_t> cmd_class_id;
+    sc_core::sc_in<level_t> cmd_sample_levels[NUM_FEATURES];
     sc_core::sc_out<bool> rsp_valid;
     sc_core::sc_in<bool> rsp_ready;
-    sc_core::sc_out<AccelResponse> rsp_data;
+    sc_core::sc_out<bool> rsp_valid_prediction;
+    sc_core::sc_out<distance_counter_t> rsp_distances[NUM_CLASSES];
 
     SC_CTOR(HDC_Accelerator);
 
