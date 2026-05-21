@@ -6,7 +6,6 @@
 #include <systemc>
 #include "systemc_types.h"
 #include "hdc_transactions.h"
-#include "hdc_memory.h"
 
 namespace hdc_systemc {
 
@@ -33,7 +32,8 @@ public:
 
     SC_CTOR(HDC_Accelerator);
 
-    void bind_memory(HDC_Memory *memory);
+    void set_cim(unsigned level, unsigned feature, const hv_t &value);
+    void set_assoc_class(unsigned class_id, const hv_t &value);
 
 private:
     // Pipeline scheduler and stages.
@@ -95,7 +95,8 @@ private:
     train_counter_t m_current_class_count;
     int m_current_class_id;
 
-    HDC_Memory *m_memory;
+    hv_t m_cim[NUM_LEVELS][NUM_FEATURES];
+    hv_t m_assoc_mem[NUM_CLASSES];
 };
 
 } // namespace hdc_systemc

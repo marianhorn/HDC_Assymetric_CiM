@@ -53,17 +53,6 @@ void clear_evaluation_result(EvaluationResult &result) {
     }
 }
 
-void clear_memory_stats(MemoryStats &stats) {
-    stats.quantizer_row_reads = 0;
-    stats.quantizer_row_read_bytes = 0;
-    stats.cim_reads = 0;
-    stats.cim_read_bytes = 0;
-    stats.assoc_reads = 0;
-    stats.assoc_read_bytes = 0;
-    stats.assoc_writes = 0;
-    stats.assoc_write_bytes = 0;
-}
-
 } // namespace
 
 Controller::Controller(sc_core::sc_module_name name)
@@ -82,14 +71,12 @@ Controller::Controller(sc_core::sc_module_name name)
         m_dataset_configs[dataset].dataset = 0;
         m_dataset_configs[dataset].configured = false;
         clear_evaluation_result(m_test_results[dataset]);
-        clear_memory_stats(m_memory_stats[dataset]);
     }
 
     m_accelerator.clk(clk);
     m_accelerator.rst(rst);
     m_accelerator.cmd_in(m_cmd_fifo);
     m_accelerator.rsp_out(m_rsp_fifo);
-    m_accelerator.bind_memory(&m_memory);
     SC_THREAD(main_thread);
 }
 
@@ -123,13 +110,6 @@ const EvaluationResult &Controller::test_result(int dataset_id) const {
     return m_test_results[dataset_id];
 }
 
-const MemoryStats &Controller::memory_stats(int dataset_id) const {
-    if (dataset_id < 0 || dataset_id >= NUM_DATASETS) {
-        SC_REPORT_FATAL("Controller", "memory_stats dataset_id out of range");
-    }
-    return m_memory_stats[dataset_id];
-}
-
 void Controller::main_thread() {
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         const DatasetConfig &config = m_dataset_configs[dataset];
@@ -140,7 +120,6 @@ void Controller::main_thread() {
         m_memory.clear_all();
         load_cim(config.cim_path);
         load_quantizer(config.quantizer_path);
-        m_memory.reset_stats();
 
         train_dataset(config.dataset->training.raw_data(),
                       config.dataset->training.raw_labels(),
@@ -150,8 +129,6 @@ void Controller::main_thread() {
             evaluate_dataset(config.dataset->testing.raw_data(),
                              config.dataset->testing.raw_labels(),
                              config.dataset->testing.samples);
-
-        m_memory_stats[dataset] = m_memory.stats();
     }
 
     m_done = true;
@@ -182,7 +159,7 @@ void Controller::load_cim(const char *path) {
     }
 
     std::vector<hv_t> flat_cim(NUM_LEVELS * NUM_FEATURES);
-    std::vector<bool> loaded_entries(NUM_LEVELS * NUM_FEATURES, false);
+        std::vector<bool> loaded_entries(NUM_LEVELS * NUM_FEATURES, false);
     std::string line;
     bool header_checked = false;
     int loaded_count = 0;
@@ -252,7 +229,13 @@ void Controller::load_cim(const char *path) {
         SC_REPORT_FATAL("Controller", "CiM text file does not contain all entries");
     }
 
-    m_memory.set_cim(flat_cim.data());
+    for (int level = 0; level < NUM_LEVELS; ++level) {
+        for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+            m_accelerator.set_cim(static_cast<unsigned>(level),
+                                  static_cast<unsigned>(feature),
+                                  flat_cim[static_cast<std::size_t>(level * NUM_FEATURES + feature)]);
+        }
+    }
 }
 
 void Controller::load_quantizer(const char *path) {
@@ -359,7 +342,12 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
         SC_REPORT_FATAL("Controller", "training data and labels must not be null");
     }
 
-    m_memory.clear_assoc_mem();
+    hv_t empty_class_vector;
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        empty_class_vector = 0;
+        m_accelerator.set_assoc_class(static_cast<unsigned>(class_id), empty_class_vector);
+    }
+
     AccelCommand command = {};
     command.kind = AccelCommandKind::ResetTraining;
     command.class_id = 0;

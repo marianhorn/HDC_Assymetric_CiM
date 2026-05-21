@@ -1,8 +1,7 @@
 // SIMULATION / SOFTWARE ONLY: This file is not part of the HLS synthesis target.
-// It is the SystemC testbench entry point and prints functional/statistical results.
+// It is the SystemC testbench entry point and prints functional results.
 #include <cstdlib>
 #include <cstdio>
-#include <cstdint>
 #include <iostream>
 #include "controller.h"
 #include "foot_dataset_loader.h"
@@ -19,29 +18,6 @@ void print_eval_result(const char *name, const EvaluationResult &result) {
               << ", wrong=" << result.not_correct
               << ", transitions=" << result.transition_error
               << ", total=" << result.total << std::endl;
-}
-
-void print_memory_stats(const MemoryStats &stats) {
-    const std::uint64_t total_read_accesses =
-        stats.quantizer_row_reads + stats.cim_reads + stats.assoc_reads;
-    const std::uint64_t total_read_bytes =
-        stats.quantizer_row_read_bytes + stats.cim_read_bytes + stats.assoc_read_bytes;
-    const std::uint64_t total_write_accesses = stats.assoc_writes;
-    const std::uint64_t total_write_bytes = stats.assoc_write_bytes;
-
-    std::cout << "Memory stats:" << std::endl;
-    std::cout << "  quantizer row reads: " << stats.quantizer_row_reads
-              << ", bytes=" << stats.quantizer_row_read_bytes << std::endl;
-    std::cout << "  CiM reads: " << stats.cim_reads
-              << ", bytes=" << stats.cim_read_bytes << std::endl;
-    std::cout << "  associative reads: " << stats.assoc_reads
-              << ", bytes=" << stats.assoc_read_bytes << std::endl;
-    std::cout << "  associative writes: " << stats.assoc_writes
-              << ", bytes=" << stats.assoc_write_bytes << std::endl;
-    std::cout << "  total reads: " << total_read_accesses
-              << ", bytes=" << total_read_bytes << std::endl;
-    std::cout << "  total writes: " << total_write_accesses
-              << ", bytes=" << total_write_bytes << std::endl;
 }
 
 } // namespace
@@ -76,7 +52,6 @@ int sc_main(int, char *[]) {
 
         std::cout << "\nDataset " << dataset << std::endl;
         print_eval_result("Test", test_result);
-        print_memory_stats(controller.memory_stats(dataset));
     }
 
     return EXIT_SUCCESS;

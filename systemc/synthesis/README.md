@@ -31,7 +31,6 @@ Responsibilities:
 - send accelerator commands through FIFOs
 - compute final prediction from returned class distances
 - compute accuracy, transition errors, and confusion matrix
-- collect per-dataset memory and accelerator statistics
 
 The controller owns the `HDC_Memory` and `HDC_Accelerator` objects for this model and binds them together during construction.
 
@@ -48,14 +47,7 @@ The memory block stores:
 - quantizer boundaries: `feature x threshold`
 - associative memory: `class -> hypervector`
 
-It also counts memory traffic:
-
-- quantizer row reads and bytes
-- CiM reads and bytes
-- associative-memory reads and bytes
-- associative-memory writes and bytes
-
-The current memory model is functional: accesses return immediately and counters are updated. It does not yet model ports, banks, contention, arbitration, or bandwidth stalls.
+The current memory model is functional: accesses return immediately. It does not model ports, banks, contention, arbitration, bandwidth stalls, or traffic statistics.
 
 ### HDC_Accelerator
 
@@ -124,39 +116,7 @@ From `EvaluationResult`:
 
 The golden regression also stores the confusion matrix for each dataset.
 
-### Memory Metrics
-
-From `MemoryStats`:
-
-- `quantizer_row_reads`
-- `quantizer_row_read_bytes`
-- `cim_reads`
-- `cim_read_bytes`
-- `assoc_reads`
-- `assoc_read_bytes`
-- `assoc_writes`
-- `assoc_write_bytes`
-- total read accesses and bytes
-- total write accesses and bytes
-
-Byte accounting is based on the current memory API granularity. A CiM or associative-memory access counts one full hypervector.
-
-### Accelerator Metrics
-
-From `AcceleratorStats`:
-
-- command count
-- training samples sent to accelerator
-- inference samples sent to accelerator
-- encoded samples
-- n-gram samples
-- valid n-grams
-- bundled n-grams
-- bundle flushes
-- distance requests
-- valid distance requests
-
-These counters help check whether architectural changes affect the expected dataflow.
+The synthesis variant intentionally does not print memory or accelerator traffic counters. Functional regression is checked through accuracy, counts, and confusion matrices.
 
 ## Project Structure
 
@@ -299,7 +259,7 @@ Current scope:
 - software-side quantization in the controller
 - hardware-side encoding, n-gram binding, bundling, and Hamming distance
 - all configured foot datasets
-- per-dataset functional, memory, and accelerator metrics
+- per-dataset functional metrics
 
 Current limitations:
 
@@ -317,6 +277,6 @@ A concise way to describe the model:
 ```text
 The controller models the RISC-V/software side: loading, quantization, labels, and evaluation.
 The accelerator models the HDC datapath: encoding, n-gram binding, class-vector bundling, and Hamming distance.
-The memory module separates CiM, quantizer boundaries, and associative memory and collects traffic metrics.
+The memory module keeps quantizer boundaries on the simulation side; the accelerator owns internal CiM and associative-memory arrays in the synthesis variant.
 Golden regression ensures architectural refactors preserve prediction behavior.
 ```

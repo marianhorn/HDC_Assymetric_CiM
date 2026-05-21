@@ -1,9 +1,8 @@
 // SHARED TYPE DEFINITIONS: Used by both the accelerator model and simulation harness.
-// Evaluation and statistic structs are simulation-only; accelerator boundary data lives in hdc_transactions.h.
+// Evaluation structs are simulation-only; accelerator boundary data lives in hdc_transactions.h.
 #ifndef SYSTEMC_HDC_SYSTEMC_TYPES_H
 #define SYSTEMC_HDC_SYSTEMC_TYPES_H
 
-#include <cstdint>
 #include <systemc>
 #include "config_systemc.h"
 
@@ -42,17 +41,6 @@ struct EvaluationResult {
     double overall_accuracy;
     double non_transition_accuracy;
     unsigned confusion_matrix[NUM_CLASSES][NUM_CLASSES];
-};
-
-struct MemoryStats {
-    std::uint64_t quantizer_row_reads;
-    std::uint64_t quantizer_row_read_bytes;
-    std::uint64_t cim_reads;
-    std::uint64_t cim_read_bytes;
-    std::uint64_t assoc_reads;
-    std::uint64_t assoc_read_bytes;
-    std::uint64_t assoc_writes;
-    std::uint64_t assoc_write_bytes;
 };
 
 } // namespace hdc_systemc

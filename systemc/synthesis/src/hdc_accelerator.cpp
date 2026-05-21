@@ -39,16 +39,19 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_distance_done_valid(false),
       m_distance_done_ready(true),
       m_control_done_valid(false),
-      m_control_busy(false),
-      m_memory(0) {
+      m_control_busy(false) {
     SC_CTHREAD(pipeline_fsm, clk.pos());
     reset_signal_is(rst, true);
 
     reset_all_local_state();
 }
 
-void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
-    m_memory = memory;
+void HDC_Accelerator::set_cim(unsigned level, unsigned feature, const hv_t &value) {
+    m_cim[level][feature] = value;
+}
+
+void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
+    m_assoc_mem[class_id] = value;
 }
 
 // Data commands are pipelined: TrainSample and InferSample are dispatched
@@ -353,7 +356,7 @@ void HDC_Accelerator::finalize_current_class() {
         set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
-    m_memory->write_assoc_class(static_cast<unsigned>(m_current_class_id), class_vector);
+    m_assoc_mem[static_cast<unsigned>(m_current_class_id)] = class_vector;
 
     m_current_class_count = 0;
     m_current_class_id = -1;
@@ -400,7 +403,7 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
         feature_score_t score = 0;
         for (int feature = 0; feature < NUM_FEATURES; ++feature) {
-            const hv_t &feature_hv = m_memory->read_cim(sample.levels[feature], feature);
+            const hv_t &feature_hv = m_cim[sample.levels[feature].to_uint()][feature];
             if (get_bit(feature_hv, d)) {
                 ++score;
             } else {
@@ -414,7 +417,7 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
 
 void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_counter_t *distances) {
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        const hv_t &class_vector = m_memory->read_assoc_class(static_cast<unsigned>(class_id));
+        const hv_t &class_vector = m_assoc_mem[class_id];
         distance_counter_t distance = 0;
         for (int d = 0; d < VECTOR_DIMENSION; ++d) {
             if (get_bit(query, d) != get_bit(class_vector, d)) {
