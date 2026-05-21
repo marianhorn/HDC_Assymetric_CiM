@@ -68,6 +68,8 @@ void clear_memory_stats(MemoryStats &stats) {
 
 Controller::Controller(sc_core::sc_module_name name)
     : sc_module(name),
+      clk("clk"),
+      rst("rst"),
       m_done(false),
       m_memory("hdc_memory"),
       m_cmd_fifo("cmd_fifo", 64),
@@ -83,6 +85,8 @@ Controller::Controller(sc_core::sc_module_name name)
         clear_memory_stats(m_memory_stats[dataset]);
     }
 
+    m_accelerator.clk(clk);
+    m_accelerator.rst(rst);
     m_accelerator.cmd_in(m_cmd_fifo);
     m_accelerator.rsp_out(m_rsp_fifo);
     m_accelerator.bind_memory(&m_memory);

@@ -56,7 +56,11 @@ int sc_main(int argc, char *argv[]) {
     FootDataset datasets[NUM_DATASETS];
     char cim_paths[NUM_DATASETS][128];
     char quantizer_paths[NUM_DATASETS][128];
+    sc_core::sc_clock clk("clk", sc_core::sc_time(10, sc_core::SC_NS));
+    sc_core::sc_signal<bool> rst("rst");
     Controller controller("controller");
+    controller.clk(clk);
+    controller.rst(rst);
 
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         std::snprintf(cim_paths[dataset], sizeof(cim_paths[dataset]), "import/cim_dataset%02d.txt", dataset);
@@ -65,6 +69,9 @@ int sc_main(int argc, char *argv[]) {
         controller.configure(dataset, cim_paths[dataset], quantizer_paths[dataset], &datasets[dataset]);
     }
 
+    rst.write(true);
+    sc_core::sc_start(sc_core::sc_time(20, sc_core::SC_NS));
+    rst.write(false);
     sc_core::sc_start();
     if (!controller.done()) {
         SC_REPORT_FATAL("golden_regression", "controller did not finish");

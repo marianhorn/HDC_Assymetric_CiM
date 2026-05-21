@@ -14,6 +14,9 @@ namespace hdc_systemc {
 
 SC_MODULE(Controller) {
 public:
+    sc_core::sc_in<bool> clk;
+    sc_core::sc_in<bool> rst;
+
     SC_CTOR(Controller);
 
     void configure(int dataset_id,

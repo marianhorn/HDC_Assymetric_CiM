@@ -24,6 +24,8 @@ void clear_hv(hv_t &hv) {
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     : sc_module(name),
+      clk("clk"),
+      rst("rst"),
       cmd_in("cmd_in"),
       rsp_out("rsp_out"),
       m_encoder_in_valid(false),
@@ -39,7 +41,8 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_control_done_valid(false),
       m_control_busy(false),
       m_memory(0) {
-    SC_THREAD(command_thread);
+    SC_CTHREAD(pipeline_fsm, clk.pos());
+    reset_signal_is(rst, true);
 
     reset_all_local_state();
 }
@@ -51,15 +54,18 @@ void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
 // Data commands are pipelined: TrainSample and InferSample are dispatched
 // without waiting for completion. Control commands are blocking stream
 // boundaries and wait until their token passes through the internal pipeline.
-void HDC_Accelerator::command_thread() {
+void HDC_Accelerator::pipeline_fsm() {
+    reset_all_local_state();
+    wait();
+
     while (true) {
-        command_stage();
-        encoder_stage();
-        ngram_stage();
-        train_stage();
-        distance_stage();
         response_stage();
-        sc_core::wait(sc_core::SC_ZERO_TIME);
+        distance_stage();
+        train_stage();
+        ngram_stage();
+        encoder_stage();
+        command_stage();
+        wait();
     }
 }
 
@@ -279,6 +285,23 @@ void HDC_Accelerator::distance_stage() {
 }
 
 void HDC_Accelerator::reset_all_local_state() {
+    m_encoder_in_valid = false;
+    m_encoder_in_ready = true;
+    m_encoder_out_valid = false;
+    m_encoder_out_ready = true;
+    m_bundler_in_valid = false;
+    m_bundler_in_ready = true;
+    m_distance_in_valid = false;
+    m_distance_in_ready = true;
+    m_distance_done_valid = false;
+    m_distance_done_ready = true;
+    m_control_done_valid = false;
+    m_control_busy = false;
+    m_encoder_in_data = PipelineItem();
+    m_encoder_out_data = PipelineItem();
+    m_bundler_in_data = PipelineItem();
+    m_distance_in_data = PipelineItem();
+    m_distance_done_data = DistanceResponse();
     reset_ngram_buffer();
     reset_bundling_buffer_only();
 }
