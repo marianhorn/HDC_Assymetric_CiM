@@ -162,7 +162,6 @@ void print_class_vectors(struct associative_memory *assoc_mem) {
  * Binary class vectors are already majority-thresholded bit vectors and are not normalized.
  *
  * @param assoc_mem A pointer to the associative memory structure.
- * @note Can be activated/deactivated by NORMALIZE in config.h
  */
 void normalize(struct associative_memory *assoc_mem) {
     (void)assoc_mem;

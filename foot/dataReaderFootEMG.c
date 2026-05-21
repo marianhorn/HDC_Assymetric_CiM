@@ -1,14 +1,41 @@
 #include "dataReaderFootEMG.h"
+#include "configFoot.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../hdc_infrastructure/preprocessor.h"
 
 #define INITIAL_CAPACITY 1024
 
 size_t countCSVRows(const char* filename);
 double** loadEMGData(char* filename, size_t rows, size_t cols);
 int* loadLabels(char* filename, size_t rows);
+
+static void down_sample(double** data, int* labels, size_t original_size, double*** downsampled_data, int** downsampled_labels, size_t *newSize) {
+    size_t new_length = original_size / DOWNSAMPLE;
+    *downsampled_data = (double **)malloc(new_length * sizeof(double*));
+    if (*downsampled_data == NULL) {
+        perror("Malloc failed for downsampled_data");
+        exit(EXIT_FAILURE);
+    }
+
+    *downsampled_labels = (int *)malloc(new_length * sizeof(int));
+    if (*downsampled_labels == NULL) {
+        perror("Malloc failed for downsampled_labels");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < new_length; i++) {
+        (*downsampled_data)[i] = (double *)malloc(NUM_FEATURES * sizeof(double));
+        if ((*downsampled_data)[i] == NULL) {
+            perror("Malloc failed for downsampled_data[i]");
+            exit(EXIT_FAILURE);
+        }
+        memcpy((*downsampled_data)[i], data[i * DOWNSAMPLE], NUM_FEATURES * sizeof(double));
+        (*downsampled_labels)[i] = labels[i * DOWNSAMPLE];
+    }
+
+    *newSize = new_length;
+}
 
 static void get_file_paths(int dataset_id, char *training_emg_file, char *training_labels_file, char *testing_emg_file, char *testing_labels_file) {
     sprintf(training_emg_file, "foot/data/dataset%02d/training_emg.csv", dataset_id);

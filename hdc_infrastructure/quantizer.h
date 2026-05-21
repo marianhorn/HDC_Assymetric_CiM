@@ -5,10 +5,8 @@
 #include "../hand/configHand.h"
 #elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#elif defined(CUSTOM)
-#include "../customModel/configCustom.h"
 #else
-#error "No model type defined. Please define HAND_EMG, FOOT_EMG, or CUSTOM."
+#error "No model type defined. Please define FOOT_EMG."
 #endif
 
 int quantizer_fit_from_training(double **training_data,

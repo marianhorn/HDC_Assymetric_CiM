@@ -1,5 +1,4 @@
 //This serves as main file.
-//Classifies Dietmars foot movements
 
 #include <stdio.h>
 #include <stdlib.h>
