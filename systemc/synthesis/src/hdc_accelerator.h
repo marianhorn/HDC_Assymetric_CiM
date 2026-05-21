@@ -34,13 +34,14 @@ public:
     void bind_memory(HDC_Memory *memory);
 
 private:
-    // Pipeline stage threads.
+    // Pipeline scheduler and stages.
     void command_thread();
-    void encoder_thread();
-    void ngram_thread();
-    void bundler_thread();
-    void distance_thread();
-    void forward_completed_distance_responses();
+    void command_stage();
+    void encoder_stage();
+    void ngram_stage();
+    void train_stage();
+    void distance_stage();
+    void response_stage();
 
     // Encoder datapath.
     void encode_sample(const QuantizedSample &sample, hv_t &encoded_sample);
@@ -81,6 +82,7 @@ private:
     bool m_distance_done_ready;
 
     bool m_control_done_valid;
+    bool m_control_busy;
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     int m_ngram_buffer_write_pos;

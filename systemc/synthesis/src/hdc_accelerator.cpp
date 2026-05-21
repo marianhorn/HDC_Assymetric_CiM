@@ -37,12 +37,9 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_distance_done_valid(false),
       m_distance_done_ready(true),
       m_control_done_valid(false),
+      m_control_busy(false),
       m_memory(0) {
     SC_THREAD(command_thread);
-    SC_THREAD(encoder_thread);
-    SC_THREAD(ngram_thread);
-    SC_THREAD(bundler_thread);
-    SC_THREAD(distance_thread);
 
     reset_all_local_state();
 }
@@ -56,110 +53,78 @@ void HDC_Accelerator::bind_memory(HDC_Memory *memory) {
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::command_thread() {
     while (true) {
-        forward_completed_distance_responses();
-
-        AccelCommand command = {};
-        if (!cmd_in.nb_read(command)) {
-            sc_core::wait(sc_core::SC_ZERO_TIME);
-            continue;
-        }
-
-        switch (command.kind) {
-        case AccelCommandKind::ResetTraining: {
-            reset_bundling_buffer_only();
-            PipelineItem item = {};
-            item.kind = AccelCommandKind::ResetTraining;
-            item.valid_ngram = false;
-            while (m_encoder_in_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_encoder_in_data = item;
-            m_encoder_in_valid = true;
-            while (!m_control_done_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_control_done_valid = false;
-            break;
-        }
-
-        case AccelCommandKind::ResetInference: {
-            PipelineItem item = {};
-            item.kind = AccelCommandKind::ResetInference;
-            item.valid_ngram = false;
-            while (m_encoder_in_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_encoder_in_data = item;
-            m_encoder_in_valid = true;
-            while (!m_control_done_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_control_done_valid = false;
-            break;
-        }
-
-        case AccelCommandKind::TrainSample: {
-            PipelineItem item = {};
-            item.kind = AccelCommandKind::TrainSample;
-            item.class_id = command.class_id;
-            item.sample = command.sample;
-            item.valid_ngram = false;
-            while (m_encoder_in_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_encoder_in_data = item;
-            m_encoder_in_valid = true;
-            break;
-        }
-
-        case AccelCommandKind::InvalidTrainingStep: {
-            // InvalidTrainingStep is a flush token for the current training class segment.
-            // Since it uses the same FIFO path as samples, previous samples are bundled first.
-            PipelineItem item = {};
-            item.kind = AccelCommandKind::InvalidTrainingStep;
-            item.valid_ngram = false;
-            while (m_encoder_in_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_encoder_in_data = item;
-            m_encoder_in_valid = true;
-            while (!m_control_done_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_control_done_valid = false;
-            break;
-        }
-
-        case AccelCommandKind::InferSample: {
-            PipelineItem item = {};
-            item.kind = AccelCommandKind::InferSample;
-            item.class_id = 0;
-            item.sample = command.sample;
-            item.valid_ngram = false;
-            while (m_encoder_in_valid) {
-                forward_completed_distance_responses();
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-            }
-            m_encoder_in_data = item;
-            m_encoder_in_valid = true;
-            break;
-        }
-
-        case AccelCommandKind::Shutdown: {
-            break;
-        }
-        }
+        command_stage();
+        encoder_stage();
+        ngram_stage();
+        train_stage();
+        distance_stage();
+        response_stage();
+        sc_core::wait(sc_core::SC_ZERO_TIME);
     }
 }
 
-void HDC_Accelerator::forward_completed_distance_responses() {
+void HDC_Accelerator::command_stage() {
+    if (m_control_busy) {
+        if (m_control_done_valid) {
+            m_control_done_valid = false;
+            m_control_busy = false;
+        }
+        return;
+    }
+
+    m_encoder_in_ready = !m_encoder_in_valid;
+    if (!m_encoder_in_ready) {
+        return;
+    }
+
+    AccelCommand command = {};
+    if (!cmd_in.nb_read(command)) {
+        return;
+    }
+
+    PipelineItem item = {};
+    item.valid_ngram = false;
+
+    switch (command.kind) {
+    case AccelCommandKind::ResetTraining:
+            reset_bundling_buffer_only();
+            item.kind = AccelCommandKind::ResetTraining;
+            m_control_busy = true;
+            break;
+
+    case AccelCommandKind::ResetInference:
+            item.kind = AccelCommandKind::ResetInference;
+            m_control_busy = true;
+            break;
+
+    case AccelCommandKind::TrainSample:
+            item.kind = AccelCommandKind::TrainSample;
+            item.class_id = command.class_id;
+            item.sample = command.sample;
+            break;
+
+    case AccelCommandKind::InvalidTrainingStep:
+            // InvalidTrainingStep is a flush token for the current training class segment.
+            // Since it uses the same FIFO path as samples, previous samples are bundled first.
+            item.kind = AccelCommandKind::InvalidTrainingStep;
+            m_control_busy = true;
+            break;
+
+    case AccelCommandKind::InferSample:
+            item.kind = AccelCommandKind::InferSample;
+            item.class_id = 0;
+            item.sample = command.sample;
+            break;
+
+    case AccelCommandKind::Shutdown:
+            return;
+    }
+
+    m_encoder_in_data = item;
+    m_encoder_in_valid = true;
+}
+
+void HDC_Accelerator::response_stage() {
     m_distance_done_ready = true;
     if (m_distance_done_valid && m_distance_done_ready) {
         AccelResponse response = {};
@@ -175,54 +140,47 @@ void HDC_Accelerator::forward_completed_distance_responses() {
     }
 }
 
-void HDC_Accelerator::encoder_thread() {
-    while (true) {
-        m_encoder_in_ready = !m_encoder_out_valid;
-        if (m_encoder_in_valid && m_encoder_in_ready) {
-            PipelineItem item = m_encoder_in_data;
-            m_encoder_in_valid = false;
-            if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
-                encode_sample(item.sample, item.encoded);
-            }
-            m_encoder_out_data = item;
-            m_encoder_out_valid = true;
-        } else {
-            sc_core::wait(sc_core::SC_ZERO_TIME);
+void HDC_Accelerator::encoder_stage() {
+    m_encoder_in_ready = !m_encoder_out_valid;
+    if (m_encoder_in_valid && m_encoder_in_ready) {
+        PipelineItem item = m_encoder_in_data;
+        m_encoder_in_valid = false;
+        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+            encode_sample(item.sample, item.encoded);
         }
+        m_encoder_out_data = item;
+        m_encoder_out_valid = true;
     }
 }
 
-void HDC_Accelerator::ngram_thread() {
-    while (true) {
-        m_encoder_out_ready = false;
-        if (!m_encoder_out_valid) {
-            sc_core::wait(sc_core::SC_ZERO_TIME);
-            continue;
-        }
+void HDC_Accelerator::ngram_stage() {
+    m_encoder_out_ready = false;
+    if (!m_encoder_out_valid) {
+        return;
+    }
 
-        PipelineItem item = m_encoder_out_data;
+    PipelineItem item = m_encoder_out_data;
 
-        if (item.kind == AccelCommandKind::ResetTraining) {
+    if (item.kind == AccelCommandKind::ResetTraining) {
             m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             m_control_done_valid = true;
-            continue;
-        }
+            return;
+    }
 
-        if (item.kind == AccelCommandKind::ResetInference) {
+    if (item.kind == AccelCommandKind::ResetInference) {
             m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             m_control_done_valid = true;
-            continue;
-        }
+            return;
+    }
 
-        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+    if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             m_bundler_in_ready = !m_bundler_in_valid;
             if (!m_bundler_in_ready) {
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-                continue;
+                return;
             }
             m_encoder_out_ready = true;
             m_encoder_out_valid = false;
@@ -230,16 +188,15 @@ void HDC_Accelerator::ngram_thread() {
             item.valid_ngram = false;
             m_bundler_in_data = item;
             m_bundler_in_valid = true;
-            continue;
-        }
+            return;
+    }
 
-        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+    if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             const bool to_bundler = item.kind == AccelCommandKind::TrainSample;
             m_bundler_in_ready = !m_bundler_in_valid;
             m_distance_in_ready = !m_distance_in_valid;
             if ((to_bundler && !m_bundler_in_ready) || (!to_bundler && !m_distance_in_ready)) {
-                sc_core::wait(sc_core::SC_ZERO_TIME);
-                continue;
+                return;
             }
 
             m_encoder_out_ready = true;
@@ -259,25 +216,22 @@ void HDC_Accelerator::ngram_thread() {
                 m_distance_in_data = item;
                 m_distance_in_valid = true;
             }
-            continue;
-        }
-
-        m_encoder_out_valid = false;
+            return;
     }
+
+    m_encoder_out_valid = false;
 }
 
-void HDC_Accelerator::bundler_thread() {
-    while (true) {
-        m_bundler_in_ready = true;
-        if (!m_bundler_in_valid) {
-            sc_core::wait(sc_core::SC_ZERO_TIME);
-            continue;
-        }
+void HDC_Accelerator::train_stage() {
+    m_bundler_in_ready = true;
+    if (!m_bundler_in_valid) {
+        return;
+    }
 
-        const PipelineItem item = m_bundler_in_data;
-        m_bundler_in_valid = false;
+    const PipelineItem item = m_bundler_in_data;
+    m_bundler_in_valid = false;
 
-        if (item.kind == AccelCommandKind::TrainSample) {
+    if (item.kind == AccelCommandKind::TrainSample) {
             if (item.valid_ngram) {
                 const int class_id = item.class_id.to_int();
 
@@ -287,45 +241,41 @@ void HDC_Accelerator::bundler_thread() {
 
                 add_ngram_to_bundling_buffer(item.ngram);
             }
-            continue;
-        }
+            return;
+    }
 
-        if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+    if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             finalize_current_class();
             reset_bundling_buffer_only();
             m_control_done_valid = true;
-            continue;
-        }
+            return;
     }
 }
 
-void HDC_Accelerator::distance_thread() {
-    while (true) {
-        m_distance_in_ready = !m_distance_done_valid;
-        if (!m_distance_in_valid || !m_distance_in_ready) {
-            sc_core::wait(sc_core::SC_ZERO_TIME);
-            continue;
-        }
+void HDC_Accelerator::distance_stage() {
+    m_distance_in_ready = !m_distance_done_valid;
+    if (!m_distance_in_valid || !m_distance_in_ready) {
+        return;
+    }
 
-        const PipelineItem item = m_distance_in_data;
-        m_distance_in_valid = false;
+    const PipelineItem item = m_distance_in_data;
+    m_distance_in_valid = false;
 
-        DistanceResponse response = {};
-        if (!item.valid_ngram) {
+    DistanceResponse response = {};
+    if (!item.valid_ngram) {
             response.valid_prediction = false;
             for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 response.distances[class_id] = 0;
             }
             m_distance_done_data = response;
             m_distance_done_valid = true;
-            continue;
-        }
-
-        response.valid_prediction = true;
-        compute_hamming_distances(item.ngram, response.distances);
-        m_distance_done_data = response;
-        m_distance_done_valid = true;
+            return;
     }
+
+    response.valid_prediction = true;
+    compute_hamming_distances(item.ngram, response.distances);
+    m_distance_done_data = response;
+    m_distance_done_valid = true;
 }
 
 void HDC_Accelerator::reset_all_local_state() {
