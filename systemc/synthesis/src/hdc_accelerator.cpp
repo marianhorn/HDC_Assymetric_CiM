@@ -95,7 +95,6 @@ void HDC_Accelerator::command_stage() {
 
     switch (command.kind) {
     case AccelCommandKind::ResetTraining:
-            reset_bundling_buffer_only();
             packet.kind = AccelCommandKind::ResetTraining;
             m_control_busy = true;
             break;
@@ -173,6 +172,7 @@ void HDC_Accelerator::ngram_stage() {
             m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
+            reset_bundling_buffer_only();
             m_control_done_valid = true;
             return;
     }
@@ -344,6 +344,11 @@ void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
 }
 
 void HDC_Accelerator::finalize_current_class() {
+    if (m_current_class_id < 0) {
+        m_current_class_count = 0;
+        return;
+    }
+
     hv_t class_vector;
     clear_hv(class_vector);
     // Exact equivalent of the previous rule:
