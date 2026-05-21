@@ -61,8 +61,12 @@ Controller::Controller(sc_core::sc_module_name name)
       rst("rst"),
       m_done(false),
       m_memory("hdc_memory"),
-      m_cmd_fifo("cmd_fifo", 64),
-      m_rsp_fifo("rsp_fifo", 64),
+      m_cmd_valid("cmd_valid"),
+      m_cmd_ready("cmd_ready"),
+      m_cmd_data("cmd_data"),
+      m_rsp_valid("rsp_valid"),
+      m_rsp_ready("rsp_ready"),
+      m_rsp_data("rsp_data"),
       m_accelerator("hdc_accelerator") {
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         m_dataset_configs[dataset].dataset_id = dataset;
@@ -75,8 +79,12 @@ Controller::Controller(sc_core::sc_module_name name)
 
     m_accelerator.clk(clk);
     m_accelerator.rst(rst);
-    m_accelerator.cmd_in(m_cmd_fifo);
-    m_accelerator.rsp_out(m_rsp_fifo);
+    m_accelerator.cmd_valid(m_cmd_valid);
+    m_accelerator.cmd_ready(m_cmd_ready);
+    m_accelerator.cmd_data(m_cmd_data);
+    m_accelerator.rsp_valid(m_rsp_valid);
+    m_accelerator.rsp_ready(m_rsp_ready);
+    m_accelerator.rsp_data(m_rsp_data);
     SC_THREAD(main_thread);
 }
 
@@ -111,6 +119,12 @@ const EvaluationResult &Controller::test_result(int dataset_id) const {
 }
 
 void Controller::main_thread() {
+    m_cmd_valid.write(false);
+    m_rsp_ready.write(false);
+    do {
+        wait(clk.posedge_event());
+    } while (rst.read());
+
     for (int dataset = 0; dataset < NUM_DATASETS; ++dataset) {
         const DatasetConfig &config = m_dataset_configs[dataset];
         if (!config.configured) {
@@ -145,7 +159,16 @@ void Controller::copy_quantized_sample(const level_t *levels, QuantizedSample &s
 }
 
 void Controller::send_command(const AccelCommand &command) {
-    m_cmd_fifo.write(command);
+    m_cmd_data.write(command);
+    m_cmd_valid.write(true);
+    while (true) {
+        wait(clk.posedge_event());
+        wait(sc_core::SC_ZERO_TIME);
+        if (m_cmd_ready.read()) {
+            break;
+        }
+    }
+    m_cmd_valid.write(false);
 }
 
 void Controller::load_cim(const char *path) {
@@ -421,20 +444,35 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     int issued = 0;
     int received = 0;
     int outstanding = 0;
+    bool command_pending = false;
 
     while (received < num_samples) {
-        while (issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
+        if (!command_pending && issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
             quantize_sample(&raw_data[issued * NUM_FEATURES], quantized_sample);
             command.kind = AccelCommandKind::InferSample;
             command.class_id = 0;
             copy_quantized_sample(quantized_sample, command.sample);
-            send_command(command);
+            m_cmd_data.write(command);
+            m_cmd_valid.write(true);
+            command_pending = true;
+        }
+
+        m_rsp_ready.write(outstanding > 0);
+        wait(clk.posedge_event());
+        wait(sc_core::SC_ZERO_TIME);
+
+        if (command_pending && m_cmd_ready.read()) {
+            m_cmd_valid.write(false);
+            command_pending = false;
             ++issued;
             ++outstanding;
         }
 
-        AccelResponse response = {};
-        m_rsp_fifo.read(response);
+        if (!(outstanding > 0 && m_rsp_valid.read() && m_rsp_ready.read())) {
+            continue;
+        }
+
+        AccelResponse response = m_rsp_data.read();
         const int sample = received;
         ++received;
         --outstanding;
@@ -469,6 +507,8 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
             ++result.not_correct;
         }
     }
+    m_cmd_valid.write(false);
+    m_rsp_ready.write(false);
 
     result.total = result.correct + result.not_correct + result.transition_error;
     if (result.total > 0) {

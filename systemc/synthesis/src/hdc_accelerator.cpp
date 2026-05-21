@@ -26,8 +26,12 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     : sc_module(name),
       clk("clk"),
       rst("rst"),
-      cmd_in("cmd_in"),
-      rsp_out("rsp_out"),
+      cmd_valid("cmd_valid"),
+      cmd_ready("cmd_ready"),
+      cmd_data("cmd_data"),
+      rsp_valid("rsp_valid"),
+      rsp_ready("rsp_ready"),
+      rsp_data("rsp_data"),
       m_encoder_in_valid(false),
       m_encoder_in_ready(true),
       m_encoder_out_valid(false),
@@ -42,8 +46,6 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_control_busy(false) {
     SC_CTHREAD(pipeline_fsm, clk.pos());
     reset_signal_is(rst, true);
-
-    reset_all_local_state();
 }
 
 void HDC_Accelerator::set_cim(unsigned level, unsigned feature, const hv_t &value) {
@@ -78,19 +80,19 @@ void HDC_Accelerator::command_stage() {
             m_control_done_valid = false;
             m_control_busy = false;
         }
+        cmd_ready.write(false);
         return;
     }
 
     m_encoder_in_ready = !m_encoder_in_valid;
-    if (!m_encoder_in_ready) {
+    const bool can_accept = m_encoder_in_ready;
+    cmd_ready.write(can_accept);
+
+    if (!(cmd_valid.read() && can_accept)) {
         return;
     }
 
-    AccelCommand command = {};
-    if (!cmd_in.nb_read(command)) {
-        return;
-    }
-
+    AccelCommand command = cmd_data.read();
     EncoderPacket packet = {};
 
     switch (command.kind) {
@@ -132,8 +134,8 @@ void HDC_Accelerator::command_stage() {
 }
 
 void HDC_Accelerator::response_stage() {
-    m_distance_done_ready = true;
-    if (m_distance_done_valid && m_distance_done_ready) {
+    m_distance_done_ready = rsp_ready.read();
+    if (m_distance_done_valid) {
         AccelResponse response = {};
         response.valid_prediction = m_distance_done_data.valid_prediction;
         response.is_shutdown_ack = false;
@@ -142,8 +144,13 @@ void HDC_Accelerator::response_stage() {
             response.distances[class_id] = m_distance_done_data.distances[class_id];
         }
 
-        rsp_out.write(response);
-        m_distance_done_valid = false;
+        rsp_valid.write(true);
+        rsp_data.write(response);
+        if (m_distance_done_ready) {
+            m_distance_done_valid = false;
+        }
+    } else {
+        rsp_valid.write(false);
     }
 }
 
@@ -307,6 +314,8 @@ void HDC_Accelerator::reset_all_local_state() {
     m_distance_done_ready = true;
     m_control_done_valid = false;
     m_control_busy = false;
+    cmd_ready.write(false);
+    rsp_valid.write(false);
     m_encoder_in_data = EncoderPacket();
     m_encoder_out_data = EncoderPacket();
     m_bundler_in_data = NGramPacket();

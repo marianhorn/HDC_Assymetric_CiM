@@ -33,8 +33,12 @@ SC_MODULE(HDC_Accelerator) {
 public:
     sc_core::sc_in<bool> clk;
     sc_core::sc_in<bool> rst;
-    sc_core::sc_fifo_in<AccelCommand> cmd_in;
-    sc_core::sc_fifo_out<AccelResponse> rsp_out;
+    sc_core::sc_in<bool> cmd_valid;
+    sc_core::sc_out<bool> cmd_ready;
+    sc_core::sc_in<AccelCommand> cmd_data;
+    sc_core::sc_out<bool> rsp_valid;
+    sc_core::sc_in<bool> rsp_ready;
+    sc_core::sc_out<AccelResponse> rsp_data;
 
     SC_CTOR(HDC_Accelerator);
 

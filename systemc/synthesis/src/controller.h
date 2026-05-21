@@ -50,8 +50,12 @@ private:
     EvaluationResult m_test_results[NUM_DATASETS];
     bool m_done;
     HDC_Memory m_memory;
-    sc_core::sc_fifo<AccelCommand> m_cmd_fifo;
-    sc_core::sc_fifo<AccelResponse> m_rsp_fifo;
+    sc_core::sc_signal<bool> m_cmd_valid;
+    sc_core::sc_signal<bool> m_cmd_ready;
+    sc_core::sc_signal<AccelCommand> m_cmd_data;
+    sc_core::sc_signal<bool> m_rsp_valid;
+    sc_core::sc_signal<bool> m_rsp_ready;
+    sc_core::sc_signal<AccelResponse> m_rsp_data;
     HDC_Accelerator m_accelerator;
 };
 
