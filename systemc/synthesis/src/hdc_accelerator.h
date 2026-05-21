@@ -3,7 +3,6 @@
 #ifndef SYSTEMC_HDC_HDC_ACCELERATOR_H
 #define SYSTEMC_HDC_HDC_ACCELERATOR_H
 
-#include <ostream>
 #include <systemc>
 #include "systemc_types.h"
 #include "hdc_transactions.h"
@@ -24,16 +23,6 @@ struct DistanceResponse {
     bool valid_prediction;
     distance_counter_t distances[NUM_CLASSES];
 };
-
-// Required by sc_fifo<T> print/dump instantiation for custom internal FIFO types.
-// Keep opaque: this is not accelerator debug output.
-inline std::ostream &operator<<(std::ostream &os, const PipelineItem &) {
-    return os << "PipelineItem";
-}
-
-inline std::ostream &operator<<(std::ostream &os, const DistanceResponse &) {
-    return os << "DistanceResponse";
-}
 
 SC_MODULE(HDC_Accelerator) {
 public:
@@ -71,13 +60,27 @@ private:
     // Distance datapath.
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances);
 
-    // Internal pipeline FIFOs.
-    sc_core::sc_fifo<PipelineItem> m_encoder_in_fifo;
-    sc_core::sc_fifo<PipelineItem> m_encoder_out_fifo;
-    sc_core::sc_fifo<PipelineItem> m_bundler_in_fifo;
-    sc_core::sc_fifo<PipelineItem> m_distance_in_fifo;
-    sc_core::sc_fifo<bool> m_control_done_fifo;
-    sc_core::sc_fifo<DistanceResponse> m_distance_done_fifo;
+    PipelineItem m_encoder_in_data;
+    bool m_encoder_in_valid;
+    bool m_encoder_in_ready;
+
+    PipelineItem m_encoder_out_data;
+    bool m_encoder_out_valid;
+    bool m_encoder_out_ready;
+
+    PipelineItem m_bundler_in_data;
+    bool m_bundler_in_valid;
+    bool m_bundler_in_ready;
+
+    PipelineItem m_distance_in_data;
+    bool m_distance_in_valid;
+    bool m_distance_in_ready;
+
+    DistanceResponse m_distance_done_data;
+    bool m_distance_done_valid;
+    bool m_distance_done_ready;
+
+    bool m_control_done_valid;
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     int m_ngram_buffer_write_pos;
@@ -88,7 +91,6 @@ private:
     train_counter_t m_current_class_count;
     int m_current_class_id;
 
-    int m_infer_outstanding;
     HDC_Memory *m_memory;
 };
 

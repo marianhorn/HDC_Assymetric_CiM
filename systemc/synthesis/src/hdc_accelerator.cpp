@@ -26,13 +26,17 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     : sc_module(name),
       cmd_in("cmd_in"),
       rsp_out("rsp_out"),
-      m_encoder_in_fifo("encoder_in_fifo", 32),
-      m_encoder_out_fifo("encoder_out_fifo", 32),
-      m_bundler_in_fifo("bundler_in_fifo", 32),
-      m_distance_in_fifo("distance_in_fifo", 32),
-      m_control_done_fifo("control_done_fifo", 8),
-      m_distance_done_fifo("distance_done_fifo", 32),
-      m_infer_outstanding(0),
+      m_encoder_in_valid(false),
+      m_encoder_in_ready(true),
+      m_encoder_out_valid(false),
+      m_encoder_out_ready(true),
+      m_bundler_in_valid(false),
+      m_bundler_in_ready(true),
+      m_distance_in_valid(false),
+      m_distance_in_ready(true),
+      m_distance_done_valid(false),
+      m_distance_done_ready(true),
+      m_control_done_valid(false),
       m_memory(0) {
     SC_THREAD(command_thread);
     SC_THREAD(encoder_thread);
@@ -56,9 +60,7 @@ void HDC_Accelerator::command_thread() {
 
         AccelCommand command = {};
         if (!cmd_in.nb_read(command)) {
-            if (m_distance_done_fifo.num_available() == 0) {
-                sc_core::wait(cmd_in.data_written_event() | m_distance_done_fifo.data_written_event());
-            }
+            sc_core::wait(sc_core::SC_ZERO_TIME);
             continue;
         }
 
@@ -68,8 +70,17 @@ void HDC_Accelerator::command_thread() {
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetTraining;
             item.valid_ngram = false;
-            m_encoder_in_fifo.write(item);
-            m_control_done_fifo.read();
+            while (m_encoder_in_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_encoder_in_data = item;
+            m_encoder_in_valid = true;
+            while (!m_control_done_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_control_done_valid = false;
             break;
         }
 
@@ -77,8 +88,17 @@ void HDC_Accelerator::command_thread() {
             PipelineItem item = {};
             item.kind = AccelCommandKind::ResetInference;
             item.valid_ngram = false;
-            m_encoder_in_fifo.write(item);
-            m_control_done_fifo.read();
+            while (m_encoder_in_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_encoder_in_data = item;
+            m_encoder_in_valid = true;
+            while (!m_control_done_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_control_done_valid = false;
             break;
         }
 
@@ -88,7 +108,12 @@ void HDC_Accelerator::command_thread() {
             item.class_id = command.class_id;
             item.sample = command.sample;
             item.valid_ngram = false;
-            m_encoder_in_fifo.write(item);
+            while (m_encoder_in_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_encoder_in_data = item;
+            m_encoder_in_valid = true;
             break;
         }
 
@@ -98,8 +123,17 @@ void HDC_Accelerator::command_thread() {
             PipelineItem item = {};
             item.kind = AccelCommandKind::InvalidTrainingStep;
             item.valid_ngram = false;
-            m_encoder_in_fifo.write(item);
-            m_control_done_fifo.read();
+            while (m_encoder_in_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_encoder_in_data = item;
+            m_encoder_in_valid = true;
+            while (!m_control_done_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_control_done_valid = false;
             break;
         }
 
@@ -109,8 +143,12 @@ void HDC_Accelerator::command_thread() {
             item.class_id = 0;
             item.sample = command.sample;
             item.valid_ngram = false;
-            m_encoder_in_fifo.write(item);
-            ++m_infer_outstanding;
+            while (m_encoder_in_valid) {
+                forward_completed_distance_responses();
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+            }
+            m_encoder_in_data = item;
+            m_encoder_in_valid = true;
             break;
         }
 
@@ -122,55 +160,90 @@ void HDC_Accelerator::command_thread() {
 }
 
 void HDC_Accelerator::forward_completed_distance_responses() {
-    DistanceResponse distance_response = {};
-    while (m_distance_done_fifo.nb_read(distance_response)) {
+    m_distance_done_ready = true;
+    if (m_distance_done_valid && m_distance_done_ready) {
         AccelResponse response = {};
-        response.valid_prediction = distance_response.valid_prediction;
+        response.valid_prediction = m_distance_done_data.valid_prediction;
         response.is_shutdown_ack = false;
         response.predicted_class = 0;
         for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-            response.distances[class_id] = distance_response.distances[class_id];
+            response.distances[class_id] = m_distance_done_data.distances[class_id];
         }
 
         rsp_out.write(response);
-        --m_infer_outstanding;
+        m_distance_done_valid = false;
     }
 }
 
 void HDC_Accelerator::encoder_thread() {
     while (true) {
-        PipelineItem item = m_encoder_in_fifo.read();
-        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
-            encode_sample(item.sample, item.encoded);
+        m_encoder_in_ready = !m_encoder_out_valid;
+        if (m_encoder_in_valid && m_encoder_in_ready) {
+            PipelineItem item = m_encoder_in_data;
+            m_encoder_in_valid = false;
+            if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+                encode_sample(item.sample, item.encoded);
+            }
+            m_encoder_out_data = item;
+            m_encoder_out_valid = true;
+        } else {
+            sc_core::wait(sc_core::SC_ZERO_TIME);
         }
-        m_encoder_out_fifo.write(item);
     }
 }
 
 void HDC_Accelerator::ngram_thread() {
     while (true) {
-        PipelineItem item = m_encoder_out_fifo.read();
+        m_encoder_out_ready = false;
+        if (!m_encoder_out_valid) {
+            sc_core::wait(sc_core::SC_ZERO_TIME);
+            continue;
+        }
+
+        PipelineItem item = m_encoder_out_data;
 
         if (item.kind == AccelCommandKind::ResetTraining) {
+            m_encoder_out_ready = true;
+            m_encoder_out_valid = false;
             reset_ngram_buffer();
-            m_control_done_fifo.write(true);
+            m_control_done_valid = true;
             continue;
         }
 
         if (item.kind == AccelCommandKind::ResetInference) {
+            m_encoder_out_ready = true;
+            m_encoder_out_valid = false;
             reset_ngram_buffer();
-            m_control_done_fifo.write(true);
+            m_control_done_valid = true;
             continue;
         }
 
         if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+            m_bundler_in_ready = !m_bundler_in_valid;
+            if (!m_bundler_in_ready) {
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+                continue;
+            }
+            m_encoder_out_ready = true;
+            m_encoder_out_valid = false;
             reset_ngram_buffer();
             item.valid_ngram = false;
-            m_bundler_in_fifo.write(item);
+            m_bundler_in_data = item;
+            m_bundler_in_valid = true;
             continue;
         }
 
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+            const bool to_bundler = item.kind == AccelCommandKind::TrainSample;
+            m_bundler_in_ready = !m_bundler_in_valid;
+            m_distance_in_ready = !m_distance_in_valid;
+            if ((to_bundler && !m_bundler_in_ready) || (!to_bundler && !m_distance_in_ready)) {
+                sc_core::wait(sc_core::SC_ZERO_TIME);
+                continue;
+            }
+
+            m_encoder_out_ready = true;
+            m_encoder_out_valid = false;
             push_encoded_sample_to_ngram_buffer(item.encoded);
             if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
                 bind_ngram(item.ngram);
@@ -179,18 +252,30 @@ void HDC_Accelerator::ngram_thread() {
                 item.valid_ngram = false;
             }
 
-            if (item.kind == AccelCommandKind::TrainSample) {
-                m_bundler_in_fifo.write(item);
+            if (to_bundler) {
+                m_bundler_in_data = item;
+                m_bundler_in_valid = true;
             } else {
-                m_distance_in_fifo.write(item);
+                m_distance_in_data = item;
+                m_distance_in_valid = true;
             }
+            continue;
         }
+
+        m_encoder_out_valid = false;
     }
 }
 
 void HDC_Accelerator::bundler_thread() {
     while (true) {
-        const PipelineItem item = m_bundler_in_fifo.read();
+        m_bundler_in_ready = true;
+        if (!m_bundler_in_valid) {
+            sc_core::wait(sc_core::SC_ZERO_TIME);
+            continue;
+        }
+
+        const PipelineItem item = m_bundler_in_data;
+        m_bundler_in_valid = false;
 
         if (item.kind == AccelCommandKind::TrainSample) {
             if (item.valid_ngram) {
@@ -208,7 +293,7 @@ void HDC_Accelerator::bundler_thread() {
         if (item.kind == AccelCommandKind::InvalidTrainingStep) {
             finalize_current_class();
             reset_bundling_buffer_only();
-            m_control_done_fifo.write(true);
+            m_control_done_valid = true;
             continue;
         }
     }
@@ -216,7 +301,14 @@ void HDC_Accelerator::bundler_thread() {
 
 void HDC_Accelerator::distance_thread() {
     while (true) {
-        const PipelineItem item = m_distance_in_fifo.read();
+        m_distance_in_ready = !m_distance_done_valid;
+        if (!m_distance_in_valid || !m_distance_in_ready) {
+            sc_core::wait(sc_core::SC_ZERO_TIME);
+            continue;
+        }
+
+        const PipelineItem item = m_distance_in_data;
+        m_distance_in_valid = false;
 
         DistanceResponse response = {};
         if (!item.valid_ngram) {
@@ -224,13 +316,15 @@ void HDC_Accelerator::distance_thread() {
             for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 response.distances[class_id] = 0;
             }
-            m_distance_done_fifo.write(response);
+            m_distance_done_data = response;
+            m_distance_done_valid = true;
             continue;
         }
 
         response.valid_prediction = true;
         compute_hamming_distances(item.ngram, response.distances);
-        m_distance_done_fifo.write(response);
+        m_distance_done_data = response;
+        m_distance_done_valid = true;
     }
 }
 
