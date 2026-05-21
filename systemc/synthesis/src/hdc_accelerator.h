@@ -9,17 +9,23 @@
 
 namespace hdc_systemc {
 
-struct PipelineItem {
+struct EncoderPacket {
     AccelCommandKind kind;
     class_t class_id;
     QuantizedSample sample;
     hv_t encoded;
+};
+
+struct NGramPacket {
+    AccelCommandKind kind;
+    class_t class_id;
     hv_t ngram;
     bool valid_ngram;
 };
 
-struct DistanceResponse {
+struct DistancePacket {
     bool valid_prediction;
+    class_t predicted_class;
     distance_counter_t distances[NUM_CLASSES];
 };
 
@@ -63,23 +69,23 @@ private:
     // Distance datapath.
     void compute_hamming_distances(const hv_t &query, distance_counter_t *distances);
 
-    PipelineItem m_encoder_in_data;
+    EncoderPacket m_encoder_in_data;
     bool m_encoder_in_valid;
     bool m_encoder_in_ready;
 
-    PipelineItem m_encoder_out_data;
+    EncoderPacket m_encoder_out_data;
     bool m_encoder_out_valid;
     bool m_encoder_out_ready;
 
-    PipelineItem m_bundler_in_data;
+    NGramPacket m_bundler_in_data;
     bool m_bundler_in_valid;
     bool m_bundler_in_ready;
 
-    PipelineItem m_distance_in_data;
+    NGramPacket m_distance_in_data;
     bool m_distance_in_valid;
     bool m_distance_in_ready;
 
-    DistanceResponse m_distance_done_data;
+    DistancePacket m_distance_done_data;
     bool m_distance_done_valid;
     bool m_distance_done_ready;
 

@@ -91,45 +91,44 @@ void HDC_Accelerator::command_stage() {
         return;
     }
 
-    PipelineItem item = {};
-    item.valid_ngram = false;
+    EncoderPacket packet = {};
 
     switch (command.kind) {
     case AccelCommandKind::ResetTraining:
             reset_bundling_buffer_only();
-            item.kind = AccelCommandKind::ResetTraining;
+            packet.kind = AccelCommandKind::ResetTraining;
             m_control_busy = true;
             break;
 
     case AccelCommandKind::ResetInference:
-            item.kind = AccelCommandKind::ResetInference;
+            packet.kind = AccelCommandKind::ResetInference;
             m_control_busy = true;
             break;
 
     case AccelCommandKind::TrainSample:
-            item.kind = AccelCommandKind::TrainSample;
-            item.class_id = command.class_id;
-            item.sample = command.sample;
+            packet.kind = AccelCommandKind::TrainSample;
+            packet.class_id = command.class_id;
+            packet.sample = command.sample;
             break;
 
     case AccelCommandKind::InvalidTrainingStep:
             // InvalidTrainingStep is a flush token for the current training class segment.
             // Since it uses the same FIFO path as samples, previous samples are bundled first.
-            item.kind = AccelCommandKind::InvalidTrainingStep;
+            packet.kind = AccelCommandKind::InvalidTrainingStep;
             m_control_busy = true;
             break;
 
     case AccelCommandKind::InferSample:
-            item.kind = AccelCommandKind::InferSample;
-            item.class_id = 0;
-            item.sample = command.sample;
+            packet.kind = AccelCommandKind::InferSample;
+            packet.class_id = 0;
+            packet.sample = command.sample;
             break;
 
     case AccelCommandKind::Shutdown:
             return;
     }
 
-    m_encoder_in_data = item;
+    m_encoder_in_data = packet;
     m_encoder_in_valid = true;
 }
 
@@ -139,7 +138,7 @@ void HDC_Accelerator::response_stage() {
         AccelResponse response = {};
         response.valid_prediction = m_distance_done_data.valid_prediction;
         response.is_shutdown_ack = false;
-        response.predicted_class = 0;
+        response.predicted_class = m_distance_done_data.predicted_class;
         for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
             response.distances[class_id] = m_distance_done_data.distances[class_id];
         }
@@ -152,7 +151,7 @@ void HDC_Accelerator::response_stage() {
 void HDC_Accelerator::encoder_stage() {
     m_encoder_in_ready = !m_encoder_out_valid;
     if (m_encoder_in_valid && m_encoder_in_ready) {
-        PipelineItem item = m_encoder_in_data;
+        EncoderPacket item = m_encoder_in_data;
         m_encoder_in_valid = false;
         if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             encode_sample(item.sample, item.encoded);
@@ -168,7 +167,7 @@ void HDC_Accelerator::ngram_stage() {
         return;
     }
 
-    PipelineItem item = m_encoder_out_data;
+    EncoderPacket item = m_encoder_out_data;
 
     if (item.kind == AccelCommandKind::ResetTraining) {
             m_encoder_out_ready = true;
@@ -194,8 +193,11 @@ void HDC_Accelerator::ngram_stage() {
             m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             reset_ngram_buffer();
-            item.valid_ngram = false;
-            m_bundler_in_data = item;
+            NGramPacket packet = {};
+            packet.kind = item.kind;
+            packet.class_id = item.class_id;
+            packet.valid_ngram = false;
+            m_bundler_in_data = packet;
             m_bundler_in_valid = true;
             return;
     }
@@ -211,18 +213,21 @@ void HDC_Accelerator::ngram_stage() {
             m_encoder_out_ready = true;
             m_encoder_out_valid = false;
             push_encoded_sample_to_ngram_buffer(item.encoded);
+            NGramPacket packet = {};
+            packet.kind = item.kind;
+            packet.class_id = item.class_id;
             if (m_ngram_buffer_fill_count == N_GRAM_SIZE) {
-                bind_ngram(item.ngram);
-                item.valid_ngram = true;
+                bind_ngram(packet.ngram);
+                packet.valid_ngram = true;
             } else {
-                item.valid_ngram = false;
+                packet.valid_ngram = false;
             }
 
             if (to_bundler) {
-                m_bundler_in_data = item;
+                m_bundler_in_data = packet;
                 m_bundler_in_valid = true;
             } else {
-                m_distance_in_data = item;
+                m_distance_in_data = packet;
                 m_distance_in_valid = true;
             }
             return;
@@ -237,7 +242,7 @@ void HDC_Accelerator::train_stage() {
         return;
     }
 
-    const PipelineItem item = m_bundler_in_data;
+    const NGramPacket item = m_bundler_in_data;
     m_bundler_in_valid = false;
 
     if (item.kind == AccelCommandKind::TrainSample) {
@@ -267,12 +272,13 @@ void HDC_Accelerator::distance_stage() {
         return;
     }
 
-    const PipelineItem item = m_distance_in_data;
+    const NGramPacket item = m_distance_in_data;
     m_distance_in_valid = false;
 
-    DistanceResponse response = {};
+    DistancePacket response = {};
     if (!item.valid_ngram) {
             response.valid_prediction = false;
+            response.predicted_class = 0;
             for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 response.distances[class_id] = 0;
             }
@@ -282,6 +288,7 @@ void HDC_Accelerator::distance_stage() {
     }
 
     response.valid_prediction = true;
+    response.predicted_class = 0;
     compute_hamming_distances(item.ngram, response.distances);
     m_distance_done_data = response;
     m_distance_done_valid = true;
@@ -300,11 +307,11 @@ void HDC_Accelerator::reset_all_local_state() {
     m_distance_done_ready = true;
     m_control_done_valid = false;
     m_control_busy = false;
-    m_encoder_in_data = PipelineItem();
-    m_encoder_out_data = PipelineItem();
-    m_bundler_in_data = PipelineItem();
-    m_distance_in_data = PipelineItem();
-    m_distance_done_data = DistanceResponse();
+    m_encoder_in_data = EncoderPacket();
+    m_encoder_out_data = EncoderPacket();
+    m_bundler_in_data = NGramPacket();
+    m_distance_in_data = NGramPacket();
+    m_distance_done_data = DistancePacket();
     reset_ngram_buffer();
     reset_bundling_buffer_only();
 }
