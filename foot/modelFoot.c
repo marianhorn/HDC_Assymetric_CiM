@@ -57,21 +57,11 @@ int main(void) {
             printf("\n\nModel for dataset #%d\n", dataset);
         }
 
-#if PRECOMPUTED_ITEM_MEMORY
         struct item_memory itemMem;
         init_precomp_item_memory(&itemMem, NUM_LEVELS, NUM_FEATURES);
 
         struct encoder enc;
         init_encoder(&enc, &itemMem);
-#else
-        struct item_memory electrodes;
-        struct item_memory intensityLevels;
-        init_item_memory(&electrodes, NUM_FEATURES);
-        init_continuous_item_memory(&intensityLevels, NUM_LEVELS);
-
-        struct encoder enc;
-        init_encoder(&enc, &electrodes, &intensityLevels);
-#endif
 
         struct associative_memory assMem;
         init_assoc_mem(&assMem);
@@ -124,7 +114,6 @@ int main(void) {
         }
 
 #if USE_GENETIC_ITEM_MEMORY
-#if PRECOMPUTED_ITEM_MEMORY
         optimize_item_memory(&itemMem,
                              trainingData,
                              trainingLabels,
@@ -132,16 +121,6 @@ int main(void) {
                              validationData,
                              validationLabels,
                              validationSamples);
-#else
-        optimize_item_memory(&intensityLevels,
-                             &electrodes,
-                             trainingData,
-                             trainingLabels,
-                             trainingSamples,
-                             validationData,
-                             validationLabels,
-                             validationSamples);
-#endif
 
         free_assoc_mem(&assMem);
         init_assoc_mem(&assMem);
@@ -173,12 +152,7 @@ int main(void) {
 #endif
 
         free_assoc_mem(&assMem);
-#if PRECOMPUTED_ITEM_MEMORY
         free_item_memory(&itemMem);
-#else
-        free_item_memory(&electrodes);
-        free_item_memory(&intensityLevels);
-#endif
         freeData(trainingData, trainingSamples);
         if (validationData != NULL) {
             freeData(validationData, validationSamples);

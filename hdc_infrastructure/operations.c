@@ -10,7 +10,7 @@
  * - **Similarity:** Computes similarity metrics, such as cosine similarity (bipolar) or Hamming distance (binary).
  *
  * @details
- * The operations are optimized for both bipolar and binary vector modes, allowing flexibility in
+ * The operations are optimized for binary hypervectors.
  * hyperdimensional computing applications. These functions form the core of data encoding, aggregation,
  * and classification pipelines.
  */
@@ -23,58 +23,6 @@
 #include <string.h>
 #include "vector.h"
 
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
-static void permute_like_krischan(Vector *vector, int offset, Vector *result) {
-    int chunks = (VECTOR_DIMENSION + 31) / 32;
-    uint32_t *in_words = (uint32_t *)calloc((size_t)chunks, sizeof(uint32_t));
-    uint32_t *out_words = (uint32_t *)calloc((size_t)chunks, sizeof(uint32_t));
-    if (!in_words || !out_words) {
-        fprintf(stderr, "Memory allocation failed in permute_like_krischan\n");
-        free(in_words);
-        free(out_words);
-        exit(EXIT_FAILURE);
-    }
-
-    // Match krischan loader bit order: index i maps to bit 31-(i%32) in chunk i/32.
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        if (vector_get_bit(vector, i)) {
-            int chunk = i / 32;
-            int bit_in_chunk = 31 - (i % 32);
-            in_words[chunk] |= (1u << bit_in_chunk);
-        }
-    }
-
-    int shift_bits = offset;
-    int total_bits = chunks * 32;
-    if (total_bits > 0) {
-        shift_bits %= total_bits;
-        if (shift_bits < 0) {
-            shift_bits += total_bits;
-        }
-    }
-
-    int word_shift = shift_bits / 32;
-    int bit_shift = shift_bits % 32;
-    // Intentional parity path with Krischan implementation, including bit_shift==0 behavior.
-    for (int i = 0; i < chunks; i++) {
-        uint32_t a = in_words[(i + word_shift) % chunks];
-        uint32_t b = in_words[(i + word_shift + 1) % chunks];
-        out_words[i] = (a >> bit_shift) | (b << (32 - bit_shift));
-    }
-
-    vector_zero(result);
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        int chunk = i / 32;
-        int bit_in_chunk = 31 - (i % 32);
-        vector_set_bit(result, i, (out_words[chunk] >> bit_in_chunk) & 1u);
-    }
-
-    free(out_words);
-    free(in_words);
-}
-#endif
-
-#if !BIPOLAR_MODE
 static void permute_binary_words(const Vector *vector, int right_shift, Vector *result) {
     int shift = right_shift % VECTOR_DIMENSION;
     if (shift < 0) {
@@ -122,13 +70,10 @@ static void permute_binary_words(const Vector *vector, int right_shift, Vector *
     }
     vector_mask_tail(result);
 }
-#endif
 /**
  * @brief Combines two hypervectors element-wise.
  *
- * Performs binding by:
- * - **Bipolar mode:** Multiplying corresponding elements.
- * - **Binary mode:** Applying XOR on corresponding elements.
+ * Performs binding by applying XOR on corresponding elements.
  *
  * @param vector1 The first input vector.
  * @param vector2 The second input vector.
@@ -142,24 +87,16 @@ void bind(Vector* vector1, Vector* vector2, Vector* result) {
         printf("Input vector for binding not initialized");
         exit(EXIT_FAILURE);
     }
-#if BIPOLAR_MODE
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        result->data[i] = vector1->data[i] * vector2->data[i]; //multiplication for bipolar
-    }
-#else
     size_t words = vector_storage_count();
     for (size_t w = 0; w < words; w++) {
         result->data[w] = vector1->data[w] ^ vector2->data[w]; // XOR for binary
     }
-#endif
 }
 
 /**
  * @brief Aggregates two hypervectors.
  *
- * Bundling combines two vectors:
- * - **Bipolar mode:** Adds corresponding elements.
- * - **Binary mode:** Uses majority voting across corresponding elements.
+ * Bundling combines two vectors via element-wise majority for two vectors (bitwise AND).
  *
  * @param vector1 The first input vector.
  * @param vector2 The second input vector.
@@ -173,26 +110,18 @@ void bundle(Vector* vector1, Vector* vector2, Vector* result) {
         printf("Input vector for bundling not initialized");
         exit(EXIT_FAILURE);
     }
-#if BIPOLAR_MODE
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        result->data[i] = vector1->data[i] + vector2->data[i]; //Addition for bipolar
-    }
-#else
     size_t words = vector_storage_count();
     for (size_t w = 0; w < words; w++) {
         // For two vectors and strict majority (>1), binary bundle is bitwise AND.
         result->data[w] = vector1->data[w] & vector2->data[w];
     }
     vector_mask_tail(result);
-#endif
 }
 
 /**
  * @brief Aggregates multiple hypervectors.
  *
- * Combines an array of vectors into a single bundled vector:
- * - **Bipolar mode:** Sums the elements of all input vectors.
- * - **Binary mode:** Applies majority voting across corresponding elements.
+ * Combines an array of vectors into a single bundled vector using majority voting.
  *
  * @param vectors An array of pointers to the vectors to bundle.
  * @param num_vectors The number of vectors to bundle.
@@ -207,14 +136,6 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
         exit(EXIT_FAILURE);
     }
     vector_zero(result);
-#if BIPOLAR_MODE
-    for (int v = 0; v < num_vectors; v++) {
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            result->data[i] += vectors[v]->data[i];
-        }
-    }
-
-#else
     int threshold = num_vectors / 2;
     int nbits = 0;
     int max_count = num_vectors;
@@ -258,8 +179,6 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
     }
     free(planes);
     vector_mask_tail(result);
-
-#endif
 }
 
 /**
@@ -276,22 +195,6 @@ void bundle_multi(Vector** vectors, int num_vectors, Vector* result) {
  * @note The `result` vector is modified in-place and should be initialized before calling.
  */
 void permute(Vector* vector, int offset, Vector* result) {
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
-    permute_like_krischan(vector, offset, result);
-#else
-#if BIPOLAR_MODE
-    if(offset>0){
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            result->data[(i + offset) % VECTOR_DIMENSION] = vector->data[i];
-        }
-    }else {
-        // Negative offset (left shift)
-        offset = -offset;  // Make offset positive for easier calculation
-        for (int i = 0; i < VECTOR_DIMENSION; i++) {
-            result->data[i] = vector->data[(i + offset) % VECTOR_DIMENSION];
-        }
-    }
-#else
     if (offset > 0) {
         permute_binary_words(vector, offset, result);
     } else {
@@ -302,8 +205,6 @@ void permute(Vector* vector, int offset, Vector* result) {
         }
         permute_binary_words(vector, right_shift, result);
     }
-#endif
-#endif
 }
 
 /**
@@ -374,10 +275,7 @@ double hamming_distance(Vector *vec1, Vector *vec2) {
 }
 
 /**
- * @brief Computes the similarity between two vectors based on the vector mode.
- *
- * - **Bipolar mode:** Uses cosine similarity.
- * - **Binary mode:** Uses normalized Hamming distance.
+ * @brief Computes similarity between two binary vectors.
  *
  * @param vec1 The first input vector.
  * @param vec2 The second input vector.
@@ -390,11 +288,5 @@ double similarity_check(Vector *vec1, Vector *vec2) {
         return -2;
     }
 
-#if BIPOLAR_MODE
-    // Use cosine similarity for bipolar vectors
-    return cosine_similarity(vec1, vec2);
-#else
-    // Use Hamming distance for binary vectors, projected onto -1 to 1
     return hamming_distance(vec1, vec2);
-#endif
 }

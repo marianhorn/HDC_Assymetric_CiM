@@ -2,10 +2,10 @@
 #define CONFIGFOOT_H // include guard
 
 #ifndef VECTOR_DIMENSION
-#define VECTOR_DIMENSION 5000 // hypervector dimension
+#define VECTOR_DIMENSION 1024 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 80 // number of quantization levels
+#define NUM_LEVELS 35 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -19,9 +19,6 @@
 #endif
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 3 // n-gram size
-#endif
-#ifndef MODEL_VARIANT
-#define MODEL_VARIANT MODEL_VARIANT_FUSION // active default model path
 #endif
 #ifndef DOWNSAMPLE
 #define DOWNSAMPLE 1 // downsample factor
@@ -40,11 +37,8 @@
 #ifndef CUTTING_ANGLE_THRESHOLD
 #define CUTTING_ANGLE_THRESHOLD 0.9 // cutting angle threshold
 #endif
-#ifndef PRECOMPUTED_ITEM_MEMORY
-#define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
-#endif
 #ifndef USE_GENETIC_ITEM_MEMORY
-#define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
+#define USE_GENETIC_ITEM_MEMORY 1 // enable GA item memory
 #endif
 #ifndef OUTPUT_MODE
 #define OUTPUT_MODE OUTPUT_BASIC // output verbosity level
@@ -57,10 +51,6 @@
 #endif
 #ifndef VALIDATION_RATIO
 #define VALIDATION_RATIO 0.3 // validation split ratio
-#endif
-
-#ifndef BIPOLAR_MODE
-#define BIPOLAR_MODE 0 // use bipolar vectors
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE
@@ -138,9 +128,5 @@ extern int output_mode;
 
 #define PIPELINE_NAIVE 0        // GA pipeline: existing operators
 #define PIPELINE_CUSTOM 1       // GA pipeline: custom event-list operators
-
-#define MODEL_VARIANT_MARIAN 0   // Marian baseline path
-#define MODEL_VARIANT_KRISCHAN 1 // Krischan-compatible rolling path
-#define MODEL_VARIANT_FUSION 2   // Marian temporal path + Krischan quantization
 
 #endif

@@ -51,10 +51,7 @@ void init_assoc_mem(struct associative_memory *assoc_mem) {
  * @brief Adds or sets a hypervector to the associative memory for a specific class.
  *
  * @details
- * - In **bipolar mode**, this function incrementally updates the class vector by bundling the
- *   input hypervector with the existing class vector, but only if similarity of class and input hypervector is below CUTTING_ANGLE_THRESHOLD.
- * - In **binary mode**, since majority voting does not support incremental bundling, the class
- *   vector is directly set to the input hypervector.
+ * In the binary path, class vectors are set directly to the provided bundled class hypervector.
  *
  * @param assoc_mem A pointer to the associative memory structure.
  * @param hv The input hypervector to add or set.
@@ -64,45 +61,10 @@ void init_assoc_mem(struct associative_memory *assoc_mem) {
  * @warning Ensure the input hypervector (`hv`) is not `NULL`.
  */
 int add_to_assoc_mem(struct associative_memory *assoc_mem, Vector *sample_hv, int class_id) {
-    //Bipolar case: adds an encoded data sample to the associative memory
-    //Binary case: sets a classvector in the associative memory
     if (class_id >= 0 && class_id < assoc_mem->num_classes) {
-
-        #if BIPOLAR_MODE
-        Vector *memory_hv = assoc_mem->class_vectors[class_id];
-            if(assoc_mem->counts[class_id]==0){
-                for (int i = 0; i < VECTOR_DIMENSION; i++) {
-                    memory_hv->data[i] = sample_hv->data[i];
-                }
-                assoc_mem->counts[class_id]=1;
-                return 1;
-            }else{
-                double angle = similarity_check(memory_hv, sample_hv);
-                if(angle == -2) {
-                    fprintf(stderr, "AddToAssocMemFailed");
-                    exit(EXIT_FAILURE);
-                }
-
-                if (angle < CUTTING_ANGLE_THRESHOLD) {
-                    Vector *temp_vector = create_vector();
-                    if(assoc_mem->counts[class_id]>0){
-                        bundle(memory_hv, sample_hv, temp_vector);
-                    }
-                    
-                    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-                        memory_hv->data[i] = temp_vector->data[i];
-                    }
-                    free_vector(temp_vector);
-                    assoc_mem->counts[class_id]++;
-                    return 1;
-                }
-                else{return 0;}
-            }
-        #else
-            vector_copy(assoc_mem->class_vectors[class_id], sample_hv);
-            assoc_mem->counts[class_id]=1;
-            return 1;
-        #endif
+        vector_copy(assoc_mem->class_vectors[class_id], sample_hv);
+        assoc_mem->counts[class_id]=1;
+        return 1;
     } else {
         fprintf(stderr, "AddToAssocMem: Invalid class id\n");
         exit(EXIT_FAILURE);
@@ -189,36 +151,21 @@ void print_class_vectors(struct associative_memory *assoc_mem) {
     printf("\nClass Vectors:\n");
     for (int i = 0; i < 10; i+=1) {
         for (int j = 0; j < assoc_mem->num_classes; j++) {
-#if BIPOLAR_MODE
-            printf("%d ", assoc_mem->class_vectors[j]->data[i]);
-#else 
             printf("%d ", vector_get_bit(assoc_mem->class_vectors[j], i));
-#endif
         }
         printf("\n");
     }
 }
 /**
- * @brief Normalizes the class vectors by dividing each element by the number of samples in the class.
+ * @brief Normalization stub for the binary-only implementation.
  *
- * This function performs a simple normalization of the class vectors by dividing each element by the count of
- * data samples in that class. This helps in balancing the class vectors over time.
+ * Binary class vectors are already majority-thresholded bit vectors and are not normalized.
  *
  * @param assoc_mem A pointer to the associative memory structure.
  * @note Can be activated/deactivated by NORMALIZE in config.h
  */
 void normalize(struct associative_memory *assoc_mem) {
-    if (output_mode >= OUTPUT_DETAILED) {
-        printf("Normalizing associative memory\n");
-    }
-    for (int i = 0; i < assoc_mem->num_classes; i++) {
-        int count = assoc_mem->counts[i];
-        if (count > 0) {
-            for (int j = 0; j < VECTOR_DIMENSION; j++) {
-                assoc_mem->class_vectors[i]->data[j] /= count;
-            }
-        }
-    }
+    (void)assoc_mem;
 }
 
 /**

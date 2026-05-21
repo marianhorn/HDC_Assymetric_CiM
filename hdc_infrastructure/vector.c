@@ -7,10 +7,7 @@
  * and can be either binary or bipolar, depending on the configuration.
  *
  * @details 
- * - **Vector Initialization:** Vectors are allocated dynamically, with values initialized
- *   to default values based on the chosen mode:
- *   - Binary Mode: Elements are initialized to `false` (0).
- *   - Bipolar Mode: Elements are initialized to `-1`.
+ * - **Vector Initialization:** Vectors are allocated dynamically and initialized to zeros.
  * - **Vector Debugging:** The file includes functions to print vector values, aiding in debugging.
  *
  * @note Ensure proper memory management to avoid memory leaks.
@@ -20,15 +17,11 @@
 /**
  * @brief Allocates and initializes a new vector.
  *
- * This function creates a vector of dimension `VECTOR_DIMENSION` and initializes its elements 
- * based on the selected mode (binary or bipolar).
+ * This function creates a vector of dimension `VECTOR_DIMENSION` and initializes all bits to zero.
  *
  * @return A pointer to the newly created vector.
  *
  * @note 
- * - In **bipolar mode**, elements are initialized to `-1`.
- * - In **binary mode**, elements are initialized to `false` (0).
- *
  * @warning 
  * - The function exits with an error if memory allocation fails.
  * - Ensure the allocated vector is freed after use with `free_vector`.
@@ -45,13 +38,7 @@ Vector* create_vector() {
         fprintf(stderr, "Memory allocation failed for vector\n");
         exit(EXIT_FAILURE);
     }
-#if BIPOLAR_MODE
-    for (size_t i = 0; i < VECTOR_DIMENSION; i++) {
-        vec->data[i] = -1; // Initialize to -1 for bipolar
-    }
-#else
     vector_zero(vec);
-#endif
     return vec;
 }
 /**
