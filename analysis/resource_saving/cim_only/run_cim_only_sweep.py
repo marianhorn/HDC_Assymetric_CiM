@@ -44,16 +44,14 @@ def find_model_binary():
 
 def build_vector_dimensions():
     dims = []
-    dims.extend(range(201, 1000, 50))
+    dims.extend(range(201, 1000, 100))
     dims.append(1000)
-    dims.extend(range(1500, 5001, 500))
+    dims.extend(range(1500, 2501, 500))
     return sorted(set(dims))
 
 
 def build_num_levels():
-    levels = list(range(5, 101))
-    levels.extend(range(105, 201, 5))
-    return levels
+    return list(range(5, 81, 5))
 
 
 def parse_seeds(text):
@@ -82,16 +80,9 @@ def parse_seeds(text):
 
 def ensure_clean_seed_dir(seed_dir, skip_clean):
     os.makedirs(seed_dir, exist_ok=True)
-    logs_dir = os.path.join(seed_dir, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
 
     if skip_clean:
         return
-
-    for name in os.listdir(logs_dir):
-        path = os.path.join(logs_dir, name)
-        if os.path.isfile(path):
-            os.remove(path)
 
     for name in ["output_all.txt", "run_manifest.csv", "results.csv"]:
         path = os.path.join(seed_dir, name)
@@ -143,24 +134,34 @@ def append_manifest(manifest_path, run_index, total_runs, seed, num_levels, vect
         )
 
 
-def append_combined(combined_output_path, log_path, run_index, total_runs, seed, num_levels, vector_dimension):
-    with open(combined_output_path, "a", encoding="utf-8") as out_f:
-        out_f.write(
-            "\n===== "
-            f"run={run_index}/{total_runs}, "
-            f"ITEM_MEM_SEED={seed}, "
-            f"GA_DEFAULT_SEED={seed}, "
-            f"NUM_LEVELS={num_levels}, VECTOR_DIMENSION={vector_dimension}, "
-            "USE_GENETIC_ITEM_MEMORY=1, BINNING_MODE=0, OUTPUT_MODE=2"
-            " =====\n"
-        )
-        with open(log_path, "r", encoding="utf-8", errors="ignore") as in_f:
-            shutil.copyfileobj(in_f, out_f)
+def write_run_header(output_file, run_index, total_runs, seed, num_levels, vector_dimension):
+    output_file.write(
+        "\n===== "
+        f"run={run_index}/{total_runs}, "
+        f"ITEM_MEM_SEED={seed}, "
+        f"GA_DEFAULT_SEED={seed}, "
+        f"NUM_LEVELS={num_levels}, VECTOR_DIMENSION={vector_dimension}, "
+        "USE_GENETIC_ITEM_MEMORY=1, BINNING_MODE=0, OUTPUT_MODE=2"
+        " =====\n"
+    )
+
+
+def write_log_header(output_file, seed, num_levels, vector_dimension):
+    output_file.write(
+        "=== cim-only resource-saving run ===\n"
+        f"timestamp={datetime.now().isoformat()}\n"
+        f"ITEM_MEM_SEED={seed}\n"
+        f"GA_DEFAULT_SEED={seed}\n"
+        f"NUM_LEVELS={num_levels}\n"
+        f"VECTOR_DIMENSION={vector_dimension}\n"
+        "USE_GENETIC_ITEM_MEMORY=1\n"
+        "BINNING_MODE=0\n"
+        "OUTPUT_MODE=2\n\n"
+    )
 
 
 def run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
     seed_dir = os.path.join(RUNS_DIR, f"seed_{seed:02d}")
-    logs_dir = os.path.join(seed_dir, "logs")
     combined_output_path = os.path.join(seed_dir, "output_all.txt")
     manifest_path = os.path.join(seed_dir, "run_manifest.csv")
     results_path = os.path.join(seed_dir, "results.csv")
@@ -177,8 +178,7 @@ def run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, sk
     print(f"Output folder: {seed_dir}")
 
     for run_index, (num_levels, vector_dimension) in enumerate(runs, start=1):
-        log_name = f"run_levels_{num_levels:03d}_dim_{vector_dimension:05d}.txt"
-        log_path = os.path.join(logs_dir, log_name)
+        log_name = "output_all.txt"
 
         print(
             f"[seed {seed:02d}] "
@@ -187,20 +187,10 @@ def run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, sk
         )
 
         start = time.perf_counter()
-        with open(log_path, "w", encoding="utf-8") as log_file:
-            log_file.write(
-                "=== cim-only resource-saving run ===\n"
-                f"timestamp={datetime.now().isoformat()}\n"
-                f"ITEM_MEM_SEED={seed}\n"
-                f"GA_DEFAULT_SEED={seed}\n"
-                f"NUM_LEVELS={num_levels}\n"
-                f"VECTOR_DIMENSION={vector_dimension}\n"
-                "USE_GENETIC_ITEM_MEMORY=1\n"
-                "BINNING_MODE=0\n"
-                "OUTPUT_MODE=2\n\n"
-            )
-            log_file.flush()
-
+        with open(combined_output_path, "a", encoding="utf-8") as output_file:
+            write_run_header(output_file, run_index, total_runs, seed, num_levels, vector_dimension)
+            write_log_header(output_file, seed, num_levels, vector_dimension)
+            output_file.flush()
             make_cmd = [
                 make_cmd_name,
                 "foot",
@@ -214,14 +204,14 @@ def run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, sk
                 f"VECTOR_DIMENSION={vector_dimension}",
                 f"RESULT_CSV_PATH={results_rel}",
             ]
-            run_cmd(make_cmd, REPO_ROOT, stdout=log_file, stderr=log_file)
+            run_cmd(make_cmd, REPO_ROOT, stdout=output_file, stderr=output_file)
 
             if model_path is None:
                 model_path = find_model_binary()
             if not model_path:
                 raise FileNotFoundError("modelFoot binary not found after build.")
 
-            run_cmd([model_path], REPO_ROOT, stdout=log_file, stderr=log_file)
+            run_cmd([model_path], REPO_ROOT, stdout=output_file, stderr=output_file)
 
         duration_sec = time.perf_counter() - start
         append_manifest(
@@ -234,15 +224,6 @@ def run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, sk
             log_name,
             duration_sec,
         )
-        append_combined(
-            combined_output_path,
-            log_path,
-            run_index,
-            total_runs,
-            seed,
-            num_levels,
-            vector_dimension,
-        )
 
 
 def main():
@@ -252,7 +233,7 @@ def main():
     parser.add_argument(
         "--skip-clean",
         action="store_true",
-        help="Do not delete old logs/results in existing seed folders.",
+        help="Do not delete old output/results in existing seed folders.",
     )
     parser.add_argument(
         "--seeds",
