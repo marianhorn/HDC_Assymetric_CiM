@@ -7,7 +7,16 @@
 #include "systemc_types.h"
 #include "hdc_transactions.h"
 
-namespace hdc_systemc {
+using hdc_systemc::AccelCommandKind;
+using hdc_systemc::QuantizedSample;
+using hdc_systemc::class_t;
+using hdc_systemc::command_kind_t;
+using hdc_systemc::distance_counter_t;
+using hdc_systemc::feature_score_t;
+using hdc_systemc::hv_t;
+using hdc_systemc::level_t;
+using hdc_systemc::train_counter_t;
+using hdc_systemc::train_score_t;
 
 struct EncoderPacket {
     AccelCommandKind kind;
@@ -30,17 +39,17 @@ struct DistancePacket {
 
 SC_MODULE(HDC_Accelerator) {
 public:
-    sc_core::sc_in<bool> clk;
-    sc_core::sc_in<bool> rst;
-    sc_core::sc_in<bool> cmd_valid;
-    sc_core::sc_out<bool> cmd_ready;
-    sc_core::sc_in<command_kind_t> cmd_kind;
-    sc_core::sc_in<class_t> cmd_class_id;
-    sc_core::sc_in<level_t> cmd_sample_levels[NUM_FEATURES];
-    sc_core::sc_out<bool> rsp_valid;
-    sc_core::sc_in<bool> rsp_ready;
-    sc_core::sc_out<bool> rsp_valid_prediction;
-    sc_core::sc_out<distance_counter_t> rsp_distances[NUM_CLASSES];
+    sc_in<bool> clk;
+    sc_in<bool> rst;
+    sc_in<bool> cmd_valid;
+    sc_out<bool> cmd_ready;
+    sc_in<command_kind_t> cmd_kind;
+    sc_in<class_t> cmd_class_id;
+    sc_in<level_t> cmd_sample_levels[NUM_FEATURES];
+    sc_out<bool> rsp_valid;
+    sc_in<bool> rsp_ready;
+    sc_out<bool> rsp_valid_prediction;
+    sc_out<distance_counter_t> rsp_distances[NUM_CLASSES];
 
     SC_CTOR(HDC_Accelerator);
 
@@ -112,6 +121,10 @@ private:
     hv_t m_cim[NUM_LEVELS][NUM_FEATURES];
     hv_t m_assoc_mem[NUM_CLASSES];
 };
+
+namespace hdc_systemc {
+
+using ::HDC_Accelerator;
 
 } // namespace hdc_systemc
 

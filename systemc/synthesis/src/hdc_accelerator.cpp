@@ -2,7 +2,7 @@
 // Keep dataset loading, floating-point quantization, and testbench code outside this file.
 #include "hdc_accelerator.h"
 
-namespace hdc_systemc {
+using namespace hdc_systemc;
 
 namespace {
 
@@ -440,4 +440,3 @@ void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_coun
     }
 }
 
-} // namespace hdc_systemc
