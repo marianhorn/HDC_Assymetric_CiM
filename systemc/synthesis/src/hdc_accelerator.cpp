@@ -20,6 +20,24 @@ void clear_hv(hv_t &hv) {
     }
 }
 
+level_t get_packed_level(const sample_levels_packed_t &levels, unsigned feature) {
+    level_t value = 0;
+    const unsigned base = feature * LEVEL_BITS;
+    for (unsigned bit = 0; bit < LEVEL_BITS; ++bit) {
+        value[bit] = levels[base + bit].to_bool();
+    }
+    return value;
+}
+
+void set_packed_distance(distances_packed_t &distances,
+                         unsigned class_id,
+                         distance_counter_t value) {
+    const unsigned base = class_id * DISTANCE_BITS;
+    for (unsigned bit = 0; bit < DISTANCE_BITS; ++bit) {
+        distances[base + bit] = value[bit].to_bool() ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
+    }
+}
+
 } // namespace
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
@@ -30,9 +48,11 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       cmd_ready("cmd_ready"),
       cmd_kind("cmd_kind"),
       cmd_class_id("cmd_class_id"),
+      cmd_sample_levels("cmd_sample_levels"),
       rsp_valid("rsp_valid"),
       rsp_ready("rsp_ready"),
       rsp_valid_prediction("rsp_valid_prediction"),
+      rsp_distances("rsp_distances"),
       m_encoder_in_valid(false),
       m_encoder_out_valid(false),
       m_bundler_in_valid(false),
@@ -97,8 +117,9 @@ void HDC_Accelerator::command_stage() {
     AccelCommand command = {};
     command.kind = static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
     command.class_id = cmd_class_id.read();
+    const sample_levels_packed_t packed_levels = cmd_sample_levels.read();
     for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-        command.sample.levels[feature] = cmd_sample_levels[feature].read();
+        command.sample.levels[feature] = get_packed_level(packed_levels, feature);
     }
     EncoderPacket packet = {};
 
@@ -142,15 +163,20 @@ void HDC_Accelerator::response_stage() {
     if (m_distance_done_valid) {
         rsp_valid.write(true);
         rsp_valid_prediction.write(m_distance_done_data.valid_prediction);
+        distances_packed_t packed_distances = 0;
         for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-            rsp_distances[class_id].write(m_distance_done_data.distances[class_id]);
+            set_packed_distance(packed_distances,
+                                class_id,
+                                m_distance_done_data.distances[class_id]);
         }
+        rsp_distances.write(packed_distances);
         if (can_consume_response) {
             m_distance_done_valid = false;
         }
     } else {
         rsp_valid.write(false);
         rsp_valid_prediction.write(false);
+        rsp_distances.write(0);
     }
 }
 
@@ -302,6 +328,8 @@ void HDC_Accelerator::reset_all_local_state() {
     m_control_busy = false;
     cmd_ready.write(false);
     rsp_valid.write(false);
+    rsp_valid_prediction.write(false);
+    rsp_distances.write(0);
     m_encoder_in_data = EncoderPacket();
     m_encoder_out_data = EncoderPacket();
     m_bundler_in_data = NGramPacket();

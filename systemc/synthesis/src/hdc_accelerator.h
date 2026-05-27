@@ -12,9 +12,11 @@ using hdc_systemc::QuantizedSample;
 using hdc_systemc::class_t;
 using hdc_systemc::command_kind_t;
 using hdc_systemc::distance_counter_t;
+using hdc_systemc::distances_packed_t;
 using hdc_systemc::feature_score_t;
 using hdc_systemc::hv_t;
 using hdc_systemc::level_t;
+using hdc_systemc::sample_levels_packed_t;
 using hdc_systemc::train_counter_t;
 using hdc_systemc::train_score_t;
 
@@ -45,11 +47,11 @@ public:
     sc_out<bool> cmd_ready;
     sc_in<command_kind_t> cmd_kind;
     sc_in<class_t> cmd_class_id;
-    sc_in<level_t> cmd_sample_levels[NUM_FEATURES];
+    sc_in<sample_levels_packed_t> cmd_sample_levels;
     sc_out<bool> rsp_valid;
     sc_in<bool> rsp_ready;
     sc_out<bool> rsp_valid_prediction;
-    sc_out<distance_counter_t> rsp_distances[NUM_CLASSES];
+    sc_out<distances_packed_t> rsp_distances;
 
     SC_CTOR(HDC_Accelerator);
 

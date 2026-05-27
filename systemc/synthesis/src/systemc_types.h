@@ -24,6 +24,8 @@ static constexpr unsigned COMMAND_KIND_BITS = required_bits(5);
 static constexpr unsigned FEATURE_COUNT_BITS = required_bits(NUM_FEATURES + 1);
 static constexpr unsigned DISTANCE_BITS = required_bits(VECTOR_DIMENSION + 1);
 static constexpr unsigned TRAIN_COUNT_BITS = 32;
+static constexpr unsigned SAMPLE_LEVELS_BITS = NUM_FEATURES * LEVEL_BITS;
+static constexpr unsigned RESPONSE_DISTANCES_BITS = NUM_CLASSES * DISTANCE_BITS;
 
 typedef sc_dt::sc_uint<LEVEL_BITS> level_t;
 typedef sc_dt::sc_uint<CLASS_BITS> class_t;
@@ -34,6 +36,8 @@ typedef sc_dt::sc_uint<DISTANCE_BITS> distance_counter_t;
 typedef sc_dt::sc_uint<TRAIN_COUNT_BITS> train_counter_t;
 typedef sc_dt::sc_int<TRAIN_COUNT_BITS + 1> train_score_t;
 typedef sc_dt::sc_bv<VECTOR_DIMENSION> hv_t;
+typedef sc_dt::sc_bv<SAMPLE_LEVELS_BITS> sample_levels_packed_t;
+typedef sc_dt::sc_bv<RESPONSE_DISTANCES_BITS> distances_packed_t;
 
 } // namespace hdc_systemc
 
