@@ -5,7 +5,7 @@
 #include <sstream>
 #include <string>
 #include <cstdio>
-#include <systemc>
+#include <systemc.h>
 
 namespace hdc_systemc {
 

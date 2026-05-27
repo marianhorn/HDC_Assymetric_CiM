@@ -3,7 +3,7 @@
 #ifndef SYSTEMC_HDC_CONTROLLER_H
 #define SYSTEMC_HDC_CONTROLLER_H
 
-#include <systemc>
+#include <systemc.h>
 #include "systemc_types.h"
 #include "evaluation_result.h"
 #include "hdc_transactions.h"

@@ -3,7 +3,7 @@
 #ifndef SYSTEMC_HDC_HDC_MEMORY_H
 #define SYSTEMC_HDC_HDC_MEMORY_H
 
-#include <systemc>
+#include <systemc.h>
 #include "systemc_types.h"
 
 namespace hdc_systemc {

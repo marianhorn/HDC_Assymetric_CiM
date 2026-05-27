@@ -82,5 +82,12 @@ systemc/synthesis/build/
 systemc/synthesis/main
 systemc/synthesis/systemc_hdc_tb
 systemc/synthesis/systemc_hdc_golden_regression
+systemc/synthesis/hls/Makefile.prj
+systemc/synthesis/hls/bdw*/
+systemc/synthesis/hls/cachelib/
+systemc/synthesis/hls/project.tcl.user
+systemc/synthesis/hls/stratus.pro
+systemc/synthesis/hls/stratus_ide.log
+systemc/synthesis/hls/hls.pro
 analysis/resource_saving/*/runs/
 analysis/resource_saving/evaluation/extracted/

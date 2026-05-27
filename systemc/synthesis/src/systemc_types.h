@@ -3,7 +3,7 @@
 #ifndef SYSTEMC_HDC_SYSTEMC_TYPES_H
 #define SYSTEMC_HDC_SYSTEMC_TYPES_H
 
-#include <systemc>
+#include <systemc.h>
 #include "config_systemc.h"
 
 namespace hdc_systemc {

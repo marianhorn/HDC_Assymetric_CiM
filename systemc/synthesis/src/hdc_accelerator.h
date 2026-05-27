@@ -3,7 +3,7 @@
 #ifndef SYSTEMC_HDC_HDC_ACCELERATOR_H
 #define SYSTEMC_HDC_HDC_ACCELERATOR_H
 
-#include <systemc>
+#include <systemc.h>
 #include "systemc_types.h"
 #include "hdc_transactions.h"
 
