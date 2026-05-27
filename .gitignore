@@ -83,3 +83,4 @@ systemc/synthesis/main
 systemc/synthesis/systemc_hdc_tb
 systemc/synthesis/systemc_hdc_golden_regression
 analysis/resource_saving/*/runs/
+analysis/resource_saving/evaluation/extracted/
