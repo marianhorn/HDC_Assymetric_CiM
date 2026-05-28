@@ -274,18 +274,16 @@ void HDC_Accelerator::distance_stage() {
     const NGramPacket item = m_distance_in_data;
     m_distance_in_valid = false;
 
-    DistancePacket response = {};
     if (!item.valid_ngram) {
-            response.valid_prediction = false;
+            m_distance_done_data.valid_prediction = false;
             for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-                response.distances[class_id] = 0;
+                m_distance_done_data.distances[class_id] = 0;
             }
-            m_distance_done_data = response;
             m_distance_done_valid = true;
             return;
     }
 
-    response.valid_prediction = true;
+    m_distance_done_data.valid_prediction = true;
     for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         const hv_t &class_vector = m_assoc_mem[class_id];
         distance_counter_t distance = 0;
@@ -294,9 +292,8 @@ void HDC_Accelerator::distance_stage() {
                 ++distance;
             }
         }
-        response.distances[class_id] = distance;
+        m_distance_done_data.distances[class_id] = distance;
     }
-    m_distance_done_data = response;
     m_distance_done_valid = true;
 }
 
