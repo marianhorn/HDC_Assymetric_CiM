@@ -408,31 +408,31 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
     }
 
     AccelCommand command = {};
-    command.kind = AccelCommandKind::ResetTraining;
+    command.kind = ResetTraining;
     command.class_id = 0;
     send_command(command);
 
     level_t quantized_sample[NUM_FEATURES];
     quantize_sample(raw_data, quantized_sample);
-    command.kind = AccelCommandKind::TrainSample;
+    command.kind = TrainSample;
     command.class_id = static_cast<unsigned>(labels[0]);
     copy_quantized_sample(quantized_sample, command.sample);
     send_command(command);
 
     for (int j = 1; j < num_samples - 1; ++j) {
         if (labels[j] != labels[j - 1]) {
-            command.kind = AccelCommandKind::InvalidTrainingStep;
+            command.kind = InvalidTrainingStep;
             command.class_id = 0;
             send_command(command);
         }
         quantize_sample(&raw_data[j * NUM_FEATURES], quantized_sample);
-        command.kind = AccelCommandKind::TrainSample;
+        command.kind = TrainSample;
         command.class_id = static_cast<unsigned>(labels[j]);
         copy_quantized_sample(quantized_sample, command.sample);
         send_command(command);
     }
 
-    command.kind = AccelCommandKind::InvalidTrainingStep;
+    command.kind = InvalidTrainingStep;
     command.class_id = 0;
     send_command(command);
 }
@@ -472,7 +472,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     clear_evaluation_result(result);
 
     AccelCommand command = {};
-    command.kind = AccelCommandKind::ResetInference;
+    command.kind = ResetInference;
     command.class_id = 0;
     send_command(command);
 
@@ -485,7 +485,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     while (received < num_samples) {
         if (!command_pending && issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
             quantize_sample(&raw_data[issued * NUM_FEATURES], quantized_sample);
-            command.kind = AccelCommandKind::InferSample;
+            command.kind = InferSample;
             command.class_id = 0;
             copy_quantized_sample(quantized_sample, command.sample);
             m_cmd_kind.write(static_cast<unsigned>(command.kind));

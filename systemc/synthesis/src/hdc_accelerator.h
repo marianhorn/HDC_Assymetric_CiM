@@ -4,21 +4,11 @@
 #define SYSTEMC_HDC_HDC_ACCELERATOR_H
 
 #include <systemc.h>
+#ifdef STRATUS
+#include <stratus_hls.h>
+#endif
 #include "systemc_types.h"
 #include "hdc_transactions.h"
-
-using hdc_systemc::AccelCommandKind;
-using hdc_systemc::QuantizedSample;
-using hdc_systemc::class_t;
-using hdc_systemc::command_kind_t;
-using hdc_systemc::distance_counter_t;
-using hdc_systemc::distances_packed_t;
-using hdc_systemc::feature_score_t;
-using hdc_systemc::hv_t;
-using hdc_systemc::level_t;
-using hdc_systemc::sample_levels_packed_t;
-using hdc_systemc::train_counter_t;
-using hdc_systemc::train_score_t;
 
 struct EncoderPacket {
     AccelCommandKind kind;
@@ -53,7 +43,10 @@ public:
     sc_out<bool> rsp_valid_prediction;
     sc_out<distances_packed_t> rsp_distances;
 
-    SC_CTOR(HDC_Accelerator);
+    SC_CTOR(HDC_Accelerator) {
+        SC_CTHREAD(pipeline_fsm, clk.pos());
+        reset_signal_is(rst, true);
+    }
 
     // Simulation/pre-synthesis preload helper only.
     // This is not a hardware runtime load interface; real deployment needs ROM
@@ -123,11 +116,5 @@ private:
     hv_t m_cim[NUM_LEVELS][NUM_FEATURES];
     hv_t m_assoc_mem[NUM_CLASSES];
 };
-
-namespace hdc_systemc {
-
-using ::HDC_Accelerator;
-
-} // namespace hdc_systemc
 
 #endif

@@ -6,26 +6,95 @@
 #include <systemc.h>
 #include "config_systemc.h"
 
-namespace hdc_systemc {
+#if NUM_LEVELS <= 2
+#define LEVEL_BITS 1
+#elif NUM_LEVELS <= 4
+#define LEVEL_BITS 2
+#elif NUM_LEVELS <= 8
+#define LEVEL_BITS 3
+#elif NUM_LEVELS <= 16
+#define LEVEL_BITS 4
+#elif NUM_LEVELS <= 32
+#define LEVEL_BITS 5
+#elif NUM_LEVELS <= 64
+#define LEVEL_BITS 6
+#elif NUM_LEVELS <= 128
+#define LEVEL_BITS 7
+#elif NUM_LEVELS <= 256
+#define LEVEL_BITS 8
+#else
+#error "NUM_LEVELS too large for configured LEVEL_BITS range"
+#endif
 
-constexpr unsigned required_bits(unsigned max_value_exclusive) {
-    unsigned bits = 0;
-    unsigned limit = 1;
-    while (limit < max_value_exclusive) {
-        limit <<= 1;
-        ++bits;
-    }
-    return bits == 0 ? 1u : bits;
-}
+#if NUM_CLASSES <= 2
+#define CLASS_BITS 1
+#elif NUM_CLASSES <= 4
+#define CLASS_BITS 2
+#elif NUM_CLASSES <= 8
+#define CLASS_BITS 3
+#elif NUM_CLASSES <= 16
+#define CLASS_BITS 4
+#elif NUM_CLASSES <= 32
+#define CLASS_BITS 5
+#elif NUM_CLASSES <= 64
+#define CLASS_BITS 6
+#else
+#error "NUM_CLASSES too large for configured CLASS_BITS range"
+#endif
 
-static constexpr unsigned LEVEL_BITS = required_bits(NUM_LEVELS);
-static constexpr unsigned CLASS_BITS = required_bits(NUM_CLASSES);
-static constexpr unsigned COMMAND_KIND_BITS = required_bits(5);
-static constexpr unsigned FEATURE_COUNT_BITS = required_bits(NUM_FEATURES + 1);
-static constexpr unsigned DISTANCE_BITS = required_bits(VECTOR_DIMENSION + 1);
-static constexpr unsigned TRAIN_COUNT_BITS = 32;
-static constexpr unsigned SAMPLE_LEVELS_BITS = NUM_FEATURES * LEVEL_BITS;
-static constexpr unsigned RESPONSE_DISTANCES_BITS = NUM_CLASSES * DISTANCE_BITS;
+#define COMMAND_KIND_BITS 3
+
+#if (NUM_FEATURES + 1) <= 2
+#define FEATURE_COUNT_BITS 1
+#elif (NUM_FEATURES + 1) <= 4
+#define FEATURE_COUNT_BITS 2
+#elif (NUM_FEATURES + 1) <= 8
+#define FEATURE_COUNT_BITS 3
+#elif (NUM_FEATURES + 1) <= 16
+#define FEATURE_COUNT_BITS 4
+#elif (NUM_FEATURES + 1) <= 32
+#define FEATURE_COUNT_BITS 5
+#elif (NUM_FEATURES + 1) <= 64
+#define FEATURE_COUNT_BITS 6
+#elif (NUM_FEATURES + 1) <= 128
+#define FEATURE_COUNT_BITS 7
+#else
+#error "NUM_FEATURES too large for configured FEATURE_COUNT_BITS range"
+#endif
+
+#if (VECTOR_DIMENSION + 1) <= 2
+#define DISTANCE_BITS 1
+#elif (VECTOR_DIMENSION + 1) <= 4
+#define DISTANCE_BITS 2
+#elif (VECTOR_DIMENSION + 1) <= 8
+#define DISTANCE_BITS 3
+#elif (VECTOR_DIMENSION + 1) <= 16
+#define DISTANCE_BITS 4
+#elif (VECTOR_DIMENSION + 1) <= 32
+#define DISTANCE_BITS 5
+#elif (VECTOR_DIMENSION + 1) <= 64
+#define DISTANCE_BITS 6
+#elif (VECTOR_DIMENSION + 1) <= 128
+#define DISTANCE_BITS 7
+#elif (VECTOR_DIMENSION + 1) <= 256
+#define DISTANCE_BITS 8
+#elif (VECTOR_DIMENSION + 1) <= 512
+#define DISTANCE_BITS 9
+#elif (VECTOR_DIMENSION + 1) <= 1024
+#define DISTANCE_BITS 10
+#elif (VECTOR_DIMENSION + 1) <= 2048
+#define DISTANCE_BITS 11
+#elif (VECTOR_DIMENSION + 1) <= 4096
+#define DISTANCE_BITS 12
+#elif (VECTOR_DIMENSION + 1) <= 8192
+#define DISTANCE_BITS 13
+#else
+#error "VECTOR_DIMENSION too large for configured DISTANCE_BITS range"
+#endif
+
+#define TRAIN_COUNT_BITS 32
+#define SAMPLE_LEVELS_BITS (NUM_FEATURES * LEVEL_BITS)
+#define RESPONSE_DISTANCES_BITS (NUM_CLASSES * DISTANCE_BITS)
 
 typedef sc_dt::sc_uint<LEVEL_BITS> level_t;
 typedef sc_dt::sc_uint<CLASS_BITS> class_t;
@@ -38,7 +107,5 @@ typedef sc_dt::sc_int<TRAIN_COUNT_BITS + 1> train_score_t;
 typedef sc_dt::sc_bv<VECTOR_DIMENSION> hv_t;
 typedef sc_dt::sc_bv<SAMPLE_LEVELS_BITS> sample_levels_packed_t;
 typedef sc_dt::sc_bv<RESPONSE_DISTANCES_BITS> distances_packed_t;
-
-} // namespace hdc_systemc
 
 #endif

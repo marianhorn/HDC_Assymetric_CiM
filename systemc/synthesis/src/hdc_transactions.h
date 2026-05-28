@@ -5,9 +5,7 @@
 
 #include "systemc_types.h"
 
-namespace hdc_systemc {
-
-enum class AccelCommandKind {
+enum AccelCommandKind {
     ResetTraining,
     ResetInference,
     TrainSample,
@@ -29,7 +27,5 @@ struct AccelResponse {
     bool valid_prediction;
     distance_counter_t distances[NUM_CLASSES];
 };
-
-} // namespace hdc_systemc
 
 #endif

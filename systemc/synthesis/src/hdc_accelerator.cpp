@@ -2,8 +2,6 @@
 // Keep dataset loading, floating-point quantization, and testbench code outside this file.
 #include "hdc_accelerator.h"
 
-using namespace hdc_systemc;
-
 namespace {
 
 bool get_bit(const hv_t &hv, int index) {
@@ -39,31 +37,6 @@ void set_packed_distance(distances_packed_t &distances,
 }
 
 } // namespace
-
-HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
-    : sc_module(name),
-      clk("clk"),
-      rst("rst"),
-      cmd_valid("cmd_valid"),
-      cmd_ready("cmd_ready"),
-      cmd_kind("cmd_kind"),
-      cmd_class_id("cmd_class_id"),
-      cmd_sample_levels("cmd_sample_levels"),
-      rsp_valid("rsp_valid"),
-      rsp_ready("rsp_ready"),
-      rsp_valid_prediction("rsp_valid_prediction"),
-      rsp_distances("rsp_distances"),
-      m_encoder_in_valid(false),
-      m_encoder_out_valid(false),
-      m_bundler_in_valid(false),
-      m_distance_in_valid(false),
-      m_distance_done_valid(false),
-      m_control_done_valid(false),
-      m_control_busy(false),
-      m_current_class_valid(false) {
-    SC_CTHREAD(pipeline_fsm, clk.pos());
-    reset_signal_is(rst, true);
-}
 
 // Simulation/pre-synthesis preload helper only.
 // This is not a hardware runtime load interface; real deployment needs ROM
@@ -124,31 +97,31 @@ void HDC_Accelerator::command_stage() {
     EncoderPacket packet = {};
 
     switch (command.kind) {
-    case AccelCommandKind::ResetTraining:
-            packet.kind = AccelCommandKind::ResetTraining;
+    case ResetTraining:
+            packet.kind = ResetTraining;
             m_control_busy = true;
             break;
 
-    case AccelCommandKind::ResetInference:
-            packet.kind = AccelCommandKind::ResetInference;
+    case ResetInference:
+            packet.kind = ResetInference;
             m_control_busy = true;
             break;
 
-    case AccelCommandKind::TrainSample:
-            packet.kind = AccelCommandKind::TrainSample;
+    case TrainSample:
+            packet.kind = TrainSample;
             packet.class_id = command.class_id;
             packet.sample = command.sample;
             break;
 
-    case AccelCommandKind::InvalidTrainingStep:
+    case InvalidTrainingStep:
             // InvalidTrainingStep is a flush token for the current training class segment.
             // Since it uses the same FIFO path as samples, previous samples are bundled first.
-            packet.kind = AccelCommandKind::InvalidTrainingStep;
+            packet.kind = InvalidTrainingStep;
             m_control_busy = true;
             break;
 
-    case AccelCommandKind::InferSample:
-            packet.kind = AccelCommandKind::InferSample;
+    case InferSample:
+            packet.kind = InferSample;
             packet.class_id = 0;
             packet.sample = command.sample;
             break;
@@ -185,7 +158,7 @@ void HDC_Accelerator::encoder_stage() {
     if (can_encode) {
         EncoderPacket item = m_encoder_in_data;
         m_encoder_in_valid = false;
-        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
+        if (item.kind == TrainSample || item.kind == InferSample) {
             encode_sample(item.sample, item.encoded);
         }
         m_encoder_out_data = item;
@@ -200,7 +173,7 @@ void HDC_Accelerator::ngram_stage() {
 
     EncoderPacket item = m_encoder_out_data;
 
-    if (item.kind == AccelCommandKind::ResetTraining) {
+    if (item.kind == ResetTraining) {
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             reset_bundling_buffer_only();
@@ -208,14 +181,14 @@ void HDC_Accelerator::ngram_stage() {
             return;
     }
 
-    if (item.kind == AccelCommandKind::ResetInference) {
+    if (item.kind == ResetInference) {
             m_encoder_out_valid = false;
             reset_ngram_buffer();
             m_control_done_valid = true;
             return;
     }
 
-    if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+    if (item.kind == InvalidTrainingStep) {
             const bool can_accept_bundler = !m_bundler_in_valid;
             if (!can_accept_bundler) {
                 return;
@@ -231,8 +204,8 @@ void HDC_Accelerator::ngram_stage() {
             return;
     }
 
-    if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
-            const bool to_bundler = item.kind == AccelCommandKind::TrainSample;
+    if (item.kind == TrainSample || item.kind == InferSample) {
+            const bool to_bundler = item.kind == TrainSample;
             const bool can_accept_bundler = !m_bundler_in_valid;
             const bool can_accept_distance = !m_distance_in_valid;
             if ((to_bundler && !can_accept_bundler) || (!to_bundler && !can_accept_distance)) {
@@ -272,7 +245,7 @@ void HDC_Accelerator::train_stage() {
     const NGramPacket item = m_bundler_in_data;
     m_bundler_in_valid = false;
 
-    if (item.kind == AccelCommandKind::TrainSample) {
+    if (item.kind == TrainSample) {
             if (item.valid_ngram) {
                 if (!m_current_class_valid) {
                     m_current_class_id = item.class_id;
@@ -284,7 +257,7 @@ void HDC_Accelerator::train_stage() {
             return;
     }
 
-    if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+    if (item.kind == InvalidTrainingStep) {
             finalize_current_class();
             reset_bundling_buffer_only();
             m_control_done_valid = true;
