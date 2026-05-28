@@ -286,7 +286,16 @@ void HDC_Accelerator::distance_stage() {
     }
 
     response.valid_prediction = true;
-    compute_hamming_distances(item.ngram, response.distances);
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        const hv_t &class_vector = m_assoc_mem[class_id];
+        distance_counter_t distance = 0;
+        for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
+            if (get_bit(item.ngram, d) != get_bit(class_vector, d)) {
+                ++distance;
+            }
+        }
+        response.distances[class_id] = distance;
+    }
     m_distance_done_data = response;
     m_distance_done_valid = true;
 }
@@ -428,16 +437,4 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
     }
 }
 
-void HDC_Accelerator::compute_hamming_distances(const hv_t &query, distance_counter_t *distances) {
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        const hv_t &class_vector = m_assoc_mem[class_id];
-        distance_counter_t distance = 0;
-        for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-            if (get_bit(query, d) != get_bit(class_vector, d)) {
-                ++distance;
-            }
-        }
-        distances[class_id] = distance;
-    }
-}
 
