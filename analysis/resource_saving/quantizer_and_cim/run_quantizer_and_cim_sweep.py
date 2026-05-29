@@ -50,15 +50,11 @@ def find_model_binary():
 
 
 def build_vector_dimensions():
-    dims = []
-    dims.extend(range(201, 1000, 100))
-    dims.append(1000)
-    dims.extend(range(1500, 2501, 500))
-    return sorted(set(dims))
+    return [201, 301, 501, 751, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000]
 
 
 def build_num_levels():
-    return list(range(5, 81, 5))
+    return [6, 8, 12, 16, 24, 32, 48, 64, 96, 120, 160, 200]
 
 
 def parse_binning_modes(text):
