@@ -56,11 +56,11 @@ private:
     sc_core::sc_signal<bool> m_cmd_ready;
     sc_core::sc_signal<command_kind_t> m_cmd_kind;
     sc_core::sc_signal<class_t> m_cmd_class_id;
-    sc_core::sc_signal<sample_levels_packed_t> m_cmd_sample_levels;
+    sc_core::sc_signal<level_t> m_cmd_sample_levels[NUM_FEATURES];
     sc_core::sc_signal<bool> m_rsp_valid;
     sc_core::sc_signal<bool> m_rsp_ready;
     sc_core::sc_signal<bool> m_rsp_valid_prediction;
-    sc_core::sc_signal<distances_packed_t> m_rsp_distances;
+    sc_core::sc_signal<distance_counter_t> m_rsp_distances[NUM_CLASSES];
     HDC_Accelerator m_accelerator;
 };
 

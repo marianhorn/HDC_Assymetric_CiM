@@ -53,27 +53,6 @@ void clear_evaluation_result(EvaluationResult &result) {
     }
 }
 
-sample_levels_packed_t pack_sample_levels(const QuantizedSample &sample) {
-    sample_levels_packed_t packed = 0;
-    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-        const unsigned base = feature * LEVEL_BITS;
-        for (unsigned bit = 0; bit < LEVEL_BITS; ++bit) {
-            packed[base + bit] =
-                sample.levels[feature][bit].to_bool() ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
-        }
-    }
-    return packed;
-}
-
-distance_counter_t unpack_distance(const distances_packed_t &packed, unsigned class_id) {
-    distance_counter_t value = 0;
-    const unsigned base = class_id * DISTANCE_BITS;
-    for (unsigned bit = 0; bit < DISTANCE_BITS; ++bit) {
-        value[bit] = packed[base + bit].to_bool();
-    }
-    return value;
-}
-
 } // namespace
 
 Controller::Controller(sc_core::sc_module_name name)
@@ -103,11 +82,15 @@ Controller::Controller(sc_core::sc_module_name name)
     m_accelerator.cmd_ready(m_cmd_ready);
     m_accelerator.cmd_kind(m_cmd_kind);
     m_accelerator.cmd_class_id(m_cmd_class_id);
-    m_accelerator.cmd_sample_levels(m_cmd_sample_levels);
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        m_accelerator.cmd_sample_levels[feature](m_cmd_sample_levels[feature]);
+    }
     m_accelerator.rsp_valid(m_rsp_valid);
     m_accelerator.rsp_ready(m_rsp_ready);
     m_accelerator.rsp_valid_prediction(m_rsp_valid_prediction);
-    m_accelerator.rsp_distances(m_rsp_distances);
+    for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_accelerator.rsp_distances[class_id](m_rsp_distances[class_id]);
+    }
     SC_THREAD(main_thread);
 }
 
@@ -184,7 +167,9 @@ void Controller::copy_quantized_sample(const level_t *levels, QuantizedSample &s
 void Controller::send_command(const AccelCommand &command) {
     m_cmd_kind.write(static_cast<unsigned>(command.kind));
     m_cmd_class_id.write(command.class_id);
-    m_cmd_sample_levels.write(pack_sample_levels(command.sample));
+    for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+        m_cmd_sample_levels[feature].write(command.sample.levels[feature]);
+    }
     m_cmd_valid.write(true);
     while (true) {
         wait(clk.posedge_event());
@@ -199,10 +184,8 @@ void Controller::send_command(const AccelCommand &command) {
 AccelResponse Controller::read_response() {
     AccelResponse response = {};
     response.valid_prediction = m_rsp_valid_prediction.read();
-    const distances_packed_t packed_distances = m_rsp_distances.read();
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        response.distances[class_id] = unpack_distance(packed_distances,
-                                                       static_cast<unsigned>(class_id));
+        response.distances[class_id] = m_rsp_distances[class_id].read();
     }
     return response;
 }
@@ -408,31 +391,31 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
     }
 
     AccelCommand command = {};
-    command.kind = ResetTraining;
+    command.kind = AccelCommandKind::ResetTraining;
     command.class_id = 0;
     send_command(command);
 
     level_t quantized_sample[NUM_FEATURES];
     quantize_sample(raw_data, quantized_sample);
-    command.kind = TrainSample;
+    command.kind = AccelCommandKind::TrainSample;
     command.class_id = static_cast<unsigned>(labels[0]);
     copy_quantized_sample(quantized_sample, command.sample);
     send_command(command);
 
     for (int j = 1; j < num_samples - 1; ++j) {
         if (labels[j] != labels[j - 1]) {
-            command.kind = InvalidTrainingStep;
+            command.kind = AccelCommandKind::InvalidTrainingStep;
             command.class_id = 0;
             send_command(command);
         }
         quantize_sample(&raw_data[j * NUM_FEATURES], quantized_sample);
-        command.kind = TrainSample;
+        command.kind = AccelCommandKind::TrainSample;
         command.class_id = static_cast<unsigned>(labels[j]);
         copy_quantized_sample(quantized_sample, command.sample);
         send_command(command);
     }
 
-    command.kind = InvalidTrainingStep;
+    command.kind = AccelCommandKind::InvalidTrainingStep;
     command.class_id = 0;
     send_command(command);
 }
@@ -472,7 +455,7 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     clear_evaluation_result(result);
 
     AccelCommand command = {};
-    command.kind = ResetInference;
+    command.kind = AccelCommandKind::ResetInference;
     command.class_id = 0;
     send_command(command);
 
@@ -485,12 +468,14 @@ EvaluationResult Controller::evaluate_dataset(const double *raw_data, const int 
     while (received < num_samples) {
         if (!command_pending && issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
             quantize_sample(&raw_data[issued * NUM_FEATURES], quantized_sample);
-            command.kind = InferSample;
+            command.kind = AccelCommandKind::InferSample;
             command.class_id = 0;
             copy_quantized_sample(quantized_sample, command.sample);
             m_cmd_kind.write(static_cast<unsigned>(command.kind));
             m_cmd_class_id.write(command.class_id);
-            m_cmd_sample_levels.write(pack_sample_levels(command.sample));
+            for (int feature = 0; feature < NUM_FEATURES; ++feature) {
+                m_cmd_sample_levels[feature].write(command.sample.levels[feature]);
+            }
             m_cmd_valid.write(true);
             command_pending = true;
         }

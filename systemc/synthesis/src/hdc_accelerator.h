@@ -4,11 +4,10 @@
 #define SYSTEMC_HDC_HDC_ACCELERATOR_H
 
 #include <systemc.h>
-#ifdef STRATUS
-#include <stratus_hls.h>
-#endif
 #include "systemc_types.h"
 #include "hdc_transactions.h"
+
+namespace hdc_systemc {
 
 struct EncoderPacket {
     AccelCommandKind kind;
@@ -31,22 +30,19 @@ struct DistancePacket {
 
 SC_MODULE(HDC_Accelerator) {
 public:
-    sc_in<bool> clk;
-    sc_in<bool> rst;
-    sc_in<bool> cmd_valid;
-    sc_out<bool> cmd_ready;
-    sc_in<command_kind_t> cmd_kind;
-    sc_in<class_t> cmd_class_id;
-    sc_in<sample_levels_packed_t> cmd_sample_levels;
-    sc_out<bool> rsp_valid;
-    sc_in<bool> rsp_ready;
-    sc_out<bool> rsp_valid_prediction;
-    sc_out<distances_packed_t> rsp_distances;
+    sc_core::sc_in<bool> clk;
+    sc_core::sc_in<bool> rst;
+    sc_core::sc_in<bool> cmd_valid;
+    sc_core::sc_out<bool> cmd_ready;
+    sc_core::sc_in<command_kind_t> cmd_kind;
+    sc_core::sc_in<class_t> cmd_class_id;
+    sc_core::sc_in<level_t> cmd_sample_levels[NUM_FEATURES];
+    sc_core::sc_out<bool> rsp_valid;
+    sc_core::sc_in<bool> rsp_ready;
+    sc_core::sc_out<bool> rsp_valid_prediction;
+    sc_core::sc_out<distance_counter_t> rsp_distances[NUM_CLASSES];
 
-    SC_CTOR(HDC_Accelerator) {
-        SC_CTHREAD(pipeline_fsm, clk.pos());
-        reset_signal_is(rst, true);
-    }
+    SC_CTOR(HDC_Accelerator);
 
     // Simulation/pre-synthesis preload helper only.
     // This is not a hardware runtime load interface; real deployment needs ROM
@@ -113,5 +109,7 @@ private:
     hv_t m_cim[NUM_LEVELS][NUM_FEATURES];
     hv_t m_assoc_mem[NUM_CLASSES];
 };
+
+} // namespace hdc_systemc
 
 #endif
