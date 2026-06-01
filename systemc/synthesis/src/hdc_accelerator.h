@@ -78,9 +78,6 @@ private:
     void finalize_current_class();
     void reset_ngram_buffer();
 
-    // Distance datapath.
-    void compute_hamming_distances(const hv_t &query, distance_counter_t *distances);
-
     EncoderPacket m_encoder_in_data;
     bool m_encoder_in_valid;
 
