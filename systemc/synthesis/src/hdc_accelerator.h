@@ -7,7 +7,16 @@
 #include "systemc_types.h"
 #include "hdc_transactions.h"
 
-namespace hdc_systemc {
+using hdc_systemc::AccelCommandKind;
+using hdc_systemc::QuantizedSample;
+using hdc_systemc::class_t;
+using hdc_systemc::command_kind_t;
+using hdc_systemc::distance_counter_t;
+using hdc_systemc::feature_score_t;
+using hdc_systemc::hv_t;
+using hdc_systemc::level_t;
+using hdc_systemc::train_counter_t;
+using hdc_systemc::train_score_t;
 
 struct EncoderPacket {
     AccelCommandKind kind;
@@ -109,6 +118,10 @@ private:
     hv_t m_cim[NUM_LEVELS][NUM_FEATURES];
     hv_t m_assoc_mem[NUM_CLASSES];
 };
+
+namespace hdc_systemc {
+
+using ::HDC_Accelerator;
 
 } // namespace hdc_systemc
 

@@ -2,14 +2,13 @@
 // Keep dataset loading, floating-point quantization, and testbench code outside this file.
 #include "hdc_accelerator.h"
 
-namespace hdc_systemc {
+using namespace hdc_systemc;
 
 namespace {
 
 bool get_bit(const hv_t &hv, int index) {
     return hv[index].to_bool();
 }
-
 void set_bit(hv_t &hv, int index, bool value) {
     hv[index] = value ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
 }
@@ -432,5 +431,3 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
         set_bit(encoded_sample, d, score >= signed_threshold);
     }
 }
-
-} // namespace hdc_systemc
