@@ -8,8 +8,16 @@ set_attr clock_period 10
 # memory mapping experiments.
 use_hls_lib "mem_lib"
 
+# Full SystemC testbench for temporary RTL cosimulation attempts.
+define_system_module ../src/main.cpp
+define_system_module ../src/controller.cpp
+define_system_module ../src/hdc_memory.cpp
+define_system_module ../src/foot_dataset_loader.cpp
+
 # Only HDC_Accelerator is the HLS target. Controller, dataset loading, main,
 # CSV parsing, quantization, and metrics remain software/testbench code.
 define_hls_module HDC_Accelerator ../src/hdc_accelerator.cpp
 
 define_hls_config HDC_Accelerator HLS_BASIC
+
+define_sim_config RTL_BASIC {HDC_Accelerator RTL_V HLS_BASIC}
