@@ -18,6 +18,28 @@ _hdc_prepend_path() {
     esac
 }
 
+_hdc_find_xcelium() {
+    local candidate
+
+    # Prefer newer Xcelium installations. Xcelium 19.03 is visible on CAE, but
+    # Stratus 22 rejects it because it cannot compile with
+    # -D_GLIBCXX_USE_CXX11_ABI=1.
+    for candidate in \
+        /eda/cadence/2025-26/RHELx86/XCELIUM_* \
+        /eda/cadence/2024-25/RHELx86/XCELIUM_* \
+        /eda/cadence/2023-24/RHELx86/XCELIUM_* \
+        /eda/cadence/2022-23/RHELx86/XCELIUM_* \
+        /eda/cadence/2021-22/RHELx86/XCELIUM_* \
+        /eda/cadence/2020-21/RHELx86/XCELIUM_*; do
+        if [[ -d "${candidate}" ]]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 if ! command -v module >/dev/null 2>&1; then
     if [[ -r /etc/profile.d/modules.sh ]]; then
         # shellcheck disable=SC1091
@@ -33,10 +55,24 @@ fi
 module load Core/vivado/vivado2023.2 || return 1
 module load Core/cadence/stratus22_23 || return 1
 
-# Xcelium is provided by the generic cadence19-20 module, but that module is in
-# the same family as Stratus. Add the simulator paths directly to avoid
-# replacing the loaded Stratus module.
-export CDS_XCELIUM="${CDS_XCELIUM:-/eda/cadence/2019-20/RHELx86/XCELIUM_19.03.013}"
+# Xcelium is provided by generic Cadence modules, but those modules are in the
+# same family as Stratus. Add simulator paths directly to avoid replacing the
+# loaded Stratus module.
+if [[ -z "${CDS_XCELIUM:-}" ]]; then
+    CDS_XCELIUM="$(_hdc_find_xcelium)" || {
+        echo "ERROR: no compatible Xcelium installation found under /eda/cadence." >&2
+        echo "       Set CDS_XCELIUM explicitly before sourcing this script." >&2
+        return 1
+    }
+fi
+
+if [[ "${CDS_XCELIUM}" == *"/XCELIUM_19.03."* ]]; then
+    echo "ERROR: ${CDS_XCELIUM} is too old for Stratus 22 cosim." >&2
+    echo "       Use a newer Xcelium path, for example from cadence24-25 or cadence25-26." >&2
+    return 1
+fi
+
+export CDS_XCELIUM
 export BDW_INCISIVE_HOME="${BDW_INCISIVE_HOME:-${CDS_XCELIUM}}"
 export CDS_LIC_FILE="${CDS_LIC_FILE:-5280@eplicense.e-technik.uni-erlangen.de}"
 
@@ -47,6 +83,9 @@ export PATH
 
 echo "Stratus: $(command -v stratus_hls || echo not found)"
 echo "Xcelium: $(command -v xrun || echo not found)"
+if command -v xrun >/dev/null 2>&1; then
+    xrun -version | head -n 1
+fi
 echo "BDW_INCISIVE_HOME=${BDW_INCISIVE_HOME}"
 
 if ! command -v stratus_hls >/dev/null 2>&1; then
