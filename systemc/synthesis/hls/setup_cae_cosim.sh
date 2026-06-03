@@ -11,13 +11,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
-_hdc_prepend_path() {
-    case ":${PATH}:" in
-        *":$1:"*) ;;
-        *) PATH="$1:${PATH}" ;;
-    esac
-}
-
 if ! command -v module >/dev/null 2>&1; then
     if [[ -r /etc/profile.d/modules.sh ]]; then
         # shellcheck disable=SC1091
@@ -33,32 +26,10 @@ fi
 module load Core/vivado/vivado2023.2 || return 1
 module load Core/cadence/stratus22_23 || return 1
 
-# Xcelium is provided by generic Cadence modules, but those modules are in the
-# same family as Stratus. Add simulator paths directly to avoid replacing the
-# loaded Stratus module.
-if [[ -z "${CDS_XCELIUM:-}" ]]; then
-    for candidate in /eda/cadence/2024-25/RHELx86/XCELIUM_*; do
-        if [[ -d "${candidate}" ]]; then
-            CDS_XCELIUM="${candidate}"
-            break
-        fi
-    done
-fi
-
-if [[ -z "${CDS_XCELIUM:-}" || ! -d "${CDS_XCELIUM}" ]]; then
-    echo "ERROR: no Xcelium installation found under /eda/cadence/2024-25/RHELx86." >&2
-    echo "       Set CDS_XCELIUM explicitly if you want to use cadence25-26 instead." >&2
-    return 1
-fi
-
-export CDS_XCELIUM
-export BDW_INCISIVE_HOME="${BDW_INCISIVE_HOME:-${CDS_XCELIUM}}"
-export CDS_LIC_FILE="${CDS_LIC_FILE:-5280@eplicense.e-technik.uni-erlangen.de}"
-
-_hdc_prepend_path "${CDS_XCELIUM}/bin"
-_hdc_prepend_path "${CDS_XCELIUM}/tools/bin"
-_hdc_prepend_path "${CDS_XCELIUM}/tools/cdsgcc/gcc/bin"
-export PATH
+export CDS_XCELIUM=/eda/cadence/2019-20/RHELx86/XCELIUM_19.03.013
+export BDW_INCISIVE_HOME="${CDS_XCELIUM}"
+export CDS_LIC_FILE=5280@eplicense.e-technik.uni-erlangen.de
+export PATH="${CDS_XCELIUM}/bin:${CDS_XCELIUM}/tools/bin:${CDS_XCELIUM}/tools/cdsgcc/gcc/bin:${PATH}"
 
 echo "Stratus: $(command -v stratus_hls || echo not found)"
 echo "Xcelium: $(command -v xrun || echo not found)"
