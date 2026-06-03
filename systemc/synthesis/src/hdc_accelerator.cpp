@@ -307,6 +307,10 @@ void HDC_Accelerator::reset_all_local_state() {
     m_control_busy = false;
     cmd_ready.write(false);
     rsp_valid.write(false);
+    rsp_valid_prediction.write(false);
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        rsp_distances[class_id].write(0);
+    }
     m_encoder_in_data = EncoderPacket();
     m_encoder_out_data = EncoderPacket();
     m_bundler_in_data = NGramPacket();
