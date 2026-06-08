@@ -63,11 +63,10 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::pipeline_fsm() {
     reset_all_local_state();
+    reset_output_ports();
 
-    HLS_DEFINE_PROTOCOL("reset") {
-        reset_output_ports();
-        wait();
-    }
+    HLS_DEFINE_PROTOCOL("reset");
+    wait();
 
     while (true) {
         response_stage();
@@ -77,9 +76,8 @@ void HDC_Accelerator::pipeline_fsm() {
         encoder_stage();
         command_stage();
 
-        HLS_DEFINE_PROTOCOL("cycle") {
-            wait();
-        }
+        HLS_DEFINE_PROTOCOL("cycle");
+        wait();
     }
 }
 
