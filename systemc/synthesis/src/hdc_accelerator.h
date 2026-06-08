@@ -4,6 +4,11 @@
 #define SYSTEMC_HDC_HDC_ACCELERATOR_H
 
 #include <systemc.h>
+#ifdef STRATUS_HLS
+#include "stratus_hls.h"
+#elif !defined(HLS_DEFINE_PROTOCOL)
+#define HLS_DEFINE_PROTOCOL(name) if (true)
+#endif
 #include "systemc_types.h"
 #include "hdc_transactions.h"
 
@@ -82,6 +87,7 @@ private:
 
     // Training-side bundling.
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
+    void reset_output_ports();
     void reset_all_local_state();
     void reset_bundling_buffer_only();
     void finalize_current_class();

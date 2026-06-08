@@ -63,7 +63,11 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::pipeline_fsm() {
     reset_all_local_state();
-    wait();
+
+    HLS_DEFINE_PROTOCOL("reset") {
+        reset_output_ports();
+        wait();
+    }
 
     while (true) {
         response_stage();
@@ -72,7 +76,10 @@ void HDC_Accelerator::pipeline_fsm() {
         ngram_stage();
         encoder_stage();
         command_stage();
-        wait();
+
+        HLS_DEFINE_PROTOCOL("cycle") {
+            wait();
+        }
     }
 }
 
@@ -297,6 +304,16 @@ void HDC_Accelerator::distance_stage() {
     m_distance_done_valid = true;
 }
 
+void HDC_Accelerator::reset_output_ports() {
+    cmd_ready.write(false);
+    rsp_valid.write(false);
+    rsp_valid_prediction.write(false);
+
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        rsp_distances[class_id].write(0);
+    }
+}
+
 void HDC_Accelerator::reset_all_local_state() {
     m_encoder_in_valid = false;
     m_encoder_out_valid = false;
@@ -305,12 +322,6 @@ void HDC_Accelerator::reset_all_local_state() {
     m_distance_done_valid = false;
     m_control_done_valid = false;
     m_control_busy = false;
-    cmd_ready.write(false);
-    rsp_valid.write(false);
-    rsp_valid_prediction.write(false);
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        rsp_distances[class_id].write(0);
-    }
     m_encoder_in_data = EncoderPacket();
     m_encoder_out_data = EncoderPacket();
     m_bundler_in_data = NGramPacket();
