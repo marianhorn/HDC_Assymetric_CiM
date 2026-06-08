@@ -1,12 +1,26 @@
 set part_name xc7v2000tflg1925-2
 set top_name HDC_Accelerator
 set out_dir vivado_synth_hdc
+set hls_dir bdw_work/modules/HDC_Accelerator/HLS_BASIC
+set top_rtl $hls_dir/hdc_accelerator_rtl.v
+set generated_rtl [glob -nocomplain $hls_dir/v_rtl/*.v]
+set memlib_rtl [glob -nocomplain mem_lib/*.v]
 
 file mkdir $out_dir
 
-read_verilog v_rtl/hl5_block_1w1r.v
-read_verilog [glob bdw_work/modules/HDC_Accelerator/HLS_BASIC/v_rtl/*.v]
-read_verilog bdw_work/modules/HDC_Accelerator/HLS_BASIC/hdc_accelerator_rtl.v
+if {![file exists $top_rtl]} {
+    error "Missing HLS top RTL: $top_rtl. Run make hls_HDC_Accelerator_HLS_BASIC first."
+}
+if {[llength $generated_rtl] == 0} {
+    error "Missing generated memory RTL under $hls_dir/v_rtl. Run make hls_HDC_Accelerator_HLS_BASIC first."
+}
+if {[llength $memlib_rtl] == 0} {
+    error "Missing Stratus memory library RTL under mem_lib."
+}
+
+read_verilog $memlib_rtl
+read_verilog $generated_rtl
+read_verilog $top_rtl
 
 synth_design -top $top_name -part $part_name
 
