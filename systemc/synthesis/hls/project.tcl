@@ -18,6 +18,8 @@ define_system_module ../src/foot_dataset_loader.cpp
 # CSV parsing, quantization, and metrics remain software/testbench code.
 define_hls_module HDC_Accelerator ../src/hdc_accelerator.cpp
 
-define_hls_config HDC_Accelerator HLS_BASIC
+define_hls_config HDC_Accelerator HLS_BASIC {
+    set_attr inline_partial_constants on
+}
 
 define_sim_config RTL_BASIC {HDC_Accelerator RTL_V HLS_BASIC}
