@@ -68,6 +68,10 @@ public:
     void set_assoc_class(unsigned class_id, const hv_t &value);
 
 private:
+    static constexpr unsigned ENCODER_WORDS_PER_CYCLE = 1;
+    static_assert(ENCODER_WORDS_PER_CYCLE == 1,
+                  "multi-word-per-cycle encoder support is intentionally not implemented yet");
+
     // Pipeline scheduler and stages.
     void pipeline_fsm();
     void command_stage();
@@ -76,9 +80,6 @@ private:
     void train_stage();
     void distance_stage();
     void response_stage();
-
-    // Encoder datapath.
-    void encode_sample(const QuantizedSample &sample, hv_t &encoded_sample);
 
     // N-gram datapath.
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
@@ -98,6 +99,10 @@ private:
 
     EncoderPacket m_encoder_out_data;
     bool m_encoder_out_valid;
+    bool m_encoder_busy;
+    unsigned m_encoder_word;
+    EncoderPacket m_encoder_work;
+    hv_t m_encoder_result;
 
     NGramPacket m_bundler_in_data;
     bool m_bundler_in_valid;

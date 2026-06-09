@@ -23,6 +23,35 @@ distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
     return distance;
 }
 
+hv_word_t encode_sample_word(const QuantizedSample &sample,
+                             const hv_t cim[NUM_LEVELS][NUM_FEATURES],
+                             unsigned word_index) {
+    hv_word_t encoded_word = 0;
+    const unsigned start_dim = word_index * HV_WORD_BITS;
+    const feature_score_t signed_threshold =
+        (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
+
+    for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+        const unsigned d = start_dim + bit;
+        feature_score_t score = 0;
+        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+            const unsigned level = sample.levels[feature].to_uint();
+            const hv_t &feature_hv = cim[level][feature];
+            if (hv_get_bit(feature_hv, d)) {
+                ++score;
+            } else {
+                --score;
+            }
+        }
+
+        if (score >= signed_threshold) {
+            encoded_word = encoded_word | (hv_word_t(1) << bit);
+        }
+    }
+
+    return encoded_word;
+}
+
 } // namespace
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
@@ -38,6 +67,8 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       rsp_valid_prediction("rsp_valid_prediction"),
       m_encoder_in_valid(false),
       m_encoder_out_valid(false),
+      m_encoder_busy(false),
+      m_encoder_word(0),
       m_bundler_in_valid(false),
       m_distance_in_valid(false),
       m_distance_done_valid(false),
@@ -103,7 +134,7 @@ void HDC_Accelerator::command_stage() {
         return;
     }
 
-    const bool can_accept_command = !m_encoder_in_valid;
+    const bool can_accept_command = !m_encoder_in_valid && !m_encoder_busy;
     cmd_ready.write(can_accept_command);
 
     if (!(cmd_valid.read() && can_accept_command)) {
@@ -171,15 +202,56 @@ void HDC_Accelerator::response_stage() {
 }
 
 void HDC_Accelerator::encoder_stage() {
-    const bool can_encode = m_encoder_in_valid && !m_encoder_out_valid;
-    if (can_encode) {
-        EncoderPacket item = m_encoder_in_data;
-        m_encoder_in_valid = false;
-        if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
-            encode_sample(item.sample, item.encoded);
+    if (!m_encoder_busy) {
+        if (!m_encoder_in_valid) {
+            return;
         }
-        m_encoder_out_data = item;
+        if (m_encoder_out_valid) {
+            return;
+        }
+
+        m_encoder_work = m_encoder_in_data;
+        clear_hv(m_encoder_result);
+        m_encoder_word = 0;
+        m_encoder_busy = true;
+        m_encoder_in_valid = false;
+    }
+
+    if (m_encoder_busy && m_encoder_out_valid) {
+        return;
+    }
+
+    const bool should_encode =
+        m_encoder_work.kind == AccelCommandKind::TrainSample ||
+        m_encoder_work.kind == AccelCommandKind::InferSample;
+
+    if (!should_encode) {
+        EncoderPacket output = m_encoder_work;
+        output.encoded = m_encoder_result;
+        m_encoder_out_data = output;
         m_encoder_out_valid = true;
+        m_encoder_busy = false;
+        m_encoder_word = 0;
+        return;
+    }
+
+    const unsigned word_index = m_encoder_word;
+    const hv_word_t encoded_word =
+        encode_sample_word(m_encoder_work.sample, m_cim, word_index);
+    m_encoder_result.words[word_index] = encoded_word;
+
+    if (word_index + 1u == HV_WORDS) {
+        EncoderPacket output = m_encoder_work;
+        output.encoded = m_encoder_result;
+        output.encoded.words[word_index] = encoded_word;
+
+        m_encoder_out_data = output;
+        m_encoder_out_valid = true;
+
+        m_encoder_busy = false;
+        m_encoder_word = 0;
+    } else {
+        m_encoder_word = word_index + 1u;
     }
 }
 
@@ -348,6 +420,10 @@ void HDC_Accelerator::reset_all_local_state() {
     m_control_busy = false;
     m_encoder_in_data = EncoderPacket();
     m_encoder_out_data = EncoderPacket();
+    m_encoder_busy = false;
+    m_encoder_word = 0;
+    m_encoder_work = EncoderPacket();
+    clear_hv(m_encoder_result);
     m_bundler_in_data = NGramPacket();
     m_distance_in_data = NGramPacket();
     m_distance_done_data = DistancePacket();
@@ -449,30 +525,5 @@ void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sa
     }
     if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
         ++m_ngram_buffer_fill_count;
-    }
-}
-
-void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded_sample) {
-    // Feature bundling uses signed +1/-1 accumulation instead of counting ones.
-    // This is exactly equivalent to:
-    //     ones >= floor(half of NUM_FEATURES)
-    //
-    // For NUM_FEATURES even: score >= 0
-    // For NUM_FEATURES odd:  score >= -1
-    const feature_score_t signed_threshold =
-        (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
-
-    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        feature_score_t score = 0;
-        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-            const hv_t &feature_hv = m_cim[sample.levels[feature].to_uint()][feature];
-            if (hv_get_bit(feature_hv, d)) {
-                ++score;
-            } else {
-                --score;
-            }
-        }
-
-        hv_set_bit(encoded_sample, d, score >= signed_threshold);
     }
 }
