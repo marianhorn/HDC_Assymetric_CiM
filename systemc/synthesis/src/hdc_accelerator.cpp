@@ -62,24 +62,26 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
 // without waiting for completion. Control commands are blocking stream
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::pipeline_fsm() {
-    reset_all_local_state();
-    reset_output_ports();
-
     {
         HLS_DEFINE_PROTOCOL("reset");
+
+        reset_all_local_state();
+        reset_output_ports();
+
         wait();
     }
 
     while (true) {
-        response_stage();
-        distance_stage();
-        train_stage();
-        ngram_stage();
-        encoder_stage();
-        command_stage();
-
         {
             HLS_DEFINE_PROTOCOL("cycle");
+
+            response_stage();
+            distance_stage();
+            train_stage();
+            ngram_stage();
+            encoder_stage();
+            command_stage();
+
             wait();
         }
     }
