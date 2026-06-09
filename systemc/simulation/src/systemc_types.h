@@ -30,7 +30,46 @@ typedef sc_dt::sc_int<FEATURE_COUNT_BITS + 1> feature_score_t;
 typedef sc_dt::sc_uint<DISTANCE_BITS> distance_counter_t;
 typedef sc_dt::sc_uint<TRAIN_COUNT_BITS> train_counter_t;
 typedef sc_dt::sc_int<TRAIN_COUNT_BITS + 1> train_score_t;
-typedef sc_dt::sc_bv<VECTOR_DIMENSION> hv_t;
+
+static constexpr unsigned HV_WORD_BITS = 64;
+static_assert((VECTOR_DIMENSION % HV_WORD_BITS) == 0,
+              "VECTOR_DIMENSION must be divisible by HV_WORD_BITS for simulation");
+static constexpr unsigned HV_WORDS = VECTOR_DIMENSION / HV_WORD_BITS;
+
+typedef sc_dt::sc_uint<HV_WORD_BITS> hv_word_t;
+
+struct hv_t {
+    hv_word_t words[HV_WORDS];
+};
+
+inline bool hv_get_bit(const hv_t &hv, unsigned bit_index) {
+    const unsigned word = bit_index >> 6;
+    const unsigned shift = bit_index & 63u;
+    return ((hv.words[word] >> shift) & hv_word_t(1)) != 0;
+}
+
+inline void hv_set_bit(hv_t &hv, unsigned bit_index, bool value) {
+    const unsigned word = bit_index >> 6;
+    const unsigned shift = bit_index & 63u;
+    const hv_word_t mask = hv_word_t(1) << shift;
+    if (value) {
+        hv.words[word] = hv.words[word] | mask;
+    } else {
+        hv.words[word] = hv.words[word] & ~mask;
+    }
+}
+
+inline void hv_clear(hv_t &hv) {
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        hv.words[word] = 0;
+    }
+}
+
+inline void hv_copy(hv_t &dst, const hv_t &src) {
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        dst.words[word] = src.words[word];
+    }
+}
 
 struct EvaluationResult {
     unsigned correct;

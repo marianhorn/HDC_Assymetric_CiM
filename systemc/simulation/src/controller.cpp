@@ -220,6 +220,9 @@ void Controller::load_cim(const char *path) {
     }
 
     std::vector<hv_t> flat_cim(NUM_LEVELS * NUM_FEATURES);
+    for (std::size_t i = 0; i < flat_cim.size(); ++i) {
+        hv_clear(flat_cim[i]);
+    }
     std::vector<bool> loaded_entries(NUM_LEVELS * NUM_FEATURES, false);
     std::string line;
     bool header_checked = false;
@@ -274,9 +277,9 @@ void Controller::load_cim(const char *path) {
         for (int d = 0; d < VECTOR_DIMENSION; ++d) {
             const char bit = bits[static_cast<std::string::size_type>(d)];
             if (bit == '0') {
-                flat_cim[static_cast<std::size_t>(index)][d] = sc_dt::SC_LOGIC_0;
+                hv_set_bit(flat_cim[static_cast<std::size_t>(index)], static_cast<unsigned>(d), false);
             } else if (bit == '1') {
-                flat_cim[static_cast<std::size_t>(index)][d] = sc_dt::SC_LOGIC_1;
+                hv_set_bit(flat_cim[static_cast<std::size_t>(index)], static_cast<unsigned>(d), true);
             } else {
                 SC_REPORT_FATAL("Controller", "invalid CiM bit character");
             }
