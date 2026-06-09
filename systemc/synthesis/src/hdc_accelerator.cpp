@@ -10,6 +10,19 @@ void clear_hv(hv_t &hv) {
     hv_clear(hv);
 }
 
+distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
+    distance_counter_t distance = 0;
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        const hv_word_t diff = a.words[word] ^ b.words[word];
+        for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+            if (((diff >> bit) & hv_word_t(1)) != 0) {
+                ++distance;
+            }
+        }
+    }
+    return distance;
+}
+
 } // namespace
 
 HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
@@ -28,6 +41,8 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       m_bundler_in_valid(false),
       m_distance_in_valid(false),
       m_distance_done_valid(false),
+      m_distance_busy(false),
+      m_distance_class(0),
       m_control_done_valid(false),
       m_control_busy(false),
       m_current_class_valid(false) {
@@ -209,7 +224,7 @@ void HDC_Accelerator::ngram_stage() {
     if (item.kind == AccelCommandKind::TrainSample || item.kind == AccelCommandKind::InferSample) {
             const bool to_bundler = item.kind == AccelCommandKind::TrainSample;
             const bool can_accept_bundler = !m_bundler_in_valid;
-            const bool can_accept_distance = !m_distance_in_valid;
+            const bool can_accept_distance = !m_distance_in_valid && !m_distance_busy;
             if ((to_bundler && !can_accept_bundler) || (!to_bundler && !can_accept_distance)) {
                 return;
             }
@@ -268,35 +283,49 @@ void HDC_Accelerator::train_stage() {
 }
 
 void HDC_Accelerator::distance_stage() {
-    const bool can_accept_distance = !m_distance_done_valid;
-    if (!m_distance_in_valid || !can_accept_distance) {
-        return;
-    }
+    if (!m_distance_busy) {
+        if (!m_distance_in_valid) {
+            return;
+        }
+        if (m_distance_done_valid) {
+            return;
+        }
 
-    const NGramPacket item = m_distance_in_data;
-    m_distance_in_valid = false;
+        const NGramPacket item = m_distance_in_data;
+        m_distance_in_valid = false;
 
-    if (!item.valid_ngram) {
+        if (!item.valid_ngram) {
             m_distance_done_data.valid_prediction = false;
             for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
                 m_distance_done_data.distances[class_id] = 0;
             }
             m_distance_done_valid = true;
             return;
+        }
+
+        m_distance_work = item;
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            m_distance_acc[class_id] = 0;
+        }
+        m_distance_class = 0;
+        m_distance_busy = true;
     }
 
-    m_distance_done_data.valid_prediction = true;
-    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        const hv_t &class_vector = m_assoc_mem[class_id];
-        distance_counter_t distance = 0;
-        for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-            if (hv_get_bit(item.ngram, d) != hv_get_bit(class_vector, d)) {
-                ++distance;
-            }
+    const unsigned class_id = m_distance_class;
+    m_distance_acc[class_id] =
+        hamming_distance_words(m_distance_work.ngram, m_assoc_mem[class_id]);
+
+    if (class_id == (NUM_CLASSES - 1u)) {
+        m_distance_done_data.valid_prediction = true;
+        for (unsigned copy_class = 0; copy_class < NUM_CLASSES; ++copy_class) {
+            m_distance_done_data.distances[copy_class] = m_distance_acc[copy_class];
         }
-        m_distance_done_data.distances[class_id] = distance;
+        m_distance_done_valid = true;
+        m_distance_busy = false;
+        m_distance_class = 0;
+    } else {
+        m_distance_class = class_id + 1u;
     }
-    m_distance_done_valid = true;
 }
 
 void HDC_Accelerator::reset_output_ports() {
@@ -322,6 +351,12 @@ void HDC_Accelerator::reset_all_local_state() {
     m_bundler_in_data = NGramPacket();
     m_distance_in_data = NGramPacket();
     m_distance_done_data = DistancePacket();
+    m_distance_busy = false;
+    m_distance_class = 0;
+    m_distance_work = NGramPacket();
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_distance_acc[class_id] = 0;
+    }
     reset_ngram_buffer();
     reset_bundling_buffer_only();
 }

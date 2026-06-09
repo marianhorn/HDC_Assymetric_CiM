@@ -107,6 +107,10 @@ private:
 
     DistancePacket m_distance_done_data;
     bool m_distance_done_valid;
+    bool m_distance_busy;
+    unsigned m_distance_class;
+    NGramPacket m_distance_work;
+    distance_counter_t m_distance_acc[NUM_CLASSES];
 
     bool m_control_done_valid;
     bool m_control_busy;
