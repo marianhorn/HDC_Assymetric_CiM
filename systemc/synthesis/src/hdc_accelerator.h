@@ -71,6 +71,9 @@ private:
     static constexpr unsigned ENCODER_WORDS_PER_CYCLE = 1;
     static_assert(ENCODER_WORDS_PER_CYCLE == 1,
                   "multi-word-per-cycle encoder support is intentionally not implemented yet");
+    static constexpr unsigned NGRAM_WORDS_PER_CYCLE = 1;
+    static_assert(NGRAM_WORDS_PER_CYCLE == 1,
+                  "multi-word-per-cycle n-gram support is intentionally not implemented yet");
 
     // Pipeline scheduler and stages.
     void pipeline_fsm();
@@ -83,8 +86,6 @@ private:
 
     // N-gram datapath.
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
-    void bind_ngram(hv_t &encoded_ngram);
-    void permute_xor(const hv_t &input, const hv_t &rhs, hv_t &output);
 
     // Training-side bundling.
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
@@ -123,6 +124,13 @@ private:
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     unsigned m_ngram_buffer_write_pos;
     unsigned m_ngram_buffer_fill_count;
+    bool m_ngram_bind_busy;
+    unsigned m_ngram_bind_round;
+    unsigned m_ngram_bind_word;
+    unsigned m_ngram_oldest_slot;
+    EncoderPacket m_ngram_work_packet;
+    hv_t m_ngram_work;
+    hv_t m_ngram_next;
 
     // Signed bundling score for the currently trained class segment.
     train_score_t m_bundling_score[VECTOR_DIMENSION];
