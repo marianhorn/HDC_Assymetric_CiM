@@ -4,6 +4,10 @@ set_attr fpga_part "xc7v2000tflg1925-2"
 # Clock period in ns for the synthesized accelerator.
 set_attr clock_period 10
 
+# Enable Stratus' partial-constant propagation pass. This was suggested by
+# HINT 00333 in the HLS report.
+set_attr inline_partial_constants on
+
 # Copied from the Stratus tutorial. Keep this available for later explicit
 # memory mapping experiments.
 use_hls_lib "mem_lib"
@@ -18,8 +22,6 @@ define_system_module ../src/foot_dataset_loader.cpp
 # CSV parsing, quantization, and metrics remain software/testbench code.
 define_hls_module HDC_Accelerator ../src/hdc_accelerator.cpp
 
-define_hls_config HDC_Accelerator HLS_BASIC {
-    set_attr inline_partial_constants on
-}
+define_hls_config HDC_Accelerator HLS_BASIC
 
 define_sim_config RTL_BASIC {HDC_Accelerator RTL_V HLS_BASIC}
