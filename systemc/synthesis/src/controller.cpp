@@ -201,7 +201,10 @@ void Controller::load_cim(const char *path) {
     }
 
     std::vector<hv_t> flat_cim(NUM_LEVELS * NUM_FEATURES);
-        std::vector<bool> loaded_entries(NUM_LEVELS * NUM_FEATURES, false);
+    for (std::size_t i = 0; i < flat_cim.size(); ++i) {
+        hv_clear(flat_cim[i]);
+    }
+    std::vector<bool> loaded_entries(NUM_LEVELS * NUM_FEATURES, false);
     std::string line;
     bool header_checked = false;
     int loaded_count = 0;
@@ -255,9 +258,9 @@ void Controller::load_cim(const char *path) {
         for (int d = 0; d < VECTOR_DIMENSION; ++d) {
             const char bit = bits[static_cast<std::string::size_type>(d)];
             if (bit == '0') {
-                flat_cim[static_cast<std::size_t>(index)][d] = sc_dt::SC_LOGIC_0;
+                hv_set_bit(flat_cim[static_cast<std::size_t>(index)], static_cast<unsigned>(d), false);
             } else if (bit == '1') {
-                flat_cim[static_cast<std::size_t>(index)][d] = sc_dt::SC_LOGIC_1;
+                hv_set_bit(flat_cim[static_cast<std::size_t>(index)], static_cast<unsigned>(d), true);
             } else {
                 SC_REPORT_FATAL("Controller", "invalid CiM bit character");
             }
@@ -385,8 +388,8 @@ void Controller::train_dataset(const double *raw_data, const int *labels, int nu
     }
 
     hv_t empty_class_vector;
+    hv_clear(empty_class_vector);
     for (int class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-        empty_class_vector = 0;
         m_accelerator.set_assoc_class(static_cast<unsigned>(class_id), empty_class_vector);
     }
 

@@ -236,6 +236,11 @@ NUM_DATASETS
 MAX_SAMPLES_IN_PIPELINE
 ```
 
+For the synthesis model, hypervectors are stored as packed 64-bit words to
+match the native C reference layout. `VECTOR_DIMENSION` must be divisible by
+64; non-divisible dimensions are intentionally unsupported to keep the HLS
+memory layout simple.
+
 The import file headers are checked against the active SystemC configuration. If `NUM_LEVELS`, `NUM_FEATURES`, or `VECTOR_DIMENSION` do not match the imported files, the simulation fails early.
 
 ## Import Files
@@ -270,6 +275,7 @@ Current limitations:
 - controller streams data commands with a bounded inference window; reset, flush, and shutdown commands remain blocking stream boundaries
 - memory is functional and does not model ports, banks, contention, or bandwidth stalls
 - import files must already exist and match the compiled configuration
+- `VECTOR_DIMENSION` must be divisible by 64 in the synthesis model
 - bundling is sequential
 
 ## Presentation Summary

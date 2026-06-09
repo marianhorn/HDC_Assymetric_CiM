@@ -6,15 +6,11 @@ namespace hdc_systemc {
 namespace {
 
 void clear_hv(hv_t &hv) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        hv[d] = sc_dt::SC_LOGIC_0;
-    }
+    hv_clear(hv);
 }
 
 void copy_hv(const hv_t &src, hv_t &dst) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        dst[d] = src[d];
-    }
+    hv_copy(dst, src);
 }
 
 } // namespace

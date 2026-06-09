@@ -6,17 +6,8 @@ using namespace hdc_systemc;
 
 namespace {
 
-bool get_bit(const hv_t &hv, int index) {
-    return hv[index].to_bool();
-}
-void set_bit(hv_t &hv, int index, bool value) {
-    hv[index] = value ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
-}
-
 void clear_hv(hv_t &hv) {
-    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        hv[d] = sc_dt::SC_LOGIC_0;
-    }
+    hv_clear(hv);
 }
 
 } // namespace
@@ -299,7 +290,7 @@ void HDC_Accelerator::distance_stage() {
         const hv_t &class_vector = m_assoc_mem[class_id];
         distance_counter_t distance = 0;
         for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-            if (get_bit(item.ngram, d) != get_bit(class_vector, d)) {
+            if (hv_get_bit(item.ngram, d) != hv_get_bit(class_vector, d)) {
                 ++distance;
             }
         }
@@ -354,7 +345,7 @@ void HDC_Accelerator::reset_ngram_buffer() {
 
 void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        if (get_bit(encoded_ngram, d)) {
+        if (hv_get_bit(encoded_ngram, d)) {
             ++m_bundling_score[d];
         } else {
             --m_bundling_score[d];
@@ -385,7 +376,7 @@ void HDC_Accelerator::finalize_current_class() {
     const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
     const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
+        hv_set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
     m_assoc_mem[m_current_class_id.to_uint()] = class_vector;
@@ -410,8 +401,8 @@ void HDC_Accelerator::bind_ngram(hv_t &encoded_ngram) {
 void HDC_Accelerator::permute_xor(const hv_t &input, const hv_t &rhs, hv_t &output) {
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
         const unsigned source_index = (d == 0) ? (VECTOR_DIMENSION - 1u) : (d - 1u);
-        const bool bit = get_bit(input, source_index) ^ get_bit(rhs, d);
-        set_bit(output, d, bit);
+        const bool bit = hv_get_bit(input, source_index) ^ hv_get_bit(rhs, d);
+        hv_set_bit(output, d, bit);
     }
 }
 
@@ -440,13 +431,13 @@ void HDC_Accelerator::encode_sample(const QuantizedSample &sample, hv_t &encoded
         feature_score_t score = 0;
         for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
             const hv_t &feature_hv = m_cim[sample.levels[feature].to_uint()][feature];
-            if (get_bit(feature_hv, d)) {
+            if (hv_get_bit(feature_hv, d)) {
                 ++score;
             } else {
                 --score;
             }
         }
 
-        set_bit(encoded_sample, d, score >= signed_threshold);
+        hv_set_bit(encoded_sample, d, score >= signed_threshold);
     }
 }
