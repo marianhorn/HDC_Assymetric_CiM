@@ -49,12 +49,38 @@ def find_model_binary():
     return None
 
 
-def build_vector_dimensions():
-    return [201, 301, 501, 751, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000]
+def build_runs():
+    """Grid points present in cim_uniform but missing in quantizer_and_cim.
 
+    Restricted to NUM_LEVELS <= 50 and VECTOR_DIMENSION <= 2000.
+    These are grouped by repeated dimension patterns to keep the list explicit
+    and reviewable.
+    """
+    patterns = [
+        (
+            [5, 10, 15, 20, 25, 30, 35, 40, 45, 50],
+            [251, 351, 451, 551, 651, 751, 851, 951],
+        ),
+        (
+            [6, 8, 12, 16, 24, 32, 48],
+            [251, 351, 401, 451, 551, 601, 651, 701, 801, 851, 901, 951],
+        ),
+        (
+            [
+                7, 9, 11, 13, 14, 17, 18, 19, 21, 22, 23, 26, 27, 28, 29,
+                31, 33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 46, 47, 49,
+            ],
+            [201, 251, 301, 351, 401, 451, 501, 551, 601, 651, 701, 751, 801,
+             851, 901, 951, 1000, 1500, 2000],
+        ),
+    ]
 
-def build_num_levels():
-    return [6, 8, 12, 16, 24, 32, 48, 64, 96, 120, 160, 200]
+    runs = []
+    for levels, dimensions in patterns:
+        runs.extend((num_levels, vector_dimension)
+                    for num_levels in levels
+                    for vector_dimension in dimensions)
+    return sorted(set(runs))
 
 
 def parse_binning_modes(text):
@@ -145,6 +171,12 @@ def init_manifest(manifest_path):
         )
 
 
+def ensure_manifest(manifest_path, append):
+    if append and os.path.exists(manifest_path):
+        return
+    init_manifest(manifest_path)
+
+
 def append_manifest(manifest_path, run_index, total_runs, seed, mode_name, mode_value, num_levels, vector_dimension, log_file, duration_sec):
     with open(manifest_path, "a", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
@@ -195,7 +227,7 @@ def write_log_header(output_file, seed, mode_name, mode_value, num_levels, vecto
     )
 
 
-def run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
+def run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, runs, skip_clean):
     seed_dir = os.path.join(RUNS_DIR, f"binning_mode_{mode_name}", f"seed_{seed:02d}")
     combined_output_path = os.path.join(seed_dir, "output_all.txt")
     manifest_path = os.path.join(seed_dir, "run_manifest.csv")
@@ -203,10 +235,9 @@ def run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, num_levels_values
     results_rel = os.path.relpath(results_path, REPO_ROOT).replace(os.sep, "/")
 
     ensure_clean_seed_dir(seed_dir, skip_clean)
-    init_manifest(manifest_path)
+    ensure_manifest(manifest_path, append=skip_clean)
 
     model_path = None
-    runs = [(num_levels, vector_dimension) for num_levels in num_levels_values for vector_dimension in vector_dimensions]
     total_runs = len(runs)
 
     print(f"\nMode {mode_name} (BINNING_MODE={mode_value})")
@@ -288,8 +319,7 @@ def main():
 
     selected_modes = parse_binning_modes(args.binning_modes)
     selected_seeds = parse_seeds(args.seeds)
-    num_levels_values = build_num_levels()
-    vector_dimensions = build_vector_dimensions()
+    runs = build_runs()
     make_cmd_name = choose_make_command()
 
     os.makedirs(RUNS_DIR, exist_ok=True)
@@ -298,11 +328,12 @@ def main():
     print(f"Runs folder: {RUNS_DIR}")
     print(f"Binning modes: {selected_modes}")
     print(f"Seeds: {selected_seeds}")
-    print(f"Configurations per seed/mode: {len(num_levels_values) * len(vector_dimensions)}")
+    print("Grid: missing cim_uniform low-grid points (NUM_LEVELS <= 50, VECTOR_DIMENSION <= 2000)")
+    print(f"Configurations per seed/mode: {len(runs)}")
 
     for mode_name, mode_value in selected_modes:
         for seed in selected_seeds:
-            run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
+            run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, runs, args.skip_clean)
 
     print("\nFinished all quantizer-and-cim resource-saving sweeps.")
 
