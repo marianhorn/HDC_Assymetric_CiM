@@ -12,7 +12,7 @@ set_attr inline_partial_constants on
 set_attr sched_effort low
 set_attr sharing_effort_parts low
 set_attr sharing_effort_regs low
-set_attr timing_analysis off
+set_attr parts_effort low
 
 # Copied from the Stratus tutorial. Keep this available for later explicit
 # memory mapping experiments.
