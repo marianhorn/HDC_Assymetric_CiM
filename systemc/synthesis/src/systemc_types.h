@@ -3,6 +3,9 @@
 #ifndef SYSTEMC_HDC_SYSTEMC_TYPES_H
 #define SYSTEMC_HDC_SYSTEMC_TYPES_H
 
+#ifndef STRATUS_HLS
+#include <sstream>
+#endif
 #include <systemc.h>
 #include "config_systemc.h"
 
@@ -43,6 +46,19 @@ typedef sc_dt::sc_uint<HV_WORD_BITS> hv_word_t;
 
 struct hv_t {
     hv_word_t words[HV_WORDS];
+
+    bool operator==(const hv_t &other) const {
+        for (unsigned word = 0; word < HV_WORDS; ++word) {
+            if (words[word] != other.words[word]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const hv_t &other) const {
+        return !(*this == other);
+    }
 };
 
 inline bool hv_get_bit(const hv_t &hv, unsigned bit_index) {
@@ -73,6 +89,34 @@ inline void hv_copy(hv_t &dst, const hv_t &src) {
         dst.words[word] = src.words[word];
     }
 }
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const hv_t &hv, const std::string &name) {
+#ifndef STRATUS_HLS
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        std::ostringstream signal_name;
+        signal_name << name << ".word" << word;
+        sc_core::sc_trace(tf, hv.words[word], signal_name.str());
+    }
+#else
+    (void)tf;
+    (void)hv;
+    (void)name;
+#endif
+}
+
+#ifndef STRATUS_HLS
+inline std::ostream &operator<<(std::ostream &os, const hv_t &hv) {
+    os << "hv_t{";
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        if (word != 0) {
+            os << ',';
+        }
+        os << hv.words[word];
+    }
+    os << '}';
+    return os;
+}
+#endif
 
 } // namespace hdc_systemc
 

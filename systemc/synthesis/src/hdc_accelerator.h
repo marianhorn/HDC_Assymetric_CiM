@@ -6,8 +6,10 @@
 #include <systemc.h>
 #ifdef STRATUS_HLS
 #include "stratus_hls.h"
-#elif !defined(HLS_DEFINE_PROTOCOL)
-#define HLS_DEFINE_PROTOCOL(name) if (true)
+#endif
+#include "cynw_p2p.h"
+#ifndef HLS_DEFINE_PROTOCOL
+#define HLS_DEFINE_PROTOCOL(name) ((void)0)
 #endif
 #include "systemc_types.h"
 #include "hdc_transactions.h"
@@ -23,11 +25,25 @@ using hdc_systemc::level_t;
 using hdc_systemc::train_counter_t;
 using hdc_systemc::train_score_t;
 
+template <typename T>
+using hdc_p2p = cynw_p2p<T>;
+
 struct EncoderPacket {
     AccelCommandKind kind;
     class_t class_id;
     QuantizedSample sample;
     hv_t encoded;
+
+    bool operator==(const EncoderPacket &other) const {
+        return kind == other.kind &&
+               class_id == other.class_id &&
+               sample == other.sample &&
+               encoded == other.encoded;
+    }
+
+    bool operator!=(const EncoderPacket &other) const {
+        return !(*this == other);
+    }
 };
 
 struct NGramPacket {
@@ -35,12 +51,104 @@ struct NGramPacket {
     class_t class_id;
     hv_t ngram;
     bool valid_ngram;
+
+    bool operator==(const NGramPacket &other) const {
+        return kind == other.kind &&
+               class_id == other.class_id &&
+               ngram == other.ngram &&
+               valid_ngram == other.valid_ngram;
+    }
+
+    bool operator!=(const NGramPacket &other) const {
+        return !(*this == other);
+    }
 };
 
 struct DistancePacket {
     bool valid_prediction;
     distance_counter_t distances[NUM_CLASSES];
+
+    bool operator==(const DistancePacket &other) const {
+        if (valid_prediction != other.valid_prediction) {
+            return false;
+        }
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            if (distances[class_id] != other.distances[class_id]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const DistancePacket &other) const {
+        return !(*this == other);
+    }
 };
+
+inline void sc_trace(sc_core::sc_trace_file *tf,
+                     const EncoderPacket &packet,
+                     const std::string &name) {
+#ifndef STRATUS_HLS
+    sc_core::sc_trace(tf, packet.class_id, name + ".class_id");
+    sc_trace(tf, packet.sample, name + ".sample");
+    sc_trace(tf, packet.encoded, name + ".encoded");
+#else
+    (void)tf;
+    (void)packet;
+    (void)name;
+#endif
+}
+
+inline void sc_trace(sc_core::sc_trace_file *tf,
+                     const NGramPacket &packet,
+                     const std::string &name) {
+#ifndef STRATUS_HLS
+    sc_core::sc_trace(tf, packet.class_id, name + ".class_id");
+    sc_trace(tf, packet.ngram, name + ".ngram");
+    sc_core::sc_trace(tf, packet.valid_ngram, name + ".valid_ngram");
+#else
+    (void)tf;
+    (void)packet;
+    (void)name;
+#endif
+}
+
+inline void sc_trace(sc_core::sc_trace_file *tf,
+                     const DistancePacket &packet,
+                     const std::string &name) {
+#ifndef STRATUS_HLS
+    sc_core::sc_trace(tf, packet.valid_prediction, name + ".valid_prediction");
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        std::ostringstream signal_name;
+        signal_name << name << ".distance" << class_id;
+        sc_core::sc_trace(tf, packet.distances[class_id], signal_name.str());
+    }
+#else
+    (void)tf;
+    (void)packet;
+    (void)name;
+#endif
+}
+
+#ifndef STRATUS_HLS
+inline std::ostream &operator<<(std::ostream &os, const EncoderPacket &packet) {
+    os << "EncoderPacket{kind=" << static_cast<unsigned>(packet.kind)
+       << ",class=" << packet.class_id << '}';
+    return os;
+}
+
+inline std::ostream &operator<<(std::ostream &os, const NGramPacket &packet) {
+    os << "NGramPacket{kind=" << static_cast<unsigned>(packet.kind)
+       << ",class=" << packet.class_id
+       << ",valid=" << packet.valid_ngram << '}';
+    return os;
+}
+
+inline std::ostream &operator<<(std::ostream &os, const DistancePacket &packet) {
+    os << "DistancePacket{valid=" << packet.valid_prediction << '}';
+    return os;
+}
+#endif
 
 SC_MODULE(HDC_Accelerator) {
 public:
@@ -75,62 +183,33 @@ private:
     static_assert(NGRAM_WORDS_PER_CYCLE == 1,
                   "multi-word-per-cycle n-gram support is intentionally not implemented yet");
 
-    // Pipeline scheduler and stages.
-    void pipeline_fsm();
-    void command_stage();
-    void encoder_stage();
-    void ngram_stage();
-    void train_stage();
-    void distance_stage();
-    void response_stage();
+    void command_thread();
+    void encoder_thread();
+    void ngram_thread();
+    void train_thread();
+    void distance_thread();
+    void response_thread();
 
     // N-gram datapath.
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
 
     // Training-side bundling.
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
-    void reset_output_ports();
-    void reset_all_local_state();
+    void reset_response_ports();
     void reset_bundling_buffer_only();
     void finalize_current_class();
     void reset_ngram_buffer();
 
-    EncoderPacket m_encoder_in_data;
-    bool m_encoder_in_valid;
-
-    EncoderPacket m_encoder_out_data;
-    bool m_encoder_out_valid;
-    bool m_encoder_busy;
-    unsigned m_encoder_word;
-    EncoderPacket m_encoder_work;
-    hv_t m_encoder_result;
-
-    NGramPacket m_bundler_in_data;
-    bool m_bundler_in_valid;
-
-    NGramPacket m_distance_in_data;
-    bool m_distance_in_valid;
-
-    DistancePacket m_distance_done_data;
-    bool m_distance_done_valid;
-    bool m_distance_busy;
-    unsigned m_distance_class;
-    NGramPacket m_distance_work;
-    distance_counter_t m_distance_acc[NUM_CLASSES];
-
-    bool m_control_done_valid;
-    bool m_control_busy;
+    hdc_p2p<EncoderPacket> encoder_in;
+    hdc_p2p<EncoderPacket> encoder_out;
+    hdc_p2p<NGramPacket> bundler_in;
+    hdc_p2p<NGramPacket> distance_in;
+    hdc_p2p<DistancePacket> distance_done;
+    hdc_p2p<bool> control_done;
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     unsigned m_ngram_buffer_write_pos;
     unsigned m_ngram_buffer_fill_count;
-    bool m_ngram_bind_busy;
-    unsigned m_ngram_bind_round;
-    unsigned m_ngram_bind_word;
-    unsigned m_ngram_oldest_slot;
-    EncoderPacket m_ngram_work_packet;
-    hv_t m_ngram_work;
-    hv_t m_ngram_next;
 
     // Signed bundling score for the currently trained class segment.
     train_score_t m_bundling_score[VECTOR_DIMENSION];
