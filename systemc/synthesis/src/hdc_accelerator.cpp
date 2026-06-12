@@ -108,22 +108,22 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     control_done.clk_rst(clk, rst);
 
     SC_CTHREAD(command_thread, clk.pos());
-    reset_signal_is(rst, true);
+    async_reset_signal_is(rst, true);
 
     SC_CTHREAD(encoder_thread, clk.pos());
-    reset_signal_is(rst, true);
+    async_reset_signal_is(rst, true);
 
     SC_CTHREAD(ngram_thread, clk.pos());
-    reset_signal_is(rst, true);
+    async_reset_signal_is(rst, true);
 
     SC_CTHREAD(train_thread, clk.pos());
-    reset_signal_is(rst, true);
+    async_reset_signal_is(rst, true);
 
     SC_CTHREAD(distance_thread, clk.pos());
-    reset_signal_is(rst, true);
+    async_reset_signal_is(rst, true);
 
     SC_CTHREAD(response_thread, clk.pos());
-    reset_signal_is(rst, true);
+    async_reset_signal_is(rst, true);
 }
 
 // Simulation/pre-synthesis preload helper only.
@@ -147,6 +147,8 @@ void HDC_Accelerator::command_thread() {
 
     {
         HLS_DEFINE_PROTOCOL("command_reset");
+        encoder_in.reset();
+        control_done.reset();
         cmd_ready.write(false);
         wait();
     }
@@ -209,6 +211,8 @@ void HDC_Accelerator::command_thread() {
 void HDC_Accelerator::encoder_thread() {
     {
         HLS_DEFINE_PROTOCOL("encoder_reset");
+        encoder_in.reset();
+        encoder_out.reset();
         wait();
     }
 
@@ -244,6 +248,10 @@ void HDC_Accelerator::encoder_thread() {
 void HDC_Accelerator::ngram_thread() {
     {
         HLS_DEFINE_PROTOCOL("ngram_reset");
+        encoder_out.reset();
+        bundler_in.reset();
+        distance_in.reset();
+        control_done.reset();
         reset_ngram_buffer();
         wait();
     }
@@ -356,6 +364,8 @@ void HDC_Accelerator::ngram_thread() {
 void HDC_Accelerator::train_thread() {
     {
         HLS_DEFINE_PROTOCOL("train_reset");
+        bundler_in.reset();
+        control_done.reset();
         reset_bundling_buffer_only();
         wait();
     }
@@ -409,6 +419,8 @@ void HDC_Accelerator::train_thread() {
 void HDC_Accelerator::distance_thread() {
     {
         HLS_DEFINE_PROTOCOL("distance_reset");
+        distance_in.reset();
+        distance_done.reset();
         wait();
     }
 
@@ -446,6 +458,7 @@ void HDC_Accelerator::distance_thread() {
 void HDC_Accelerator::response_thread() {
     {
         HLS_DEFINE_PROTOCOL("response_reset");
+        distance_done.reset();
         reset_response_ports();
         wait();
     }
