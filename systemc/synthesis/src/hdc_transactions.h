@@ -17,7 +17,30 @@ enum class AccelCommandKind {
 
 struct QuantizedSample {
     level_t levels[NUM_FEATURES];
+
+    bool operator==(const QuantizedSample &other) const {
+        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+            if (levels[feature] != other.levels[feature]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const QuantizedSample &other) const {
+        return !(*this == other);
+    }
 };
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const QuantizedSample &sample, const std::string &name) {
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        sc_core::sc_trace(tf, sample.levels[feature], name + ".level" + std::to_string(feature));
+    }
+}
+
+inline std::ostream &operator<<(std::ostream &os, const QuantizedSample &) {
+    return os << "QuantizedSample";
+}
 
 struct AccelCommand {
     AccelCommandKind kind;

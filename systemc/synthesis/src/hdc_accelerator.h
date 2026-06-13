@@ -28,6 +28,17 @@ struct EncoderPacket {
     class_t class_id;
     QuantizedSample sample;
     hv_t encoded;
+
+    bool operator==(const EncoderPacket &other) const {
+        return kind == other.kind &&
+               class_id == other.class_id &&
+               sample == other.sample &&
+               encoded == other.encoded;
+    }
+
+    bool operator!=(const EncoderPacket &other) const {
+        return !(*this == other);
+    }
 };
 
 struct NGramPacket {
@@ -35,12 +46,71 @@ struct NGramPacket {
     class_t class_id;
     hv_t ngram;
     bool valid_ngram;
+
+    bool operator==(const NGramPacket &other) const {
+        return kind == other.kind &&
+               class_id == other.class_id &&
+               ngram == other.ngram &&
+               valid_ngram == other.valid_ngram;
+    }
+
+    bool operator!=(const NGramPacket &other) const {
+        return !(*this == other);
+    }
 };
 
 struct DistancePacket {
     bool valid_prediction;
     distance_counter_t distances[NUM_CLASSES];
+
+    bool operator==(const DistancePacket &other) const {
+        if (valid_prediction != other.valid_prediction) {
+            return false;
+        }
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            if (distances[class_id] != other.distances[class_id]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const DistancePacket &other) const {
+        return !(*this == other);
+    }
 };
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const EncoderPacket &packet, const std::string &name) {
+    sc_core::sc_trace(tf, packet.class_id, name + ".class_id");
+    sc_trace(tf, packet.sample, name + ".sample");
+    sc_trace(tf, packet.encoded, name + ".encoded");
+}
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const NGramPacket &packet, const std::string &name) {
+    sc_core::sc_trace(tf, packet.class_id, name + ".class_id");
+    sc_trace(tf, packet.ngram, name + ".ngram");
+    sc_core::sc_trace(tf, packet.valid_ngram, name + ".valid_ngram");
+}
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const DistancePacket &packet, const std::string &name) {
+    sc_core::sc_trace(tf, packet.valid_prediction, name + ".valid_prediction");
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        sc_core::sc_trace(tf, packet.distances[class_id],
+                          name + ".distance" + std::to_string(class_id));
+    }
+}
+
+inline std::ostream &operator<<(std::ostream &os, const EncoderPacket &) {
+    return os << "EncoderPacket";
+}
+
+inline std::ostream &operator<<(std::ostream &os, const NGramPacket &packet) {
+    return os << "NGramPacket{valid=" << packet.valid_ngram << '}';
+}
+
+inline std::ostream &operator<<(std::ostream &os, const DistancePacket &packet) {
+    return os << "DistancePacket{valid=" << packet.valid_prediction << '}';
+}
 
 SC_MODULE(HDC_Accelerator) {
 public:
@@ -75,51 +145,48 @@ private:
     static_assert(NGRAM_WORDS_PER_CYCLE == 1,
                   "multi-word-per-cycle n-gram support is intentionally not implemented yet");
 
-    // Pipeline scheduler and stages.
-    void pipeline_fsm();
-    void command_stage();
-    void encoder_stage();
-    void ngram_stage();
-    void train_stage();
-    void distance_stage();
-    void response_stage();
+    // Clocked pipeline stages.
+    void command_thread();
+    void encoder_thread();
+    void ngram_thread();
+    void train_thread();
+    void distance_thread();
+    void response_thread();
 
     // N-gram datapath.
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
 
     // Training-side bundling.
     void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
-    void reset_output_ports();
     void reset_all_local_state();
     void reset_bundling_buffer_only();
     void finalize_current_class();
     void reset_ngram_buffer();
 
-    EncoderPacket m_encoder_in_data;
-    bool m_encoder_in_valid;
+    sc_core::sc_signal<EncoderPacket> m_encoder_in_data;
+    sc_core::sc_signal<bool> m_encoder_in_valid;
+    sc_core::sc_signal<bool> m_encoder_in_ready;
 
-    EncoderPacket m_encoder_out_data;
-    bool m_encoder_out_valid;
-    bool m_encoder_busy;
-    unsigned m_encoder_word;
-    EncoderPacket m_encoder_work;
-    hv_t m_encoder_result;
+    sc_core::sc_signal<EncoderPacket> m_encoder_out_data;
+    sc_core::sc_signal<bool> m_encoder_out_valid;
+    sc_core::sc_signal<bool> m_encoder_out_ready;
 
-    NGramPacket m_bundler_in_data;
-    bool m_bundler_in_valid;
+    sc_core::sc_signal<NGramPacket> m_bundler_in_data;
+    sc_core::sc_signal<bool> m_bundler_in_valid;
+    sc_core::sc_signal<bool> m_bundler_in_ready;
 
-    NGramPacket m_distance_in_data;
-    bool m_distance_in_valid;
+    sc_core::sc_signal<NGramPacket> m_distance_in_data;
+    sc_core::sc_signal<bool> m_distance_in_valid;
+    sc_core::sc_signal<bool> m_distance_in_ready;
 
-    DistancePacket m_distance_done_data;
-    bool m_distance_done_valid;
-    bool m_distance_busy;
-    unsigned m_distance_class;
-    NGramPacket m_distance_work;
-    distance_counter_t m_distance_acc[NUM_CLASSES];
+    sc_core::sc_signal<DistancePacket> m_distance_done_data;
+    sc_core::sc_signal<bool> m_distance_done_valid;
+    sc_core::sc_signal<bool> m_distance_done_ready;
 
-    bool m_control_done_valid;
-    bool m_control_busy;
+    sc_core::sc_signal<bool> m_ngram_control_done_valid;
+    sc_core::sc_signal<bool> m_ngram_control_done_ready;
+    sc_core::sc_signal<bool> m_train_control_done_valid;
+    sc_core::sc_signal<bool> m_train_control_done_ready;
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     unsigned m_ngram_buffer_write_pos;

@@ -43,7 +43,30 @@ typedef sc_dt::sc_uint<HV_WORD_BITS> hv_word_t;
 
 struct hv_t {
     hv_word_t words[HV_WORDS];
+
+    bool operator==(const hv_t &other) const {
+        for (unsigned word = 0; word < HV_WORDS; ++word) {
+            if (words[word] != other.words[word]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const hv_t &other) const {
+        return !(*this == other);
+    }
 };
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const hv_t &hv, const std::string &name) {
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        sc_core::sc_trace(tf, hv.words[word], name + ".word" + std::to_string(word));
+    }
+}
+
+inline std::ostream &operator<<(std::ostream &os, const hv_t &) {
+    return os << "hv_t";
+}
 
 inline bool hv_get_bit(const hv_t &hv, unsigned bit_index) {
     const unsigned word = bit_index >> 6;
