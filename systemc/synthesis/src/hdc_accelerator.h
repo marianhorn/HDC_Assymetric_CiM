@@ -33,6 +33,12 @@ struct EncoderPacket {
     QuantizedSample sample;
     hv_t encoded;
 
+    EncoderPacket()
+        : kind(AccelCommandKind::ResetTraining),
+          class_id(0),
+          sample(),
+          encoded() {}
+
     bool operator==(const EncoderPacket &other) const {
         return kind == other.kind &&
                class_id == other.class_id &&
@@ -51,6 +57,12 @@ struct NGramPacket {
     hv_t ngram;
     bool valid_ngram;
 
+    NGramPacket()
+        : kind(AccelCommandKind::ResetTraining),
+          class_id(0),
+          ngram(),
+          valid_ngram(false) {}
+
     bool operator==(const NGramPacket &other) const {
         return kind == other.kind &&
                class_id == other.class_id &&
@@ -66,6 +78,13 @@ struct NGramPacket {
 struct DistancePacket {
     bool valid_prediction;
     distance_counter_t distances[NUM_CLASSES];
+
+    DistancePacket()
+        : valid_prediction(false) {
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            distances[class_id] = 0;
+        }
+    }
 
     bool operator==(const DistancePacket &other) const {
         if (valid_prediction != other.valid_prediction) {

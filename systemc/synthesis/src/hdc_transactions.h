@@ -18,6 +18,12 @@ enum class AccelCommandKind {
 struct QuantizedSample {
     level_t levels[NUM_FEATURES];
 
+    QuantizedSample() {
+        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+            levels[feature] = 0;
+        }
+    }
+
     bool operator==(const QuantizedSample &other) const {
         for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
             if (levels[feature] != other.levels[feature]) {

@@ -494,6 +494,10 @@ void HDC_Accelerator::train_thread() {
     {
         HLS_DEFINE_PROTOCOL("train_reset");
         reset_bundling_buffer_only();
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            HLS_UNROLL_LOOP(OFF, "reset-assoc-mem-loop");
+            clear_hv(m_assoc_mem[class_id]);
+        }
         m_bundler_in_ready.write(false);
         m_train_control_done_valid.write(false);
         wait();
