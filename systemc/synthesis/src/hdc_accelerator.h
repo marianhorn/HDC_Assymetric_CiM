@@ -6,8 +6,12 @@
 #include <systemc.h>
 #ifdef STRATUS_HLS
 #include "stratus_hls.h"
-#elif !defined(HLS_DEFINE_PROTOCOL)
+#endif
+#ifndef HLS_DEFINE_PROTOCOL
 #define HLS_DEFINE_PROTOCOL(name) if (true)
+#endif
+#ifndef HLS_UNROLL_LOOP
+#define HLS_UNROLL_LOOP(mode, name) ((void)0)
 #endif
 #include "systemc_types.h"
 #include "hdc_transactions.h"

@@ -26,8 +26,10 @@ bool is_ngram_control_command(AccelCommandKind kind) {
 distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
     distance_counter_t distance = 0;
     for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "hamming-words-loop");
         const hv_word_t diff = a.words[word] ^ b.words[word];
         for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+            HLS_UNROLL_LOOP(OFF, "hamming-bits-loop");
             if (((diff >> bit) & hv_word_t(1)) != 0) {
                 ++distance;
             }
@@ -45,9 +47,11 @@ hv_word_t encode_sample_word(const QuantizedSample &sample,
         (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
 
     for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+        HLS_UNROLL_LOOP(OFF, "encode-word-bits-loop");
         const unsigned d = start_dim + bit;
         feature_score_t score = 0;
         for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+            HLS_UNROLL_LOOP(OFF, "encode-features-loop");
             const unsigned level = sample.levels[feature].to_uint();
             const hv_t &feature_hv = cim[level][feature];
             if (hv_get_bit(feature_hv, d)) {
@@ -675,6 +679,7 @@ void HDC_Accelerator::reset_bundling_buffer_only() {
     m_current_class_id = 0;
     m_current_class_valid = false;
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
+        HLS_UNROLL_LOOP(OFF, "reset-bundling-loop");
         m_bundling_score[d] = 0;
     }
 }
@@ -683,12 +688,14 @@ void HDC_Accelerator::reset_ngram_buffer() {
     m_ngram_buffer_write_pos = 0;
     m_ngram_buffer_fill_count = 0;
     for (unsigned slot = 0; slot < N_GRAM_SIZE; ++slot) {
+        HLS_UNROLL_LOOP(OFF, "reset-ngram-loop");
         clear_hv(m_ngram_buffer[slot]);
     }
 }
 
 void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
+        HLS_UNROLL_LOOP(OFF, "bundling-loop");
         if (hv_get_bit(encoded_ngram, d)) {
             ++m_bundling_score[d];
         } else {
@@ -720,6 +727,7 @@ void HDC_Accelerator::finalize_current_class() {
     const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
     const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
     for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
+        HLS_UNROLL_LOOP(OFF, "finalize-class-loop");
         hv_set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
