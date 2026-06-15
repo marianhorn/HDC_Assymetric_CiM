@@ -167,6 +167,9 @@ private:
     static constexpr unsigned NGRAM_WORDS_PER_CYCLE = 1;
     static_assert(NGRAM_WORDS_PER_CYCLE == 1,
                   "multi-word-per-cycle n-gram support is intentionally not implemented yet");
+    static constexpr unsigned TRAIN_WORDS_PER_CYCLE = 1;
+    static_assert(TRAIN_WORDS_PER_CYCLE == 1,
+                  "multi-word-per-cycle train support is intentionally not implemented yet");
 
     // Clocked pipeline stages.
     void command_thread();
@@ -179,11 +182,6 @@ private:
     // N-gram datapath.
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
 
-    // Training-side bundling.
-    void add_ngram_to_bundling_buffer(const hv_t &encoded_ngram);
-    void reset_all_local_state();
-    void reset_bundling_buffer_only();
-    void finalize_current_class();
     void reset_ngram_buffer();
 
     sc_core::sc_signal<EncoderPacket> m_encoder_in_data;

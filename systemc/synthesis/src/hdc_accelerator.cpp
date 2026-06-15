@@ -488,16 +488,34 @@ void HDC_Accelerator::ngram_thread() {
 }
 
 void HDC_Accelerator::train_thread() {
+    enum TrainState {
+        TRAIN_INIT_RESET_SCORES,
+        TRAIN_INIT_RESET_ASSOC,
+        TRAIN_IDLE,
+        TRAIN_ADD_NGRAM,
+        TRAIN_FINALIZE_CLASS,
+        TRAIN_RESET_TRAINING
+    };
+
+    TrainState state = TRAIN_INIT_RESET_SCORES;
+    NGramPacket work = NGramPacket();
     bool done_valid = false;
     bool done_presented = false;
+    unsigned word_index = 0;
+    unsigned assoc_class = 0;
 
     {
         HLS_DEFINE_PROTOCOL("train_reset");
-        reset_bundling_buffer_only();
         for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
             HLS_UNROLL_LOOP(OFF, "reset-assoc-mem-loop");
-            clear_hv(m_assoc_mem[class_id]);
+            for (unsigned word = 0; word < HV_WORDS; ++word) {
+                HLS_UNROLL_LOOP(OFF, "reset-assoc-mem-word-loop");
+                m_assoc_mem[class_id].words[word] = 0;
+            }
         }
+        m_current_class_count = 0;
+        m_current_class_id = 0;
+        m_current_class_valid = false;
         m_bundler_in_ready.write(false);
         m_train_control_done_valid.write(false);
         wait();
@@ -514,31 +532,125 @@ void HDC_Accelerator::train_thread() {
                 done_presented = false;
             }
 
-            if (!done_valid && m_bundler_in_valid.read()) {
+            if (state == TRAIN_INIT_RESET_SCORES) {
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-init-reset-score-word-loop");
+                    m_bundling_score[base_dim + bit] = 0;
+                }
+
+                if (word_index + 1u == HV_WORDS) {
+                    word_index = 0;
+                    assoc_class = 0;
+                    state = TRAIN_INIT_RESET_ASSOC;
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_INIT_RESET_ASSOC) {
+                m_assoc_mem[assoc_class].words[word_index] = 0;
+
+                if (word_index + 1u == HV_WORDS) {
+                    word_index = 0;
+                    if (assoc_class + 1u == NUM_CLASSES) {
+                        assoc_class = 0;
+                        state = TRAIN_IDLE;
+                    } else {
+                        assoc_class = assoc_class + 1u;
+                    }
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_ADD_NGRAM) {
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                const hv_word_t word = work.ngram.words[word_index];
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-add-ngram-word-loop");
+                    if (((word >> bit) & hv_word_t(1)) != 0) {
+                        ++m_bundling_score[base_dim + bit];
+                    } else {
+                        --m_bundling_score[base_dim + bit];
+                    }
+                }
+
+                if (word_index + 1u == HV_WORDS) {
+                    ++m_current_class_count;
+                    word_index = 0;
+                    state = TRAIN_IDLE;
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_FINALIZE_CLASS) {
+                const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
+                const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                hv_word_t class_word = 0;
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-finalize-word-loop");
+                    const unsigned dim = base_dim + bit;
+                    if (m_bundling_score[dim] >= signed_threshold) {
+                        class_word = class_word | (hv_word_t(1) << bit);
+                    }
+                    m_bundling_score[dim] = 0;
+                }
+                m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
+
+                if (word_index + 1u == HV_WORDS) {
+                    m_current_class_count = 0;
+                    m_current_class_id = 0;
+                    m_current_class_valid = false;
+                    word_index = 0;
+                    done_valid = true;
+                    done_presented = false;
+                    state = TRAIN_IDLE;
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_RESET_TRAINING) {
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-reset-score-word-loop");
+                    m_bundling_score[base_dim + bit] = 0;
+                }
+
+                if (word_index + 1u == HV_WORDS) {
+                    m_current_class_count = 0;
+                    m_current_class_id = 0;
+                    m_current_class_valid = false;
+                    word_index = 0;
+                    done_valid = true;
+                    done_presented = false;
+                    state = TRAIN_IDLE;
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (!done_valid && m_bundler_in_valid.read()) {
                 const NGramPacket item = m_bundler_in_data.read();
 
                 if (item.kind == AccelCommandKind::TrainSample) {
                     if (item.valid_ngram) {
+                        work = item;
                         if (!m_current_class_valid) {
                             m_current_class_id = item.class_id;
                             m_current_class_valid = true;
                         }
-                        add_ngram_to_bundling_buffer(item.ngram);
+                        word_index = 0;
+                        state = TRAIN_ADD_NGRAM;
                     }
                 } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
-                    finalize_current_class();
-                    reset_bundling_buffer_only();
-                    done_valid = true;
-                    done_presented = false;
+                    word_index = 0;
+                    if (m_current_class_valid) {
+                        state = TRAIN_FINALIZE_CLASS;
+                    } else {
+                        state = TRAIN_RESET_TRAINING;
+                    }
                 } else if (item.kind == AccelCommandKind::ResetTraining) {
-                    reset_bundling_buffer_only();
-                    done_valid = true;
-                    done_presented = false;
+                    word_index = 0;
+                    state = TRAIN_RESET_TRAINING;
                 }
             }
 
             m_train_control_done_valid.write(done_valid);
-            m_bundler_in_ready.write(!done_valid);
+            m_bundler_in_ready.write(state == TRAIN_IDLE && !done_valid);
             wait();
         }
     }
@@ -673,21 +785,6 @@ void HDC_Accelerator::response_thread() {
     }
 }
 
-void HDC_Accelerator::reset_all_local_state() {
-    reset_ngram_buffer();
-    reset_bundling_buffer_only();
-}
-
-void HDC_Accelerator::reset_bundling_buffer_only() {
-    m_current_class_count = 0;
-    m_current_class_id = 0;
-    m_current_class_valid = false;
-    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        HLS_UNROLL_LOOP(OFF, "reset-bundling-loop");
-        m_bundling_score[d] = 0;
-    }
-}
-
 void HDC_Accelerator::reset_ngram_buffer() {
     m_ngram_buffer_write_pos = 0;
     m_ngram_buffer_fill_count = 0;
@@ -695,51 +792,6 @@ void HDC_Accelerator::reset_ngram_buffer() {
         HLS_UNROLL_LOOP(OFF, "reset-ngram-loop");
         clear_hv(m_ngram_buffer[slot]);
     }
-}
-
-void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
-    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        HLS_UNROLL_LOOP(OFF, "bundling-loop");
-        if (hv_get_bit(encoded_ngram, d)) {
-            ++m_bundling_score[d];
-        } else {
-            --m_bundling_score[d];
-        }
-    }
-    ++m_current_class_count;
-}
-
-void HDC_Accelerator::finalize_current_class() {
-    if (!m_current_class_valid) {
-        m_current_class_count = 0;
-        return;
-    }
-
-    hv_t class_vector;
-    clear_hv(class_vector);
-    // Exact equivalent of the previous rule:
-    //     ones >= floor(half of m_current_class_count)
-    //
-    // Signed score:
-    //     score = ones - zeros = 2 * ones - m_current_class_count
-    //
-    // Therefore:
-    //     even count: score >= 0
-    //     odd count:  score >= -1
-    //
-    // This avoids division while preserving the old bundling result.
-    const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
-    const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
-    for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-        HLS_UNROLL_LOOP(OFF, "finalize-class-loop");
-        hv_set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
-        m_bundling_score[d] = 0;
-    }
-    m_assoc_mem[m_current_class_id.to_uint()] = class_vector;
-
-    m_current_class_count = 0;
-    m_current_class_id = 0;
-    m_current_class_valid = false;
 }
 
 void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample) {

@@ -2,7 +2,8 @@ set_attr fpga_tool "vivado"
 set_attr fpga_part "xc7v2000tflg1925-2"
 
 # Clock period in ns for the synthesized accelerator.
-set_attr clock_period 10
+set_attr clock_period 20
+set_attr flatten_arrays none
 
 # Enable Stratus' partial-constant propagation pass. This was suggested by
 # HINT 00333 in the HLS report.
