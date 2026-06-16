@@ -15,7 +15,6 @@ set_attr sharing_effort_parts low
 set_attr sharing_effort_regs low
 set_attr parts_effort low
 set_attr relax_timing on
-set_attr sched_chaining on
 set_attr sched_asap on
 set_attr lsb_trimming on
 
