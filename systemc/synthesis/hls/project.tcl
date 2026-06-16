@@ -3,6 +3,7 @@ set_attr fpga_part "xc7v2000tflg1925-2"
 
 # Clock period in ns for the synthesized accelerator.
 set_attr clock_period 20
+set_attr default_input_delay 1.0
 set_attr flatten_arrays none
 set_attr output_style_reset_all on
 
