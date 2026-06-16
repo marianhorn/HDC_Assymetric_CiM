@@ -94,7 +94,16 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       rsp_valid("rsp_valid"),
       rsp_ready("rsp_ready"),
       rsp_valid_prediction("rsp_valid_prediction"),
+#ifdef STRATUS_HLS
+      m_distance_done_out("m_distance_done_out"),
+      m_distance_done_in("m_distance_done_in"),
+#endif
       m_current_class_valid(false) {
+#ifdef STRATUS_HLS
+    m_distance_done_out.clk_rst(clk, rst);
+    m_distance_done_in.clk_rst(clk, rst);
+#endif
+
     SC_CTHREAD(command_thread, clk.pos());
     reset_signal_is(rst, true);
 
@@ -641,15 +650,21 @@ void HDC_Accelerator::distance_thread() {
     NGramPacket work = NGramPacket();
     DistancePacket output_packet = DistancePacket();
     bool busy = false;
+#ifndef STRATUS_HLS
     bool output_valid = false;
     bool output_presented = false;
+#endif
     unsigned class_id = 0;
 
     {
         HLS_DEFINE_PROTOCOL("distance_reset");
         m_distance_in_ready.write(false);
+#ifdef STRATUS_HLS
+        m_distance_done_out.reset();
+#else
         m_distance_done_data.write(DistancePacket());
         m_distance_done_valid.write(false);
+#endif
         wait();
     }
 
@@ -657,14 +672,20 @@ void HDC_Accelerator::distance_thread() {
         {
             HLS_DEFINE_PROTOCOL("distance_cycle");
 
+#ifndef STRATUS_HLS
             if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_distance_done_ready.read()) {
                 output_valid = false;
                 output_presented = false;
             }
+#endif
 
+#ifdef STRATUS_HLS
+            const bool can_accept_input = !busy;
+#else
             const bool can_accept_input = !busy && !output_valid;
+#endif
             m_distance_in_ready.write(can_accept_input);
 
             if (can_accept_input && m_distance_in_valid.read()) {
@@ -675,8 +696,13 @@ void HDC_Accelerator::distance_thread() {
                     for (unsigned copy_class = 0; copy_class < NUM_CLASSES; ++copy_class) {
                         output_packet.distances[copy_class] = 0;
                     }
+#ifdef STRATUS_HLS
+                    m_distance_in_ready.write(false);
+                    m_distance_done_out.put(output_packet);
+#else
                     output_valid = true;
                     output_presented = false;
+#endif
                 } else {
                     work = item;
                     output_packet = DistancePacket();
@@ -689,22 +715,34 @@ void HDC_Accelerator::distance_thread() {
                 }
             }
 
+#ifdef STRATUS_HLS
+            if (busy) {
+#else
             if (busy && !output_valid) {
+#endif
                 output_packet.distances[class_id] =
                     hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
 
                 if (class_id == (NUM_CLASSES - 1u)) {
+#ifdef STRATUS_HLS
+                    busy = false;
+                    class_id = 0;
+                    m_distance_done_out.put(output_packet);
+#else
                     output_valid = true;
                     output_presented = false;
                     busy = false;
                     class_id = 0;
+#endif
                 } else {
                     class_id = class_id + 1u;
                 }
             }
 
+#ifndef STRATUS_HLS
             m_distance_done_data.write(output_packet);
             m_distance_done_valid.write(output_valid);
+#endif
             wait();
         }
     }
@@ -712,6 +750,53 @@ void HDC_Accelerator::distance_thread() {
 
 void HDC_Accelerator::response_thread() {
     DistancePacket work = DistancePacket();
+
+#ifdef STRATUS_HLS
+    {
+        HLS_DEFINE_PROTOCOL("response_reset");
+        rsp_valid.write(false);
+        rsp_valid_prediction.write(false);
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            rsp_distances[class_id].write(0);
+        }
+        m_distance_done_in.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            HLS_DEFINE_PROTOCOL("response_get");
+            rsp_valid.write(false);
+            rsp_valid_prediction.write(false);
+            work = m_distance_done_in.get();
+        }
+
+        bool accepted = false;
+        while (!accepted) {
+            {
+                HLS_DEFINE_PROTOCOL("response_cycle");
+                rsp_valid.write(true);
+                rsp_valid_prediction.write(work.valid_prediction);
+                for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+                    rsp_distances[class_id].write(work.distances[class_id]);
+                }
+
+                if (rsp_ready.read()) {
+                    accepted = true;
+                }
+
+                wait();
+            }
+        }
+
+        {
+            HLS_DEFINE_PROTOCOL("response_clear");
+            rsp_valid.write(false);
+            rsp_valid_prediction.write(false);
+            wait();
+        }
+    }
+#else
     bool holding_response = false;
     bool distance_token_consumed = false;
 
@@ -764,6 +849,7 @@ void HDC_Accelerator::response_thread() {
             wait();
         }
     }
+#endif
 }
 
 void HDC_Accelerator::reset_ngram_buffer() {

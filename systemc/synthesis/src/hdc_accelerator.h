@@ -6,6 +6,7 @@
 #include <systemc.h>
 #ifdef STRATUS_HLS
 #include "stratus_hls.h"
+#include <cynw_p2p.h>
 #endif
 #ifndef HLS_DEFINE_PROTOCOL
 #define HLS_DEFINE_PROTOCOL(name) if (true)
@@ -200,9 +201,14 @@ private:
     sc_core::sc_signal<bool> m_distance_in_valid;
     sc_core::sc_signal<bool> m_distance_in_ready;
 
+#ifdef STRATUS_HLS
+    cynw_p2p<DistancePacket, CYN::PIN>::out m_distance_done_out;
+    cynw_p2p<DistancePacket, CYN::PIN>::in m_distance_done_in;
+#else
     sc_core::sc_signal<DistancePacket> m_distance_done_data;
     sc_core::sc_signal<bool> m_distance_done_valid;
     sc_core::sc_signal<bool> m_distance_done_ready;
+#endif
 
     sc_core::sc_signal<bool> m_ngram_control_done_valid;
     sc_core::sc_signal<bool> m_ngram_control_done_ready;
