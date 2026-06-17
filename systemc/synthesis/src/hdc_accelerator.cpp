@@ -166,6 +166,8 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::command_thread() {
 #ifdef STRATUS_HLS
+    EncoderPacket send_packet = EncoderPacket();
+    bool send_pending = false;
     bool wait_ngram_control = false;
     bool wait_train_control = false;
     bool release_ngram_control = false;
@@ -183,6 +185,14 @@ void HDC_Accelerator::command_thread() {
     while (true) {
         {
             HLS_DEFINE_PROTOCOL("command_cycle");
+
+            if (send_pending) {
+                cmd_ready.write(false);
+                m_encoder_in_out.put(send_packet);
+                send_pending = false;
+                wait();
+                continue;
+            }
 
             if (release_ngram_control) {
                 wait_ngram_control = false;
@@ -204,7 +214,8 @@ void HDC_Accelerator::command_thread() {
                 }
             }
 
-            const bool can_accept_command = !wait_ngram_control && !wait_train_control;
+            const bool can_accept_command =
+                !send_pending && !wait_ngram_control && !wait_train_control;
             cmd_ready.write(can_accept_command);
 
             if (cmd_valid.read() && can_accept_command) {
@@ -232,7 +243,8 @@ void HDC_Accelerator::command_thread() {
                     wait_train_control = true;
                 }
 
-                m_encoder_in_out.put(packet);
+                send_packet = packet;
+                send_pending = true;
             }
 
             wait();
@@ -331,7 +343,10 @@ void HDC_Accelerator::encoder_thread() {
     EncoderPacket output_packet = EncoderPacket();
     hv_t encoder_result;
     bool busy = false;
-#ifndef STRATUS_HLS
+#ifdef STRATUS_HLS
+    EncoderPacket send_packet = EncoderPacket();
+    bool send_pending = false;
+#else
     bool output_valid = false;
     bool output_presented = false;
 #endif
@@ -355,6 +370,15 @@ void HDC_Accelerator::encoder_thread() {
     while (true) {
         {
             HLS_DEFINE_PROTOCOL("encoder_cycle");
+
+#ifdef STRATUS_HLS
+            if (send_pending) {
+                m_encoder_out_out.put(send_packet);
+                send_pending = false;
+                wait();
+                continue;
+            }
+#endif
 
 #ifndef STRATUS_HLS
             if (output_valid && !output_presented) {
@@ -397,7 +421,8 @@ void HDC_Accelerator::encoder_thread() {
 #ifdef STRATUS_HLS
                     busy = false;
                     word_index = 0;
-                    m_encoder_out_out.put(output_packet);
+                    send_packet = output_packet;
+                    send_pending = true;
 #else
                     output_valid = true;
                     output_presented = false;
@@ -416,7 +441,8 @@ void HDC_Accelerator::encoder_thread() {
 #ifdef STRATUS_HLS
                         busy = false;
                         word_index = 0;
-                        m_encoder_out_out.put(output_packet);
+                        send_packet = output_packet;
+                        send_pending = true;
 #else
                         output_valid = true;
                         output_presented = false;
@@ -444,6 +470,10 @@ void HDC_Accelerator::ngram_thread() {
     EncoderPacket work_packet = EncoderPacket();
     hv_t work;
     hv_t next;
+    NGramPacket send_packet = NGramPacket();
+    bool send_pending = false;
+    unsigned send_target = OUTPUT_NONE;
+    bool control_done_pending = false;
     bool bind_busy = false;
     unsigned bind_round = 0;
     unsigned bind_word = 0;
@@ -465,6 +495,27 @@ void HDC_Accelerator::ngram_thread() {
         {
             HLS_DEFINE_PROTOCOL("ngram_cycle");
 
+            if (control_done_pending) {
+                const bool done = true;
+                m_ngram_control_done_out.put(done);
+                control_done_pending = false;
+                wait();
+                continue;
+            }
+
+            if (send_pending) {
+                if (send_target == OUTPUT_BUNDLER) {
+                    m_bundler_in_out.put(send_packet);
+                } else if (send_target == OUTPUT_DISTANCE) {
+                    m_distance_in_out.put(send_packet);
+                }
+
+                send_pending = false;
+                send_target = OUTPUT_NONE;
+                wait();
+                continue;
+            }
+
             if (bind_busy) {
                 const unsigned rhs_slot = (oldest_slot + bind_round) % N_GRAM_SIZE;
                 next.words[bind_word] = permute_xor_word(work, m_ngram_buffer[rhs_slot], bind_word);
@@ -480,14 +531,13 @@ void HDC_Accelerator::ngram_thread() {
                         output_packet.class_id = work_packet.class_id;
                         output_packet.ngram = work;
                         output_packet.valid_ngram = true;
+                        send_packet = output_packet;
+                        send_target = (work_packet.kind == AccelCommandKind::TrainSample)
+                                          ? OUTPUT_BUNDLER
+                                          : OUTPUT_DISTANCE;
+                        send_pending = true;
                         bind_busy = false;
                         bind_round = 0;
-
-                        if (work_packet.kind == AccelCommandKind::TrainSample) {
-                            m_bundler_in_out.put(output_packet);
-                        } else {
-                            m_distance_in_out.put(output_packet);
-                        }
                     } else {
                         bind_round = bind_round + 1u;
                     }
@@ -508,11 +558,12 @@ void HDC_Accelerator::ngram_thread() {
                 output_packet.class_id = item.class_id;
                 output_packet.valid_ngram = false;
                 clear_hv(output_packet.ngram);
-                m_bundler_in_out.put(output_packet);
+                send_packet = output_packet;
+                send_target = OUTPUT_BUNDLER;
+                send_pending = true;
             } else if (item.kind == AccelCommandKind::ResetInference) {
                 reset_ngram_buffer();
-                const bool done = true;
-                m_ngram_control_done_out.put(done);
+                control_done_pending = true;
             } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
                 reset_ngram_buffer();
                 output_packet = NGramPacket();
@@ -520,7 +571,9 @@ void HDC_Accelerator::ngram_thread() {
                 output_packet.class_id = item.class_id;
                 output_packet.valid_ngram = false;
                 clear_hv(output_packet.ngram);
-                m_bundler_in_out.put(output_packet);
+                send_packet = output_packet;
+                send_target = OUTPUT_BUNDLER;
+                send_pending = true;
             } else if (item.kind == AccelCommandKind::TrainSample ||
                        item.kind == AccelCommandKind::InferSample) {
                 push_encoded_sample_to_ngram_buffer(item.encoded);
@@ -532,11 +585,11 @@ void HDC_Accelerator::ngram_thread() {
                 clear_hv(output_packet.ngram);
 
                 if (m_ngram_buffer_fill_count != N_GRAM_SIZE) {
-                    if (item.kind == AccelCommandKind::TrainSample) {
-                        m_bundler_in_out.put(output_packet);
-                    } else {
-                        m_distance_in_out.put(output_packet);
-                    }
+                    send_packet = output_packet;
+                    send_target = (item.kind == AccelCommandKind::TrainSample)
+                                      ? OUTPUT_BUNDLER
+                                      : OUTPUT_DISTANCE;
+                    send_pending = true;
                 } else {
                     oldest_slot = m_ngram_buffer_write_pos;
                     work_packet = item;
@@ -552,11 +605,11 @@ void HDC_Accelerator::ngram_thread() {
                         output_packet.class_id = item.class_id;
                         output_packet.ngram = work;
                         output_packet.valid_ngram = true;
-                        if (item.kind == AccelCommandKind::TrainSample) {
-                            m_bundler_in_out.put(output_packet);
-                        } else {
-                            m_distance_in_out.put(output_packet);
-                        }
+                        send_packet = output_packet;
+                        send_target = (item.kind == AccelCommandKind::TrainSample)
+                                          ? OUTPUT_BUNDLER
+                                          : OUTPUT_DISTANCE;
+                        send_pending = true;
                     }
                 }
             }
@@ -750,6 +803,7 @@ void HDC_Accelerator::train_thread() {
     TrainState state = TRAIN_INIT_RESET_SCORES;
     NGramPacket work = NGramPacket();
 #ifdef STRATUS_HLS
+    bool control_done_pending = false;
     unsigned word_index = 0;
     unsigned assoc_class = 0;
 
@@ -773,6 +827,14 @@ void HDC_Accelerator::train_thread() {
     while (true) {
         {
             HLS_DEFINE_PROTOCOL("train_cycle");
+
+            if (control_done_pending) {
+                const bool done = true;
+                m_train_control_done_out.put(done);
+                control_done_pending = false;
+                wait();
+                continue;
+            }
 
             if (state == TRAIN_INIT_RESET_SCORES) {
                 const unsigned base_dim = word_index * HV_WORD_BITS;
@@ -842,8 +904,7 @@ void HDC_Accelerator::train_thread() {
                     m_current_class_valid = false;
                     word_index = 0;
                     state = TRAIN_IDLE;
-                    const bool done = true;
-                    m_train_control_done_out.put(done);
+                    control_done_pending = true;
                 } else {
                     word_index = word_index + 1u;
                 }
@@ -860,8 +921,7 @@ void HDC_Accelerator::train_thread() {
                     m_current_class_valid = false;
                     word_index = 0;
                     state = TRAIN_IDLE;
-                    const bool done = true;
-                    m_train_control_done_out.put(done);
+                    control_done_pending = true;
                 } else {
                     word_index = word_index + 1u;
                 }
@@ -1057,7 +1117,9 @@ void HDC_Accelerator::distance_thread() {
 #ifdef STRATUS_HLS
     NGramPacket work = NGramPacket();
     DistancePacket output_packet = DistancePacket();
+    DistancePacket send_packet = DistancePacket();
     bool busy = false;
+    bool send_pending = false;
     unsigned class_id = 0;
 
     {
@@ -1071,6 +1133,13 @@ void HDC_Accelerator::distance_thread() {
         {
             HLS_DEFINE_PROTOCOL("distance_cycle");
 
+            if (send_pending) {
+                m_distance_done_out.put(send_packet);
+                send_pending = false;
+                wait();
+                continue;
+            }
+
             if (!busy) {
                 const NGramPacket item = m_distance_in_in.get();
                 if (!item.valid_ngram) {
@@ -1079,7 +1148,8 @@ void HDC_Accelerator::distance_thread() {
                     for (unsigned copy_class = 0; copy_class < NUM_CLASSES; ++copy_class) {
                         output_packet.distances[copy_class] = 0;
                     }
-                    m_distance_done_out.put(output_packet);
+                    send_packet = output_packet;
+                    send_pending = true;
                 } else {
                     work = item;
                     output_packet = DistancePacket();
@@ -1099,7 +1169,8 @@ void HDC_Accelerator::distance_thread() {
                 if (class_id == (NUM_CLASSES - 1u)) {
                     busy = false;
                     class_id = 0;
-                    m_distance_done_out.put(output_packet);
+                    send_packet = output_packet;
+                    send_pending = true;
                 } else {
                     class_id = class_id + 1u;
                 }
@@ -1221,13 +1292,6 @@ void HDC_Accelerator::response_thread() {
 
                 wait();
             }
-        }
-
-        {
-            HLS_DEFINE_PROTOCOL("response_clear");
-            rsp_valid.write(false);
-            rsp_valid_prediction.write(false);
-            wait();
         }
     }
 #else
