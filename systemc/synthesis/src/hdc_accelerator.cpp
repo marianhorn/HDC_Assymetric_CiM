@@ -95,13 +95,37 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       rsp_ready("rsp_ready"),
       rsp_valid_prediction("rsp_valid_prediction"),
 #ifdef STRATUS_HLS
+      m_encoder_in_out("m_encoder_in_out"),
+      m_encoder_in_in("m_encoder_in_in"),
+      m_encoder_out_out("m_encoder_out_out"),
+      m_encoder_out_in("m_encoder_out_in"),
+      m_bundler_in_out("m_bundler_in_out"),
+      m_bundler_in_in("m_bundler_in_in"),
+      m_distance_in_out("m_distance_in_out"),
+      m_distance_in_in("m_distance_in_in"),
       m_distance_done_out("m_distance_done_out"),
       m_distance_done_in("m_distance_done_in"),
+      m_ngram_control_done_out("m_ngram_control_done_out"),
+      m_ngram_control_done_in("m_ngram_control_done_in"),
+      m_train_control_done_out("m_train_control_done_out"),
+      m_train_control_done_in("m_train_control_done_in"),
 #endif
       m_current_class_valid(false) {
 #ifdef STRATUS_HLS
+    m_encoder_in_out.clk_rst(clk, rst);
+    m_encoder_in_in.clk_rst(clk, rst);
+    m_encoder_out_out.clk_rst(clk, rst);
+    m_encoder_out_in.clk_rst(clk, rst);
+    m_bundler_in_out.clk_rst(clk, rst);
+    m_bundler_in_in.clk_rst(clk, rst);
+    m_distance_in_out.clk_rst(clk, rst);
+    m_distance_in_in.clk_rst(clk, rst);
     m_distance_done_out.clk_rst(clk, rst);
     m_distance_done_in.clk_rst(clk, rst);
+    m_ngram_control_done_out.clk_rst(clk, rst);
+    m_ngram_control_done_in.clk_rst(clk, rst);
+    m_train_control_done_out.clk_rst(clk, rst);
+    m_train_control_done_in.clk_rst(clk, rst);
 #endif
 
     SC_CTHREAD(command_thread, clk.pos());
@@ -141,6 +165,80 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
 // without waiting for completion. Control commands are blocking stream
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::command_thread() {
+#ifdef STRATUS_HLS
+    bool wait_ngram_control = false;
+    bool wait_train_control = false;
+    bool release_ngram_control = false;
+    bool release_train_control = false;
+
+    {
+        HLS_DEFINE_PROTOCOL("command_reset");
+        cmd_ready.write(false);
+        m_encoder_in_out.reset();
+        m_ngram_control_done_in.reset();
+        m_train_control_done_in.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            HLS_DEFINE_PROTOCOL("command_cycle");
+
+            if (release_ngram_control) {
+                wait_ngram_control = false;
+                release_ngram_control = false;
+            } else if (wait_ngram_control) {
+                bool done_token = false;
+                if (m_ngram_control_done_in.nb_get(done_token)) {
+                    release_ngram_control = true;
+                }
+            }
+
+            if (release_train_control) {
+                wait_train_control = false;
+                release_train_control = false;
+            } else if (wait_train_control) {
+                bool done_token = false;
+                if (m_train_control_done_in.nb_get(done_token)) {
+                    release_train_control = true;
+                }
+            }
+
+            const bool can_accept_command = !wait_ngram_control && !wait_train_control;
+            cmd_ready.write(can_accept_command);
+
+            if (cmd_valid.read() && can_accept_command) {
+                AccelCommand command = {};
+                command.kind = static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
+                command.class_id = cmd_class_id.read();
+                for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                    command.sample.levels[feature] = cmd_sample_levels[feature].read();
+                }
+
+                EncoderPacket packet = {};
+                packet.kind = command.kind;
+                packet.class_id = command.class_id;
+                packet.sample = command.sample;
+                clear_hv(packet.encoded);
+
+                if (command.kind == AccelCommandKind::InferSample) {
+                    packet.class_id = 0;
+                }
+
+                if (is_ngram_control_command(command.kind)) {
+                    wait_ngram_control = true;
+                }
+                if (is_train_control_command(command.kind)) {
+                    wait_train_control = true;
+                }
+
+                m_encoder_in_out.put(packet);
+            }
+
+            wait();
+        }
+    }
+#else
     EncoderPacket output_packet = EncoderPacket();
     bool output_valid = false;
     bool output_presented = false;
@@ -225,6 +323,7 @@ void HDC_Accelerator::command_thread() {
             wait();
         }
     }
+#endif
 }
 
 void HDC_Accelerator::encoder_thread() {
@@ -232,17 +331,24 @@ void HDC_Accelerator::encoder_thread() {
     EncoderPacket output_packet = EncoderPacket();
     hv_t encoder_result;
     bool busy = false;
+#ifndef STRATUS_HLS
     bool output_valid = false;
     bool output_presented = false;
+#endif
     unsigned word_index = 0;
 
     {
         HLS_DEFINE_PROTOCOL("encoder_reset");
         clear_hv(encoder_result);
         clear_hv(output_packet.encoded);
+#ifdef STRATUS_HLS
+        m_encoder_in_in.reset();
+        m_encoder_out_out.reset();
+#else
         m_encoder_in_ready.write(false);
         m_encoder_out_data.write(EncoderPacket());
         m_encoder_out_valid.write(false);
+#endif
         wait();
     }
 
@@ -250,6 +356,7 @@ void HDC_Accelerator::encoder_thread() {
         {
             HLS_DEFINE_PROTOCOL("encoder_cycle");
 
+#ifndef STRATUS_HLS
             if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_encoder_out_ready.read()) {
@@ -266,8 +373,20 @@ void HDC_Accelerator::encoder_thread() {
                 word_index = 0;
                 busy = true;
             }
+#else
+            if (!busy) {
+                work = m_encoder_in_in.get();
+                clear_hv(encoder_result);
+                word_index = 0;
+                busy = true;
+            }
+#endif
 
+#ifdef STRATUS_HLS
+            if (busy) {
+#else
             if (busy && !output_valid) {
+#endif
                 const bool should_encode =
                     work.kind == AccelCommandKind::TrainSample ||
                     work.kind == AccelCommandKind::InferSample;
@@ -275,10 +394,16 @@ void HDC_Accelerator::encoder_thread() {
                 if (!should_encode) {
                     output_packet = work;
                     output_packet.encoded = encoder_result;
+#ifdef STRATUS_HLS
+                    busy = false;
+                    word_index = 0;
+                    m_encoder_out_out.put(output_packet);
+#else
                     output_valid = true;
                     output_presented = false;
                     busy = false;
                     word_index = 0;
+#endif
                 } else {
                     const hv_word_t encoded_word =
                         encode_sample_word(work.sample, m_cim, word_index);
@@ -288,24 +413,158 @@ void HDC_Accelerator::encoder_thread() {
                         output_packet = work;
                         output_packet.encoded = encoder_result;
                         output_packet.encoded.words[word_index] = encoded_word;
+#ifdef STRATUS_HLS
+                        busy = false;
+                        word_index = 0;
+                        m_encoder_out_out.put(output_packet);
+#else
                         output_valid = true;
                         output_presented = false;
                         busy = false;
                         word_index = 0;
+#endif
                     } else {
                         word_index = word_index + 1u;
                     }
                 }
             }
 
+#ifndef STRATUS_HLS
             m_encoder_out_data.write(output_packet);
             m_encoder_out_valid.write(output_valid);
+#endif
             wait();
         }
     }
 }
 
 void HDC_Accelerator::ngram_thread() {
+#ifdef STRATUS_HLS
+    NGramPacket output_packet = NGramPacket();
+    EncoderPacket work_packet = EncoderPacket();
+    hv_t work;
+    hv_t next;
+    bool bind_busy = false;
+    unsigned bind_round = 0;
+    unsigned bind_word = 0;
+    unsigned oldest_slot = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("ngram_reset");
+        clear_hv(work);
+        clear_hv(next);
+        reset_ngram_buffer();
+        m_encoder_out_in.reset();
+        m_bundler_in_out.reset();
+        m_distance_in_out.reset();
+        m_ngram_control_done_out.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            HLS_DEFINE_PROTOCOL("ngram_cycle");
+
+            if (bind_busy) {
+                const unsigned rhs_slot = (oldest_slot + bind_round) % N_GRAM_SIZE;
+                next.words[bind_word] = permute_xor_word(work, m_ngram_buffer[rhs_slot], bind_word);
+
+                if (bind_word + 1u == HV_WORDS) {
+                    work = next;
+                    clear_hv(next);
+                    bind_word = 0;
+
+                    if (bind_round + 1u == N_GRAM_SIZE) {
+                        output_packet = NGramPacket();
+                        output_packet.kind = work_packet.kind;
+                        output_packet.class_id = work_packet.class_id;
+                        output_packet.ngram = work;
+                        output_packet.valid_ngram = true;
+                        bind_busy = false;
+                        bind_round = 0;
+
+                        if (work_packet.kind == AccelCommandKind::TrainSample) {
+                            m_bundler_in_out.put(output_packet);
+                        } else {
+                            m_distance_in_out.put(output_packet);
+                        }
+                    } else {
+                        bind_round = bind_round + 1u;
+                    }
+                } else {
+                    bind_word = bind_word + 1u;
+                }
+
+                wait();
+                continue;
+            }
+
+            EncoderPacket item = m_encoder_out_in.get();
+
+            if (item.kind == AccelCommandKind::ResetTraining) {
+                reset_ngram_buffer();
+                output_packet = NGramPacket();
+                output_packet.kind = item.kind;
+                output_packet.class_id = item.class_id;
+                output_packet.valid_ngram = false;
+                clear_hv(output_packet.ngram);
+                m_bundler_in_out.put(output_packet);
+            } else if (item.kind == AccelCommandKind::ResetInference) {
+                reset_ngram_buffer();
+                const bool done = true;
+                m_ngram_control_done_out.put(done);
+            } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+                reset_ngram_buffer();
+                output_packet = NGramPacket();
+                output_packet.kind = item.kind;
+                output_packet.class_id = item.class_id;
+                output_packet.valid_ngram = false;
+                clear_hv(output_packet.ngram);
+                m_bundler_in_out.put(output_packet);
+            } else if (item.kind == AccelCommandKind::TrainSample ||
+                       item.kind == AccelCommandKind::InferSample) {
+                push_encoded_sample_to_ngram_buffer(item.encoded);
+
+                output_packet = NGramPacket();
+                output_packet.kind = item.kind;
+                output_packet.class_id = item.class_id;
+                output_packet.valid_ngram = false;
+                clear_hv(output_packet.ngram);
+
+                if (m_ngram_buffer_fill_count != N_GRAM_SIZE) {
+                    if (item.kind == AccelCommandKind::TrainSample) {
+                        m_bundler_in_out.put(output_packet);
+                    } else {
+                        m_distance_in_out.put(output_packet);
+                    }
+                } else {
+                    oldest_slot = m_ngram_buffer_write_pos;
+                    work_packet = item;
+                    work = m_ngram_buffer[oldest_slot];
+                    clear_hv(next);
+                    bind_round = (N_GRAM_SIZE > 1) ? 1u : N_GRAM_SIZE;
+                    bind_word = 0;
+
+                    if (N_GRAM_SIZE > 1) {
+                        bind_busy = true;
+                    } else {
+                        output_packet.kind = item.kind;
+                        output_packet.class_id = item.class_id;
+                        output_packet.ngram = work;
+                        output_packet.valid_ngram = true;
+                        if (item.kind == AccelCommandKind::TrainSample) {
+                            m_bundler_in_out.put(output_packet);
+                        } else {
+                            m_distance_in_out.put(output_packet);
+                        }
+                    }
+                }
+            }
+
+            wait();
+        }
+    }
+#else
     NGramPacket output_packet = NGramPacket();
     EncoderPacket work_packet = EncoderPacket();
     hv_t work;
@@ -475,6 +734,7 @@ void HDC_Accelerator::ngram_thread() {
             wait();
         }
     }
+#endif
 }
 
 void HDC_Accelerator::train_thread() {
@@ -489,6 +749,152 @@ void HDC_Accelerator::train_thread() {
 
     TrainState state = TRAIN_INIT_RESET_SCORES;
     NGramPacket work = NGramPacket();
+#ifdef STRATUS_HLS
+    unsigned word_index = 0;
+    unsigned assoc_class = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("train_reset");
+        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+            HLS_UNROLL_LOOP(OFF, "reset-assoc-mem-loop");
+            for (unsigned word = 0; word < HV_WORDS; ++word) {
+                HLS_UNROLL_LOOP(OFF, "reset-assoc-mem-word-loop");
+                m_assoc_mem[class_id].words[word] = 0;
+            }
+        }
+        m_current_class_count = 0;
+        m_current_class_id = 0;
+        m_current_class_valid = false;
+        m_bundler_in_in.reset();
+        m_train_control_done_out.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            HLS_DEFINE_PROTOCOL("train_cycle");
+
+            if (state == TRAIN_INIT_RESET_SCORES) {
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-init-reset-score-word-loop");
+                    m_bundling_score[base_dim + bit] = 0;
+                }
+
+                if (word_index + 1u == HV_WORDS) {
+                    word_index = 0;
+                    assoc_class = 0;
+                    state = TRAIN_INIT_RESET_ASSOC;
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_INIT_RESET_ASSOC) {
+                m_assoc_mem[assoc_class].words[word_index] = 0;
+
+                if (word_index + 1u == HV_WORDS) {
+                    word_index = 0;
+                    if (assoc_class + 1u == NUM_CLASSES) {
+                        assoc_class = 0;
+                        state = TRAIN_IDLE;
+                    } else {
+                        assoc_class = assoc_class + 1u;
+                    }
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_ADD_NGRAM) {
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                const hv_word_t word = work.ngram.words[word_index];
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-add-ngram-word-loop");
+                    if (((word >> bit) & hv_word_t(1)) != 0) {
+                        ++m_bundling_score[base_dim + bit];
+                    } else {
+                        --m_bundling_score[base_dim + bit];
+                    }
+                }
+
+                if (word_index + 1u == HV_WORDS) {
+                    ++m_current_class_count;
+                    word_index = 0;
+                    state = TRAIN_IDLE;
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_FINALIZE_CLASS) {
+                const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
+                const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                hv_word_t class_word = 0;
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-finalize-word-loop");
+                    const unsigned dim = base_dim + bit;
+                    if (m_bundling_score[dim] >= signed_threshold) {
+                        class_word = class_word | (hv_word_t(1) << bit);
+                    }
+                    m_bundling_score[dim] = 0;
+                }
+                m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
+
+                if (word_index + 1u == HV_WORDS) {
+                    m_current_class_count = 0;
+                    m_current_class_id = 0;
+                    m_current_class_valid = false;
+                    word_index = 0;
+                    state = TRAIN_IDLE;
+                    const bool done = true;
+                    m_train_control_done_out.put(done);
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else if (state == TRAIN_RESET_TRAINING) {
+                const unsigned base_dim = word_index * HV_WORD_BITS;
+                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+                    HLS_UNROLL_LOOP(OFF, "train-reset-score-word-loop");
+                    m_bundling_score[base_dim + bit] = 0;
+                }
+
+                if (word_index + 1u == HV_WORDS) {
+                    m_current_class_count = 0;
+                    m_current_class_id = 0;
+                    m_current_class_valid = false;
+                    word_index = 0;
+                    state = TRAIN_IDLE;
+                    const bool done = true;
+                    m_train_control_done_out.put(done);
+                } else {
+                    word_index = word_index + 1u;
+                }
+            } else {
+                const NGramPacket item = m_bundler_in_in.get();
+
+                if (item.kind == AccelCommandKind::TrainSample) {
+                    if (item.valid_ngram) {
+                        work = item;
+                        if (!m_current_class_valid) {
+                            m_current_class_id = item.class_id;
+                            m_current_class_valid = true;
+                        }
+                        word_index = 0;
+                        state = TRAIN_ADD_NGRAM;
+                    }
+                } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+                    word_index = 0;
+                    if (m_current_class_valid) {
+                        state = TRAIN_FINALIZE_CLASS;
+                    } else {
+                        state = TRAIN_RESET_TRAINING;
+                    }
+                } else if (item.kind == AccelCommandKind::ResetTraining) {
+                    word_index = 0;
+                    state = TRAIN_RESET_TRAINING;
+                }
+            }
+
+            wait();
+        }
+    }
+#else
     bool done_valid = false;
     bool done_presented = false;
     unsigned word_index = 0;
@@ -644,27 +1050,20 @@ void HDC_Accelerator::train_thread() {
             wait();
         }
     }
+#endif
 }
 
 void HDC_Accelerator::distance_thread() {
+#ifdef STRATUS_HLS
     NGramPacket work = NGramPacket();
     DistancePacket output_packet = DistancePacket();
     bool busy = false;
-#ifndef STRATUS_HLS
-    bool output_valid = false;
-    bool output_presented = false;
-#endif
     unsigned class_id = 0;
 
     {
         HLS_DEFINE_PROTOCOL("distance_reset");
-        m_distance_in_ready.write(false);
-#ifdef STRATUS_HLS
+        m_distance_in_in.reset();
         m_distance_done_out.reset();
-#else
-        m_distance_done_data.write(DistancePacket());
-        m_distance_done_valid.write(false);
-#endif
         wait();
     }
 
@@ -672,37 +1071,15 @@ void HDC_Accelerator::distance_thread() {
         {
             HLS_DEFINE_PROTOCOL("distance_cycle");
 
-#ifndef STRATUS_HLS
-            if (output_valid && !output_presented) {
-                output_presented = true;
-            } else if (output_valid && m_distance_done_ready.read()) {
-                output_valid = false;
-                output_presented = false;
-            }
-#endif
-
-#ifdef STRATUS_HLS
-            const bool can_accept_input = !busy;
-#else
-            const bool can_accept_input = !busy && !output_valid;
-#endif
-            m_distance_in_ready.write(can_accept_input);
-
-            if (can_accept_input && m_distance_in_valid.read()) {
-                const NGramPacket item = m_distance_in_data.read();
+            if (!busy) {
+                const NGramPacket item = m_distance_in_in.get();
                 if (!item.valid_ngram) {
                     output_packet = DistancePacket();
                     output_packet.valid_prediction = false;
                     for (unsigned copy_class = 0; copy_class < NUM_CLASSES; ++copy_class) {
                         output_packet.distances[copy_class] = 0;
                     }
-#ifdef STRATUS_HLS
-                    m_distance_in_ready.write(false);
                     m_distance_done_out.put(output_packet);
-#else
-                    output_valid = true;
-                    output_presented = false;
-#endif
                 } else {
                     work = item;
                     output_packet = DistancePacket();
@@ -715,37 +1092,94 @@ void HDC_Accelerator::distance_thread() {
                 }
             }
 
-#ifdef STRATUS_HLS
             if (busy) {
-#else
-            if (busy && !output_valid) {
-#endif
                 output_packet.distances[class_id] =
                     hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
 
                 if (class_id == (NUM_CLASSES - 1u)) {
-#ifdef STRATUS_HLS
                     busy = false;
                     class_id = 0;
                     m_distance_done_out.put(output_packet);
-#else
-                    output_valid = true;
-                    output_presented = false;
-                    busy = false;
-                    class_id = 0;
-#endif
                 } else {
                     class_id = class_id + 1u;
                 }
             }
 
-#ifndef STRATUS_HLS
-            m_distance_done_data.write(output_packet);
-            m_distance_done_valid.write(output_valid);
-#endif
             wait();
         }
     }
+#else
+    NGramPacket work = NGramPacket();
+    DistancePacket output_packet = DistancePacket();
+    bool busy = false;
+    bool output_valid = false;
+    bool output_presented = false;
+    unsigned class_id = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("distance_reset");
+        m_distance_in_ready.write(false);
+        m_distance_done_data.write(DistancePacket());
+        m_distance_done_valid.write(false);
+        wait();
+    }
+
+    while (true) {
+        {
+            HLS_DEFINE_PROTOCOL("distance_cycle");
+
+            if (output_valid && !output_presented) {
+                output_presented = true;
+            } else if (output_valid && m_distance_done_ready.read()) {
+                output_valid = false;
+                output_presented = false;
+            }
+
+            const bool can_accept_input = !busy && !output_valid;
+            m_distance_in_ready.write(can_accept_input);
+
+            if (can_accept_input && m_distance_in_valid.read()) {
+                const NGramPacket item = m_distance_in_data.read();
+                if (!item.valid_ngram) {
+                    output_packet = DistancePacket();
+                    output_packet.valid_prediction = false;
+                    for (unsigned copy_class = 0; copy_class < NUM_CLASSES; ++copy_class) {
+                        output_packet.distances[copy_class] = 0;
+                    }
+                    output_valid = true;
+                    output_presented = false;
+                } else {
+                    work = item;
+                    output_packet = DistancePacket();
+                    output_packet.valid_prediction = true;
+                    for (unsigned copy_class = 0; copy_class < NUM_CLASSES; ++copy_class) {
+                        output_packet.distances[copy_class] = 0;
+                    }
+                    class_id = 0;
+                    busy = true;
+                }
+            }
+
+            if (busy && !output_valid) {
+                output_packet.distances[class_id] =
+                    hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
+
+                if (class_id == (NUM_CLASSES - 1u)) {
+                    output_valid = true;
+                    output_presented = false;
+                    busy = false;
+                    class_id = 0;
+                } else {
+                    class_id = class_id + 1u;
+                }
+            }
+
+            m_distance_done_data.write(output_packet);
+            m_distance_done_valid.write(output_valid);
+            wait();
+        }
+    }
+#endif
 }
 
 void HDC_Accelerator::response_thread() {

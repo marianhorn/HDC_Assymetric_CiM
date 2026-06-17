@@ -185,6 +185,28 @@ private:
 
     void reset_ngram_buffer();
 
+#ifdef STRATUS_HLS
+    cynw_p2p<EncoderPacket, CYN::PIN>::out m_encoder_in_out;
+    cynw_p2p<EncoderPacket, CYN::PIN>::in m_encoder_in_in;
+
+    cynw_p2p<EncoderPacket, CYN::PIN>::out m_encoder_out_out;
+    cynw_p2p<EncoderPacket, CYN::PIN>::in m_encoder_out_in;
+
+    cynw_p2p<NGramPacket, CYN::PIN>::out m_bundler_in_out;
+    cynw_p2p<NGramPacket, CYN::PIN>::in m_bundler_in_in;
+
+    cynw_p2p<NGramPacket, CYN::PIN>::out m_distance_in_out;
+    cynw_p2p<NGramPacket, CYN::PIN>::in m_distance_in_in;
+
+    cynw_p2p<DistancePacket, CYN::PIN>::out m_distance_done_out;
+    cynw_p2p<DistancePacket, CYN::PIN>::in m_distance_done_in;
+
+    cynw_p2p<bool, CYN::PIN>::out m_ngram_control_done_out;
+    cynw_p2p<bool, CYN::PIN>::in m_ngram_control_done_in;
+
+    cynw_p2p<bool, CYN::PIN>::out m_train_control_done_out;
+    cynw_p2p<bool, CYN::PIN>::in m_train_control_done_in;
+#else
     sc_core::sc_signal<EncoderPacket> m_encoder_in_data;
     sc_core::sc_signal<bool> m_encoder_in_valid;
     sc_core::sc_signal<bool> m_encoder_in_ready;
@@ -201,19 +223,15 @@ private:
     sc_core::sc_signal<bool> m_distance_in_valid;
     sc_core::sc_signal<bool> m_distance_in_ready;
 
-#ifdef STRATUS_HLS
-    cynw_p2p<DistancePacket, CYN::PIN>::out m_distance_done_out;
-    cynw_p2p<DistancePacket, CYN::PIN>::in m_distance_done_in;
-#else
     sc_core::sc_signal<DistancePacket> m_distance_done_data;
     sc_core::sc_signal<bool> m_distance_done_valid;
     sc_core::sc_signal<bool> m_distance_done_ready;
-#endif
 
     sc_core::sc_signal<bool> m_ngram_control_done_valid;
     sc_core::sc_signal<bool> m_ngram_control_done_ready;
     sc_core::sc_signal<bool> m_train_control_done_valid;
     sc_core::sc_signal<bool> m_train_control_done_ready;
+#endif
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];
     unsigned m_ngram_buffer_write_pos;
