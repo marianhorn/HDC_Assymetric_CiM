@@ -20,9 +20,11 @@
 using hdc_systemc::AccelCommandKind;
 using hdc_systemc::QuantizedSample;
 using hdc_systemc::class_t;
+using hdc_systemc::clear_quantized_sample;
 using hdc_systemc::command_kind_t;
 using hdc_systemc::distance_counter_t;
 using hdc_systemc::feature_score_t;
+using hdc_systemc::hv_clear;
 using hdc_systemc::hv_t;
 using hdc_systemc::level_t;
 using hdc_systemc::train_counter_t;
@@ -33,12 +35,6 @@ struct EncoderPacket {
     class_t class_id;
     QuantizedSample sample;
     hv_t encoded;
-
-    EncoderPacket()
-        : kind(AccelCommandKind::ResetTraining),
-          class_id(0),
-          sample(),
-          encoded() {}
 
     bool operator==(const EncoderPacket &other) const {
         return kind == other.kind &&
@@ -58,12 +54,6 @@ struct NGramPacket {
     hv_t ngram;
     bool valid_ngram;
 
-    NGramPacket()
-        : kind(AccelCommandKind::ResetTraining),
-          class_id(0),
-          ngram(),
-          valid_ngram(false) {}
-
     bool operator==(const NGramPacket &other) const {
         return kind == other.kind &&
                class_id == other.class_id &&
@@ -79,13 +69,6 @@ struct NGramPacket {
 struct DistancePacket {
     bool valid_prediction;
     distance_counter_t distances[NUM_CLASSES];
-
-    DistancePacket()
-        : valid_prediction(false) {
-        for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-            distances[class_id] = 0;
-        }
-    }
 
     bool operator==(const DistancePacket &other) const {
         if (valid_prediction != other.valid_prediction) {
@@ -103,6 +86,27 @@ struct DistancePacket {
         return !(*this == other);
     }
 };
+
+inline void clear_encoder_packet(EncoderPacket &packet) {
+    packet.kind = AccelCommandKind::ResetTraining;
+    packet.class_id = 0;
+    clear_quantized_sample(packet.sample);
+    hv_clear(packet.encoded);
+}
+
+inline void clear_ngram_packet(NGramPacket &packet) {
+    packet.kind = AccelCommandKind::ResetTraining;
+    packet.class_id = 0;
+    hv_clear(packet.ngram);
+    packet.valid_ngram = false;
+}
+
+inline void clear_distance_packet(DistancePacket &packet) {
+    packet.valid_prediction = false;
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        packet.distances[class_id] = 0;
+    }
+}
 
 inline void sc_trace(sc_core::sc_trace_file *tf, const EncoderPacket &packet, const std::string &name) {
     sc_core::sc_trace(tf, packet.class_id, name + ".class_id");

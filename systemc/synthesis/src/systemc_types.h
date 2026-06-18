@@ -44,12 +44,6 @@ typedef sc_dt::sc_uint<HV_WORD_BITS> hv_word_t;
 struct hv_t {
     hv_word_t words[HV_WORDS];
 
-    hv_t() {
-        for (unsigned word = 0; word < HV_WORDS; ++word) {
-            words[word] = 0;
-        }
-    }
-
     bool operator==(const hv_t &other) const {
         for (unsigned word = 0; word < HV_WORDS; ++word) {
             if (words[word] != other.words[word]) {

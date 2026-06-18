@@ -18,12 +18,6 @@ enum class AccelCommandKind {
 struct QuantizedSample {
     level_t levels[NUM_FEATURES];
 
-    QuantizedSample() {
-        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-            levels[feature] = 0;
-        }
-    }
-
     bool operator==(const QuantizedSample &other) const {
         for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
             if (levels[feature] != other.levels[feature]) {
@@ -37,6 +31,12 @@ struct QuantizedSample {
         return !(*this == other);
     }
 };
+
+inline void clear_quantized_sample(QuantizedSample &sample) {
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        sample.levels[feature] = 0;
+    }
+}
 
 inline void sc_trace(sc_core::sc_trace_file *tf, const QuantizedSample &sample, const std::string &name) {
     for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
