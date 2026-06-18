@@ -178,7 +178,8 @@ void HDC_Accelerator::command_thread() {
     bool release_ngram_control = false;
     bool release_train_control = false;
 
-    HLS_DEFINE_PROTOCOL("command_reset") {
+    {
+        HLS_DEFINE_PROTOCOL("command_reset");
         cmd_ready.write(false);
         state = CMD_IDLE;
         wait_ngram_control = false;
@@ -192,7 +193,8 @@ void HDC_Accelerator::command_thread() {
     }
 
     while (true) {
-        HLS_DEFINE_PROTOCOL("command_cycle") {
+        {
+            HLS_DEFINE_PROTOCOL("command_cycle");
             const bool cmd_valid_snapshot = cmd_valid.read();
             const AccelCommandKind cmd_kind_snapshot =
                 static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
@@ -364,7 +366,8 @@ void HDC_Accelerator::encoder_thread() {
     EncoderState state = ENC_WAIT_INPUT;
     unsigned word_index = 0;
 
-    HLS_DEFINE_PROTOCOL("encoder_reset") {
+    {
+        HLS_DEFINE_PROTOCOL("encoder_reset");
         state = ENC_WAIT_INPUT;
         word_index = 0;
         m_encoder_in_in.reset();
@@ -373,7 +376,8 @@ void HDC_Accelerator::encoder_thread() {
     }
 
     while (true) {
-        HLS_DEFINE_PROTOCOL("encoder_cycle") {
+        {
+            HLS_DEFINE_PROTOCOL("encoder_cycle");
             if (state == ENC_SEND) {
                 m_encoder_out_out.put(send_packet);
                 state = ENC_WAIT_INPUT;
@@ -513,7 +517,8 @@ void HDC_Accelerator::ngram_thread() {
     unsigned oldest_slot = 0;
     unsigned reset_slot = 0;
 
-    HLS_DEFINE_PROTOCOL("ngram_reset") {
+    {
+        HLS_DEFINE_PROTOCOL("ngram_reset");
         m_ngram_buffer_write_pos = 0;
         m_ngram_buffer_fill_count = 0;
         state = NGRAM_INIT_CLEAR;
@@ -530,7 +535,8 @@ void HDC_Accelerator::ngram_thread() {
     }
 
     while (true) {
-        HLS_DEFINE_PROTOCOL("ngram_cycle") {
+        {
+            HLS_DEFINE_PROTOCOL("ngram_cycle");
             if (state == NGRAM_INIT_CLEAR) {
                 clear_hv(m_ngram_buffer[reset_slot]);
                 if (reset_slot + 1u == N_GRAM_SIZE) {
@@ -835,7 +841,8 @@ void HDC_Accelerator::train_thread() {
     unsigned word_index = 0;
     unsigned assoc_class = 0;
 
-    HLS_DEFINE_PROTOCOL("train_reset") {
+    {
+        HLS_DEFINE_PROTOCOL("train_reset");
         state = TRAIN_INIT_RESET_SCORES;
         word_index = 0;
         assoc_class = 0;
@@ -848,7 +855,8 @@ void HDC_Accelerator::train_thread() {
     }
 
     while (true) {
-        HLS_DEFINE_PROTOCOL("train_cycle") {
+        {
+            HLS_DEFINE_PROTOCOL("train_cycle");
             if (state == TRAIN_SEND_DONE) {
                 const bool done = true;
                 m_train_control_done_out.put(done);
@@ -1142,7 +1150,8 @@ void HDC_Accelerator::distance_thread() {
     DistanceState state = DIST_WAIT_INPUT;
     unsigned class_id = 0;
 
-    HLS_DEFINE_PROTOCOL("distance_reset") {
+    {
+        HLS_DEFINE_PROTOCOL("distance_reset");
         state = DIST_WAIT_INPUT;
         class_id = 0;
         m_distance_in_in.reset();
@@ -1151,7 +1160,8 @@ void HDC_Accelerator::distance_thread() {
     }
 
     while (true) {
-        HLS_DEFINE_PROTOCOL("distance_cycle") {
+        {
+            HLS_DEFINE_PROTOCOL("distance_cycle");
             if (state == DIST_SEND) {
                 m_distance_done_out.put(send_packet);
                 state = DIST_WAIT_INPUT;
@@ -1270,7 +1280,8 @@ void HDC_Accelerator::response_thread() {
 
     ResponseState state = RSP_WAIT_PACKET;
 
-    HLS_DEFINE_PROTOCOL("response_reset") {
+    {
+        HLS_DEFINE_PROTOCOL("response_reset");
         rsp_valid.write(false);
         rsp_valid_prediction.write(false);
 #if NUM_CLASSES > 0
@@ -1294,7 +1305,8 @@ void HDC_Accelerator::response_thread() {
     }
 
     while (true) {
-        HLS_DEFINE_PROTOCOL("response_cycle") {
+        {
+            HLS_DEFINE_PROTOCOL("response_cycle");
             if (state == RSP_WAIT_PACKET) {
                 rsp_valid.write(false);
                 rsp_valid_prediction.write(false);

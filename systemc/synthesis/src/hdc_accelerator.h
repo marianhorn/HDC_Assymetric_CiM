@@ -9,7 +9,7 @@
 #include <cynw_p2p.h>
 #endif
 #ifndef HLS_DEFINE_PROTOCOL
-#define HLS_DEFINE_PROTOCOL(name) if (true)
+#define HLS_DEFINE_PROTOCOL(name) ((void)0)
 #endif
 #ifndef HLS_UNROLL_LOOP
 #define HLS_UNROLL_LOOP(mode, name) ((void)0)
@@ -31,10 +31,10 @@ using hdc_systemc::train_counter_t;
 using hdc_systemc::train_score_t;
 
 struct EncoderPacket {
-    AccelCommandKind kind;
-    class_t class_id;
-    QuantizedSample sample;
-    hv_t encoded;
+    AccelCommandKind kind = AccelCommandKind::ResetTraining;
+    class_t class_id = 0;
+    QuantizedSample sample = {};
+    hv_t encoded = {};
 
     bool operator==(const EncoderPacket &other) const {
         return kind == other.kind &&
@@ -49,10 +49,10 @@ struct EncoderPacket {
 };
 
 struct NGramPacket {
-    AccelCommandKind kind;
-    class_t class_id;
-    hv_t ngram;
-    bool valid_ngram;
+    AccelCommandKind kind = AccelCommandKind::ResetTraining;
+    class_t class_id = 0;
+    hv_t ngram = {};
+    bool valid_ngram = false;
 
     bool operator==(const NGramPacket &other) const {
         return kind == other.kind &&
@@ -67,8 +67,8 @@ struct NGramPacket {
 };
 
 struct DistancePacket {
-    bool valid_prediction;
-    distance_counter_t distances[NUM_CLASSES];
+    bool valid_prediction = false;
+    distance_counter_t distances[NUM_CLASSES] = {};
 
     bool operator==(const DistancePacket &other) const {
         if (valid_prediction != other.valid_prediction) {

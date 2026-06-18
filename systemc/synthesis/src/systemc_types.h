@@ -42,7 +42,7 @@ static constexpr unsigned HV_WORDS = VECTOR_DIMENSION / HV_WORD_BITS;
 typedef sc_dt::sc_uint<HV_WORD_BITS> hv_word_t;
 
 struct hv_t {
-    hv_word_t words[HV_WORDS];
+    hv_word_t words[HV_WORDS] = {};
 
     bool operator==(const hv_t &other) const {
         for (unsigned word = 0; word < HV_WORDS; ++word) {
