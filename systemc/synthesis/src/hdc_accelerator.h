@@ -8,10 +8,10 @@
 #include "stratus_hls.h"
 #include <cynw_p2p.h>
 #endif
-#ifndef HLS_DEFINE_PROTOCOL
+#if !defined(STRATUS_HLS) && !defined(HLS_DEFINE_PROTOCOL)
 #define HLS_DEFINE_PROTOCOL(name) ((void)0)
 #endif
-#ifndef HLS_UNROLL_LOOP
+#if !defined(STRATUS_HLS) && !defined(HLS_UNROLL_LOOP)
 #define HLS_UNROLL_LOOP(mode, name) ((void)0)
 #endif
 #include "systemc_types.h"
