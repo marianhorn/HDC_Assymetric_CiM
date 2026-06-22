@@ -194,17 +194,27 @@ void HDC_Accelerator::command_thread() {
 
     while (true) {
         {
-            const bool cmd_valid_snapshot = cmd_valid.read();
-            const AccelCommandKind cmd_kind_snapshot =
-                static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
-            const class_t cmd_class_id_snapshot = cmd_class_id.read();
+            bool cmd_valid_snapshot = false;
+            AccelCommandKind cmd_kind_snapshot = AccelCommandKind::ResetTraining;
+            class_t cmd_class_id_snapshot = 0;
             QuantizedSample cmd_sample_snapshot;
-            for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-                cmd_sample_snapshot.levels[feature] = cmd_sample_levels[feature].read();
+
+            {
+                HLS_DEFINE_PROTOCOL("command_input");
+                cmd_valid_snapshot = cmd_valid.read();
+                cmd_kind_snapshot =
+                    static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
+                cmd_class_id_snapshot = cmd_class_id.read();
+                for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                    cmd_sample_snapshot.levels[feature] = cmd_sample_levels[feature].read();
+                }
             }
 
             if (state == CMD_SEND_PENDING) {
-                cmd_ready.write(false);
+                {
+                    HLS_DEFINE_PROTOCOL("command_ready_low");
+                    cmd_ready.write(false);
+                }
                 m_encoder_in_out.put(send_packet);
                 state = CMD_IDLE;
             } else {
@@ -229,7 +239,10 @@ void HDC_Accelerator::command_thread() {
                 }
 
                 const bool can_accept_command = !wait_ngram_control && !wait_train_control;
-                cmd_ready.write(can_accept_command);
+                {
+                    HLS_DEFINE_PROTOCOL("command_ready");
+                    cmd_ready.write(can_accept_command);
+                }
 
                 if (cmd_valid_snapshot && can_accept_command) {
                     AccelCommand command;
@@ -259,7 +272,10 @@ void HDC_Accelerator::command_thread() {
                 }
             }
 
-            wait();
+            {
+                HLS_DEFINE_PROTOCOL("command_wait");
+                wait();
+            }
         }
     }
 #else
@@ -410,7 +426,10 @@ void HDC_Accelerator::encoder_thread() {
                 }
             }
 
-            wait();
+            {
+                HLS_DEFINE_PROTOCOL("encoder_wait");
+                wait();
+            }
         }
     }
 #else
@@ -643,7 +662,10 @@ void HDC_Accelerator::ngram_thread() {
                 }
             }
 
-            wait();
+            {
+                HLS_DEFINE_PROTOCOL("ngram_wait");
+                wait();
+            }
         }
     }
 #else
@@ -869,7 +891,10 @@ void HDC_Accelerator::train_thread() {
                     word_index = word_index + 1u;
                 }
             } else if (state == TRAIN_INIT_RESET_ASSOC) {
-                m_assoc_mem[assoc_class].words[word_index] = 0;
+                {
+                    HLS_DEFINE_PROTOCOL("train_assoc_clear_word");
+                    m_assoc_mem[assoc_class].words[word_index] = 0;
+                }
 
                 if (word_index + 1u == HV_WORDS) {
                     word_index = 0;
@@ -914,7 +939,10 @@ void HDC_Accelerator::train_thread() {
                     }
                     m_bundling_score[dim] = 0;
                 }
-                m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
+                {
+                    HLS_DEFINE_PROTOCOL("train_assoc_write_word");
+                    m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
+                }
 
                 if (word_index + 1u == HV_WORDS) {
                     m_current_class_count = 0;
@@ -967,7 +995,10 @@ void HDC_Accelerator::train_thread() {
                 }
             }
 
-            wait();
+            {
+                HLS_DEFINE_PROTOCOL("train_wait");
+                wait();
+            }
         }
     }
 #else
@@ -1139,6 +1170,7 @@ void HDC_Accelerator::distance_thread() {
     NGramPacket work;
     DistancePacket output_packet;
     DistancePacket send_packet;
+    hv_t assoc_snapshot;
     DistanceState state = DIST_WAIT_INPUT;
     unsigned class_id = 0;
 
@@ -1171,8 +1203,14 @@ void HDC_Accelerator::distance_thread() {
                     state = DIST_COMPUTE;
                 }
             } else {
+                {
+                    HLS_DEFINE_PROTOCOL("distance_assoc_read");
+                    for (unsigned word = 0; word < HV_WORDS; ++word) {
+                        assoc_snapshot.words[word] = m_assoc_mem[class_id].words[word];
+                    }
+                }
                 output_packet.distances[class_id] =
-                    hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
+                    hamming_distance_words(work.ngram, assoc_snapshot);
 
                 if (class_id == (NUM_CLASSES - 1u)) {
                     class_id = 0;
@@ -1183,7 +1221,10 @@ void HDC_Accelerator::distance_thread() {
                 }
             }
 
-            wait();
+            {
+                HLS_DEFINE_PROTOCOL("distance_wait");
+                wait();
+            }
         }
     }
 #else
@@ -1297,23 +1338,37 @@ void HDC_Accelerator::response_thread() {
     while (true) {
         {
             if (state == RSP_WAIT_PACKET) {
-                rsp_valid.write(false);
-                rsp_valid_prediction.write(false);
+                {
+                    HLS_DEFINE_PROTOCOL("response_idle_outputs");
+                    rsp_valid.write(false);
+                    rsp_valid_prediction.write(false);
+                }
                 work = m_distance_done_in.get();
                 state = RSP_PRESENT;
             } else {
-                rsp_valid.write(true);
-                rsp_valid_prediction.write(work.valid_prediction);
-                for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-                    rsp_distances[class_id].write(work.distances[class_id]);
+                {
+                    HLS_DEFINE_PROTOCOL("response_outputs");
+                    rsp_valid.write(true);
+                    rsp_valid_prediction.write(work.valid_prediction);
+                    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+                        rsp_distances[class_id].write(work.distances[class_id]);
+                    }
                 }
 
-                if (rsp_ready.read()) {
+                bool rsp_ready_snapshot = false;
+                {
+                    HLS_DEFINE_PROTOCOL("response_ready");
+                    rsp_ready_snapshot = rsp_ready.read();
+                }
+                if (rsp_ready_snapshot) {
                     state = RSP_WAIT_PACKET;
                 }
             }
 
-            wait();
+            {
+                HLS_DEFINE_PROTOCOL("response_wait");
+                wait();
+            }
         }
     }
 #else
