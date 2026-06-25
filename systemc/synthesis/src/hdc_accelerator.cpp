@@ -1170,7 +1170,6 @@ void HDC_Accelerator::distance_thread() {
     NGramPacket work;
     DistancePacket output_packet;
     DistancePacket send_packet;
-    hv_t assoc_snapshot;
     DistanceState state = DIST_WAIT_INPUT;
     unsigned class_id = 0;
 
@@ -1203,14 +1202,8 @@ void HDC_Accelerator::distance_thread() {
                     state = DIST_COMPUTE;
                 }
             } else {
-                {
-                    HLS_DEFINE_PROTOCOL("distance_assoc_read");
-                    for (unsigned word = 0; word < HV_WORDS; ++word) {
-                        assoc_snapshot.words[word] = m_assoc_mem[class_id].words[word];
-                    }
-                }
                 output_packet.distances[class_id] =
-                    hamming_distance_words(work.ngram, assoc_snapshot);
+                    hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
 
                 if (class_id == (NUM_CLASSES - 1u)) {
                     class_id = 0;
@@ -1346,13 +1339,10 @@ void HDC_Accelerator::response_thread() {
                 work = m_distance_done_in.get();
                 state = RSP_PRESENT;
             } else {
-                {
-                    HLS_DEFINE_PROTOCOL("response_outputs");
-                    rsp_valid.write(true);
-                    rsp_valid_prediction.write(work.valid_prediction);
-                    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-                        rsp_distances[class_id].write(work.distances[class_id]);
-                    }
+                rsp_valid.write(true);
+                rsp_valid_prediction.write(work.valid_prediction);
+                for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+                    rsp_distances[class_id].write(work.distances[class_id]);
                 }
 
                 bool rsp_ready_snapshot = false;
