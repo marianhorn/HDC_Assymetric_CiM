@@ -23,6 +23,19 @@ bool is_ngram_control_command(AccelCommandKind kind) {
     return kind == AccelCommandKind::ResetInference;
 }
 
+#ifdef STRATUS_HLS
+distance_counter_t popcount_word(hv_word_t value) {
+    distance_counter_t count = 0;
+    for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+        HLS_UNROLL_LOOP(OFF, "popcount-word-bits-loop");
+        if (((value >> bit) & hv_word_t(1)) != 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+#endif
+
 distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
     distance_counter_t distance = 0;
     for (unsigned word = 0; word < HV_WORDS; ++word) {
@@ -1172,11 +1185,15 @@ void HDC_Accelerator::distance_thread() {
     DistancePacket send_packet;
     DistanceState state = DIST_WAIT_INPUT;
     unsigned class_id = 0;
+    unsigned word_index = 0;
+    distance_counter_t distance_acc = 0;
 
     {
         HLS_DEFINE_PROTOCOL("distance_reset");
         state = DIST_WAIT_INPUT;
         class_id = 0;
+        word_index = 0;
+        distance_acc = 0;
         m_distance_in_in.reset();
         m_distance_done_out.reset();
         wait();
@@ -1199,21 +1216,36 @@ void HDC_Accelerator::distance_thread() {
                     clear_distance_packet(output_packet);
                     output_packet.valid_prediction = true;
                     class_id = 0;
+                    word_index = 0;
+                    distance_acc = 0;
                     state = DIST_COMPUTE;
                 }
             } else {
+                hv_word_t assoc_word = 0;
                 {
-                    HLS_DEFINE_PROTOCOL("distance_assoc_distance");
-                    output_packet.distances[class_id] =
-                        hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
+                    HLS_DEFINE_PROTOCOL("distance_assoc_read_word");
+                    assoc_word = m_assoc_mem[class_id].words[word_index];
                 }
 
-                if (class_id == (NUM_CLASSES - 1u)) {
-                    class_id = 0;
-                    send_packet = output_packet;
-                    state = DIST_SEND;
+                const hv_word_t diff = work.ngram.words[word_index] ^ assoc_word;
+                const distance_counter_t next_distance =
+                    distance_acc + popcount_word(diff);
+
+                if (word_index == (HV_WORDS - 1u)) {
+                    output_packet.distances[class_id] = next_distance;
+                    word_index = 0;
+                    distance_acc = 0;
+
+                    if (class_id == (NUM_CLASSES - 1u)) {
+                        class_id = 0;
+                        send_packet = output_packet;
+                        state = DIST_SEND;
+                    } else {
+                        class_id = class_id + 1u;
+                    }
                 } else {
-                    class_id = class_id + 1u;
+                    word_index = word_index + 1u;
+                    distance_acc = next_distance;
                 }
             }
 
@@ -1306,6 +1338,12 @@ void HDC_Accelerator::response_thread() {
     };
 
     ResponseState state = RSP_WAIT_PACKET;
+    bool response_valid_prediction = false;
+    distance_counter_t response_distance0 = 0;
+    distance_counter_t response_distance1 = 0;
+    distance_counter_t response_distance2 = 0;
+    distance_counter_t response_distance3 = 0;
+    distance_counter_t response_distance4 = 0;
 
     {
         HLS_DEFINE_PROTOCOL("response_reset");
@@ -1327,6 +1365,12 @@ void HDC_Accelerator::response_thread() {
         rsp_distances[4].write(0);
 #endif
         state = RSP_WAIT_PACKET;
+        response_valid_prediction = false;
+        response_distance0 = 0;
+        response_distance1 = 0;
+        response_distance2 = 0;
+        response_distance3 = 0;
+        response_distance4 = 0;
         m_distance_done_in.reset();
         wait();
     }
@@ -1340,26 +1384,42 @@ void HDC_Accelerator::response_thread() {
                     rsp_valid_prediction.write(false);
                 }
                 work = m_distance_done_in.get();
+                response_valid_prediction = work.valid_prediction;
+#if NUM_CLASSES > 0
+                response_distance0 = work.distances[0];
+#endif
+#if NUM_CLASSES > 1
+                response_distance1 = work.distances[1];
+#endif
+#if NUM_CLASSES > 2
+                response_distance2 = work.distances[2];
+#endif
+#if NUM_CLASSES > 3
+                response_distance3 = work.distances[3];
+#endif
+#if NUM_CLASSES > 4
+                response_distance4 = work.distances[4];
+#endif
                 state = RSP_PRESENT;
             } else {
                 {
                     HLS_DEFINE_PROTOCOL("response_outputs");
                     rsp_valid.write(true);
-                    rsp_valid_prediction.write(work.valid_prediction);
+                    rsp_valid_prediction.write(response_valid_prediction);
 #if NUM_CLASSES > 0
-                    rsp_distances[0].write(work.distances[0]);
+                    rsp_distances[0].write(response_distance0);
 #endif
 #if NUM_CLASSES > 1
-                    rsp_distances[1].write(work.distances[1]);
+                    rsp_distances[1].write(response_distance1);
 #endif
 #if NUM_CLASSES > 2
-                    rsp_distances[2].write(work.distances[2]);
+                    rsp_distances[2].write(response_distance2);
 #endif
 #if NUM_CLASSES > 3
-                    rsp_distances[3].write(work.distances[3]);
+                    rsp_distances[3].write(response_distance3);
 #endif
 #if NUM_CLASSES > 4
-                    rsp_distances[4].write(work.distances[4]);
+                    rsp_distances[4].write(response_distance4);
 #endif
                 }
 
