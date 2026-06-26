@@ -1202,8 +1202,11 @@ void HDC_Accelerator::distance_thread() {
                     state = DIST_COMPUTE;
                 }
             } else {
-                output_packet.distances[class_id] =
-                    hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
+                {
+                    HLS_DEFINE_PROTOCOL("distance_assoc_distance");
+                    output_packet.distances[class_id] =
+                        hamming_distance_words(work.ngram, m_assoc_mem[class_id]);
+                }
 
                 if (class_id == (NUM_CLASSES - 1u)) {
                     class_id = 0;
@@ -1339,10 +1342,25 @@ void HDC_Accelerator::response_thread() {
                 work = m_distance_done_in.get();
                 state = RSP_PRESENT;
             } else {
-                rsp_valid.write(true);
-                rsp_valid_prediction.write(work.valid_prediction);
-                for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
-                    rsp_distances[class_id].write(work.distances[class_id]);
+                {
+                    HLS_DEFINE_PROTOCOL("response_outputs");
+                    rsp_valid.write(true);
+                    rsp_valid_prediction.write(work.valid_prediction);
+#if NUM_CLASSES > 0
+                    rsp_distances[0].write(work.distances[0]);
+#endif
+#if NUM_CLASSES > 1
+                    rsp_distances[1].write(work.distances[1]);
+#endif
+#if NUM_CLASSES > 2
+                    rsp_distances[2].write(work.distances[2]);
+#endif
+#if NUM_CLASSES > 3
+                    rsp_distances[3].write(work.distances[3]);
+#endif
+#if NUM_CLASSES > 4
+                    rsp_distances[4].write(work.distances[4]);
+#endif
                 }
 
                 bool rsp_ready_snapshot = false;
