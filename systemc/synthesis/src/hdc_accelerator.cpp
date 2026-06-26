@@ -1,6 +1,9 @@
 // SYNTHESIS TARGET: This module is intended for HLS/SystemC synthesis.
 // Keep dataset loading, floating-point quantization, and testbench code outside this file.
 #include "hdc_accelerator.h"
+#ifdef STRATUS_HLS
+#include "generated_cim_rom_dataset00.h"
+#endif
 
 using namespace hdc_systemc;
 
@@ -51,6 +54,34 @@ distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
     return distance;
 }
 
+#ifdef STRATUS_HLS
+hv_word_t encode_sample_word(const QuantizedSample &sample, unsigned word_index) {
+    hv_word_t encoded_word = 0;
+    const feature_score_t signed_threshold =
+        (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
+
+    for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+        HLS_UNROLL_LOOP(OFF, "encode-word-bits-loop");
+        feature_score_t score = 0;
+        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+            HLS_UNROLL_LOOP(OFF, "encode-features-loop");
+            const unsigned level = sample.levels[feature].to_uint();
+            const hv_word_t feature_word = HDC_CIM_ROM_DATASET00[level][feature][word_index];
+            if (((feature_word >> bit) & hv_word_t(1)) != 0) {
+                ++score;
+            } else {
+                --score;
+            }
+        }
+
+        if (score >= signed_threshold) {
+            encoded_word = encoded_word | (hv_word_t(1) << bit);
+        }
+    }
+
+    return encoded_word;
+}
+#else
 hv_word_t encode_sample_word(const QuantizedSample &sample,
                              const hv_t cim[NUM_LEVELS][NUM_FEATURES],
                              unsigned word_index) {
@@ -81,6 +112,7 @@ hv_word_t encode_sample_word(const QuantizedSample &sample,
 
     return encoded_word;
 }
+#endif
 
 hv_word_t permute_xor_word(const hv_t &input, const hv_t &rhs, unsigned word_index) {
     const unsigned prev_word = (word_index == 0) ? (HV_WORDS - 1u) : (word_index - 1u);
@@ -424,7 +456,7 @@ void HDC_Accelerator::encoder_thread() {
                     state = ENC_SEND;
                 } else {
                     const hv_word_t encoded_word =
-                        encode_sample_word(work.sample, m_cim, word_index);
+                        encode_sample_word(work.sample, word_index);
                     encoder_result.words[word_index] = encoded_word;
 
                     if (word_index + 1u == HV_WORDS) {
