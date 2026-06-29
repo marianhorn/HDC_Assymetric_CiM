@@ -1,5 +1,5 @@
 set_attr fpga_tool "vivado"
-set_attr fpga_part "xc7v2000tflg1925-2"
+set_attr fpga_part "xcvu57p-fsvk2892-3-e"
 
 # Clock period in ns for the synthesized accelerator.
 set_attr clock_period 20
