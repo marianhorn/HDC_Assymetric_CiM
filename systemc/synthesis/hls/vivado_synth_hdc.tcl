@@ -1,4 +1,4 @@
-set part_name xc7v2000tflg1925-2
+set part_name xcvu57p-fsvk2892-3-e
 set top_name HDC_Accelerator
 set out_dir vivado_synth_hdc
 set hls_dir bdw_work/modules/HDC_Accelerator/HLS_BASIC
