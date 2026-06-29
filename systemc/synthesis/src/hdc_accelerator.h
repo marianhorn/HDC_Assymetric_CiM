@@ -190,26 +190,19 @@ private:
     void reset_ngram_buffer();
 
 #ifdef STRATUS_HLS
-    cynw_p2p<EncoderPacket, CYN::TLM>::out m_encoder_in_out;
-    cynw_p2p<EncoderPacket, CYN::TLM>::in m_encoder_in_in;
+    cynw_p2p_direct<EncoderPacket, CYN::PIN> m_encoder_in;
 
-    cynw_p2p<EncoderPacket, CYN::TLM>::out m_encoder_out_out;
-    cynw_p2p<EncoderPacket, CYN::TLM>::in m_encoder_out_in;
+    cynw_p2p_direct<EncoderPacket, CYN::PIN> m_encoder_out;
 
-    cynw_p2p<NGramPacket, CYN::TLM>::out m_bundler_in_out;
-    cynw_p2p<NGramPacket, CYN::TLM>::in m_bundler_in_in;
+    cynw_p2p_direct<NGramPacket, CYN::PIN> m_bundler_in;
 
-    cynw_p2p<NGramPacket, CYN::TLM>::out m_distance_in_out;
-    cynw_p2p<NGramPacket, CYN::TLM>::in m_distance_in_in;
+    cynw_p2p_direct<NGramPacket, CYN::PIN> m_distance_in;
 
-    cynw_p2p<DistancePacket, CYN::TLM>::out m_distance_done_out;
-    cynw_p2p<DistancePacket, CYN::TLM>::in m_distance_done_in;
+    cynw_p2p_direct<DistancePacket, CYN::PIN> m_distance_done;
 
-    cynw_p2p<bool, CYN::TLM>::out m_ngram_control_done_out;
-    cynw_p2p<bool, CYN::TLM>::in m_ngram_control_done_in;
+    cynw_p2p_direct<bool, CYN::PIN> m_ngram_control_done;
 
-    cynw_p2p<bool, CYN::TLM>::out m_train_control_done_out;
-    cynw_p2p<bool, CYN::TLM>::in m_train_control_done_in;
+    cynw_p2p_direct<bool, CYN::PIN> m_train_control_done;
 #else
     sc_core::sc_signal<EncoderPacket> m_encoder_in_data;
     sc_core::sc_signal<bool> m_encoder_in_valid;
