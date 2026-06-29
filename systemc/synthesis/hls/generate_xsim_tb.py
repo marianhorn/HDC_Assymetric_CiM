@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """Generate an XSim SystemVerilog testbench for the Stratus RTL top module."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import pathlib
 import re
-from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional
 
 
-@dataclass
 class Port:
-    direction: str
-    name: str
-    width: str
+    def __init__(self, direction: str, name: str, width: str) -> None:
+        self.direction = direction
+        self.name = name
+        self.width = width
 
 
 def strip_comments(text: str) -> str:
