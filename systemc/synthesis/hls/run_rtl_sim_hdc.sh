@@ -60,6 +60,9 @@ xvlog -sv -work work -log xvlog.log \
     "$TB_SV"
 
 xelab -debug typical \
+    -L unisims_ver \
+    -L unimacro_ver \
+    -L secureip \
     -top hdc_accelerator_rtl_tb \
     -snapshot hdc_accelerator_rtl_tb_snapshot \
     -log xelab.log
