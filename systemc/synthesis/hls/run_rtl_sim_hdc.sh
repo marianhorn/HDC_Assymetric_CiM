@@ -14,6 +14,13 @@ HLS_DIR="bdw_work/modules/HDC_Accelerator/HLS_BASIC"
 TOP_RTL="$SCRIPT_DIR/$HLS_DIR/hdc_accelerator_rtl.v"
 OUT_DIR="$SCRIPT_DIR/vivado_rtl_sim_hdc"
 TB_SV="$OUT_DIR/hdc_accelerator_rtl_tb.sv"
+VIVADO_BIN="$(command -v vivado || true)"
+if [[ -n "$VIVADO_BIN" ]]; then
+    VIVADO_ROOT="$(cd "$(dirname "$VIVADO_BIN")/.." && pwd)"
+else
+    VIVADO_ROOT="${XILINX_VIVADO:-}"
+fi
+GLBL_V="${XILINX_VIVADO:-$VIVADO_ROOT}/data/verilog/src/glbl.v"
 
 if [[ ! -f "$TRACE_DIR/commands.txt" ]]; then
     echo "ERROR: missing trace command file: $TRACE_DIR/commands.txt" >&2
@@ -42,6 +49,11 @@ if [[ ${#GENERATED_RTL[@]} -eq 0 ]]; then
     echo "ERROR: no generated RTL found under $SCRIPT_DIR/$HLS_DIR/v_rtl" >&2
     exit 1
 fi
+if [[ ! -f "$GLBL_V" ]]; then
+    echo "ERROR: missing Vivado glbl.v. Expected: $GLBL_V" >&2
+    echo "Check XILINX_VIVADO or Vivado installation path." >&2
+    exit 1
+fi
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
@@ -57,13 +69,15 @@ xvlog -sv -work work -log xvlog.log \
     "${MEM_RTL[@]}" \
     "${GENERATED_RTL[@]}" \
     "$TOP_RTL" \
-    "$TB_SV"
+    "$TB_SV" \
+    "$GLBL_V"
 
 xelab -debug typical \
     -L unisims_ver \
     -L unimacro_ver \
     -L secureip \
     -top hdc_accelerator_rtl_tb \
+    -top glbl \
     -snapshot hdc_accelerator_rtl_tb_snapshot \
     -log xelab.log
 
