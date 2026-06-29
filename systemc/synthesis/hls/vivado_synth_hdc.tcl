@@ -23,7 +23,7 @@ read_verilog $generated_rtl
 read_verilog $top_rtl
 
 synth_design -top $top_name -part $part_name
-create_clock -name clk -period 20.000 [get_ports clk]
+create_clock -name clk -period 10.000 [get_ports clk]
 
 report_utilization -file $out_dir/utilization_synth.rpt
 report_timing_summary -check_timing_verbose -max_paths 10 -file $out_dir/timing_synth.rpt

@@ -2,7 +2,7 @@ set_attr fpga_tool "vivado"
 set_attr fpga_part "xcvu57p-fsvk2892-3-e"
 
 # Clock period in ns for the synthesized accelerator.
-set_attr clock_period 20
+set_attr clock_period 10
 set_attr default_input_delay 1.0
 set_attr flatten_arrays none
 set_attr output_style_reset_all on
