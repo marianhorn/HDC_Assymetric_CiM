@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 <trace-dir>" >&2
+    exit 2
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+TRACE_DIR="$(cd "$1" && pwd)"
+HLS_DIR="bdw_work/modules/HDC_Accelerator/HLS_BASIC"
+TOP_RTL="$SCRIPT_DIR/$HLS_DIR/hdc_accelerator_rtl.v"
+OUT_DIR="$SCRIPT_DIR/vivado_rtl_sim_hdc"
+TB_SV="$OUT_DIR/hdc_accelerator_rtl_tb.sv"
+
+if [[ ! -f "$TRACE_DIR/commands.txt" ]]; then
+    echo "ERROR: missing trace command file: $TRACE_DIR/commands.txt" >&2
+    exit 1
+fi
+if [[ ! -f "$TRACE_DIR/expected_responses.txt" ]]; then
+    echo "ERROR: missing trace response file: $TRACE_DIR/expected_responses.txt" >&2
+    exit 1
+fi
+if [[ ! -f "$TOP_RTL" ]]; then
+    echo "ERROR: missing HLS top RTL: $TOP_RTL" >&2
+    echo "Run: make hls_HDC_Accelerator_HLS_BASIC" >&2
+    exit 1
+fi
+
+shopt -s nullglob
+MEM_RTL=("$SCRIPT_DIR"/mem_lib/*.v)
+GENERATED_RTL=("$SCRIPT_DIR/$HLS_DIR"/v_rtl/*.v)
+shopt -u nullglob
+
+if [[ ${#MEM_RTL[@]} -eq 0 ]]; then
+    echo "ERROR: no mem_lib Verilog found under $SCRIPT_DIR/mem_lib" >&2
+    exit 1
+fi
+if [[ ${#GENERATED_RTL[@]} -eq 0 ]]; then
+    echo "ERROR: no generated RTL found under $SCRIPT_DIR/$HLS_DIR/v_rtl" >&2
+    exit 1
+fi
+
+rm -rf "$OUT_DIR"
+mkdir -p "$OUT_DIR"
+
+python3 "$SCRIPT_DIR/generate_xsim_tb.py" \
+    --top "$TOP_RTL" \
+    --trace-dir "$TRACE_DIR" \
+    --out "$TB_SV"
+
+pushd "$OUT_DIR" >/dev/null
+
+xvlog -sv -work work -log xvlog.log \
+    "${MEM_RTL[@]}" \
+    "${GENERATED_RTL[@]}" \
+    "$TOP_RTL" \
+    "$TB_SV"
+
+xelab -debug typical \
+    -top hdc_accelerator_rtl_tb \
+    -snapshot hdc_accelerator_rtl_tb_snapshot \
+    -log xelab.log
+
+xsim hdc_accelerator_rtl_tb_snapshot -R -log xsim.log
+
+popd >/dev/null
+
+echo "RTL simulation logs: $OUT_DIR"

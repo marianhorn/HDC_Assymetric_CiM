@@ -89,5 +89,6 @@ systemc/synthesis/hls/project.tcl.user
 systemc/synthesis/hls/stratus.pro
 systemc/synthesis/hls/stratus_ide.log
 systemc/synthesis/hls/hls.pro
+systemc/synthesis/hls/vivado_rtl_sim_hdc/
 analysis/resource_saving/*/runs/
 analysis/resource_saving/evaluation/extracted/

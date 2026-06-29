@@ -2,6 +2,7 @@ SYSTEMC_HOME ?= $(firstword $(wildcard /home/zora/systemc-install) $(wildcard /u
 CXX ?= g++
 TARGET ?= main
 GOLDEN_TARGET ?= systemc_hdc_golden_regression
+RTL_TRACE_TARGET ?= systemc_hdc_rtl_trace_export
 LEGACY_TARGETS := systemc_hdc_tb
 SRC_DIR := src
 BUILD_DIR := build
@@ -19,21 +20,28 @@ LDFLAGS ?= -L$(SYSTEMC_LIB_DIR) -Wl,-rpath,$(SYSTEMC_LIB_DIR) -lsystemc -lm
 COMMON_SOURCES := $(SRC_DIR)/hdc_memory.cpp $(SRC_DIR)/hdc_accelerator.cpp $(SRC_DIR)/controller.cpp $(SRC_DIR)/foot_dataset_loader.cpp
 TB_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/main.cpp
 GOLDEN_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/golden_regression.cpp
+RTL_TRACE_SOURCES := $(COMMON_SOURCES) $(SRC_DIR)/rtl_trace_export.cpp
 TB_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(TB_SOURCES))
 GOLDEN_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(GOLDEN_SOURCES))
+RTL_TRACE_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(RTL_TRACE_SOURCES))
 HEADERS := $(SRC_DIR)/systemc_types.h $(SRC_DIR)/hdc_transactions.h $(SRC_DIR)/hdc_memory.h $(SRC_DIR)/hdc_accelerator.h $(SRC_DIR)/controller.h $(SRC_DIR)/foot_dataset_loader.h $(SRC_DIR)/config_systemc.h $(SRC_DIR)/generated_cim_rom_dataset00.h
 
-.PHONY: all golden clean run run-golden
+.PHONY: all golden rtl-trace clean run run-golden
 
 all: $(TARGET)
 
 golden: $(GOLDEN_TARGET)
+
+rtl-trace: $(RTL_TRACE_TARGET)
 
 $(TARGET): $(TB_OBJECTS)
 	$(CXX) $(TB_OBJECTS) -o $@ $(LDFLAGS)
 
 $(GOLDEN_TARGET): $(GOLDEN_OBJECTS)
 	$(CXX) $(GOLDEN_OBJECTS) -o $@ $(LDFLAGS)
+
+$(RTL_TRACE_TARGET): $(RTL_TRACE_OBJECTS)
+	$(CXX) $(RTL_TRACE_OBJECTS) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -48,4 +56,4 @@ run-golden: $(GOLDEN_TARGET)
 	./$(GOLDEN_TARGET)
 
 clean:
-	rm -f $(TB_OBJECTS) $(GOLDEN_OBJECTS) $(TARGET) $(GOLDEN_TARGET) $(LEGACY_TARGETS)
+	rm -f $(TB_OBJECTS) $(GOLDEN_OBJECTS) $(RTL_TRACE_OBJECTS) $(TARGET) $(GOLDEN_TARGET) $(RTL_TRACE_TARGET) $(LEGACY_TARGETS)
