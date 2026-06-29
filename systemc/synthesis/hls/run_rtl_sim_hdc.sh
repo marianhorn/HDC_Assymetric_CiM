@@ -14,6 +14,7 @@ HLS_DIR="bdw_work/modules/HDC_Accelerator/HLS_BASIC"
 TOP_RTL="$SCRIPT_DIR/$HLS_DIR/hdc_accelerator_rtl.v"
 OUT_DIR="$SCRIPT_DIR/vivado_rtl_sim_hdc"
 TB_SV="$OUT_DIR/hdc_accelerator_rtl_tb.sv"
+SIM_RTL_DIR="$OUT_DIR/rtl_with_timescale"
 VIVADO_BIN="$(command -v vivado || true)"
 if [[ -n "$VIVADO_BIN" ]]; then
     VIVADO_ROOT="$(cd "$(dirname "$VIVADO_BIN")/.." && pwd)"
@@ -56,19 +57,36 @@ if [[ ! -f "$GLBL_V" ]]; then
 fi
 
 rm -rf "$OUT_DIR"
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"
 
 python3 "$SCRIPT_DIR/generate_xsim_tb.py" \
     --top "$TOP_RTL" \
     --trace-dir "$TRACE_DIR" \
     --out "$TB_SV"
 
+SIM_RTL=()
+copy_with_timescale() {
+    local src="$1"
+    local dst="$SIM_RTL_DIR/$(basename "$src")"
+    if grep -q '^[[:space:]]*`timescale' "$src"; then
+        cp "$src" "$dst"
+    else
+        {
+            printf '`timescale 1ns/1ps\n'
+            cat "$src"
+        } > "$dst"
+    fi
+    SIM_RTL+=("$dst")
+}
+
+for rtl in "${MEM_RTL[@]}" "${GENERATED_RTL[@]}" "$TOP_RTL"; do
+    copy_with_timescale "$rtl"
+done
+
 pushd "$OUT_DIR" >/dev/null
 
-xvlog -sv -work work --timescale 1ns/1ps -log xvlog.log \
-    "${MEM_RTL[@]}" \
-    "${GENERATED_RTL[@]}" \
-    "$TOP_RTL" \
+xvlog -sv -work work -log xvlog.log \
+    "${SIM_RTL[@]}" \
     "$TB_SV" \
     "$GLBL_V"
 
