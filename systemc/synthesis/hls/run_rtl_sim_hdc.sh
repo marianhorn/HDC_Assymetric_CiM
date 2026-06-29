@@ -59,6 +59,15 @@ fi
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"
 
+# Generated Stratus memories can contain $readmemh paths relative to this HLS
+# directory, for example bdw_work/modules/.../*.memh. XSim runs from OUT_DIR,
+# so expose the same relative path there without copying the full HLS tree.
+if ln -s "$SCRIPT_DIR/bdw_work" "$OUT_DIR/bdw_work" 2>/dev/null; then
+    :
+else
+    cp -R "$SCRIPT_DIR/bdw_work" "$OUT_DIR/bdw_work"
+fi
+
 python3 "$SCRIPT_DIR/generate_xsim_tb.py" \
     --top "$TOP_RTL" \
     --trace-dir "$TRACE_DIR" \
