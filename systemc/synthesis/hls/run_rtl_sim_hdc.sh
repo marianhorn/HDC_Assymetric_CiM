@@ -65,7 +65,7 @@ python3 "$SCRIPT_DIR/generate_xsim_tb.py" \
 
 pushd "$OUT_DIR" >/dev/null
 
-xvlog -sv -work work -log xvlog.log \
+xvlog -sv -work work --timescale 1ns/1ps -log xvlog.log \
     "${MEM_RTL[@]}" \
     "${GENERATED_RTL[@]}" \
     "$TOP_RTL" \
