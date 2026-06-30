@@ -164,6 +164,7 @@ module hdc_accelerator_rtl_tb;
     localparam integer NUM_CLASSES = {args.num_classes};
     localparam integer MAX_OUTSTANDING = {args.max_outstanding};
     localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
+    localparam integer PROGRESS_CYCLES = {args.progress_cycles};
     localparam string COMMAND_PATH = {command_path};
     localparam string RESPONSE_PATH = {response_path};
 
@@ -393,6 +394,10 @@ module hdc_accelerator_rtl_tb;
             @(posedge clk);
             #1;
             cycle_count = cycle_count + 1;
+            if (PROGRESS_CYCLES > 0 && (cycle_count % PROGRESS_CYCLES) == 0) begin
+                $display("progress cycles=%0d commands=%0d inference=%0d responses=%0d outstanding=%0d",
+                         cycle_count, commands_sent, inference_sent, responses_received, outstanding);
+            end
 
             if (cmd_valid && cmd_ready) begin
                 commands_sent = commands_sent + 1;
@@ -434,6 +439,7 @@ def main() -> None:
     parser.add_argument("--num-classes", type=int, default=5)
     parser.add_argument("--max-outstanding", type=int, default=32)
     parser.add_argument("--timeout-cycles", type=int, default=50000000)
+    parser.add_argument("--progress-cycles", type=int, default=100000)
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -33,10 +33,17 @@ struct TraceStats {
     unsigned long long training_commands = 0;
     unsigned long long inference_commands = 0;
     unsigned long long responses = 0;
+    unsigned train_samples = 0;
+    unsigned test_samples = 0;
     unsigned correct = 0;
     unsigned not_correct = 0;
     unsigned transition_error = 0;
     unsigned total = 0;
+};
+
+struct TraceLimits {
+    int train_samples = -1;
+    int test_samples = -1;
 };
 
 bool is_comment_or_empty(const std::string &line) {
@@ -305,12 +312,14 @@ public:
     RtlTraceDriver(HDC_Accelerator &accelerator,
                    HDC_Memory &memory,
                    const FootDataset &dataset,
+                   const TraceLimits &limits,
                    std::ostream &commands,
                    std::ostream &responses,
                    TraceStats &stats)
         : m_accelerator(accelerator),
           m_memory(memory),
           m_dataset(dataset),
+          m_limits(limits),
           m_commands(commands),
           m_responses(responses),
           m_stats(stats),
@@ -344,13 +353,26 @@ public:
         reset();
         train_dataset(m_dataset.training.raw_data(),
                       m_dataset.training.raw_labels(),
-                      m_dataset.training.samples);
+                      limited_samples("training", m_dataset.training.samples, m_limits.train_samples, 2));
         evaluate_dataset(m_dataset.testing.raw_data(),
                          m_dataset.testing.raw_labels(),
-                         m_dataset.testing.samples);
+                         limited_samples("testing", m_dataset.testing.samples, m_limits.test_samples, 1));
     }
 
 private:
+    int limited_samples(const char *name, int available, int limit, int minimum) const {
+        int selected = available;
+        if (limit >= 0 && limit < selected) {
+            selected = limit;
+        }
+        if (selected < minimum) {
+            std::ostringstream msg;
+            msg << name << " sample limit too small; need at least " << minimum;
+            SC_REPORT_FATAL("rtl_trace_export", msg.str().c_str());
+        }
+        return selected;
+    }
+
     void tick() {
         sc_core::sc_start(sc_core::sc_time(10, sc_core::SC_NS));
         sc_core::sc_start(sc_core::SC_ZERO_TIME);
@@ -425,6 +447,7 @@ private:
         if (raw_data == 0 || labels == 0 || num_samples <= 1) {
             SC_REPORT_FATAL("rtl_trace_export", "invalid training dataset");
         }
+        m_stats.train_samples = static_cast<unsigned>(num_samples);
 
         hv_t empty_class_vector;
         hv_clear(empty_class_vector);
@@ -466,6 +489,7 @@ private:
         if (raw_data == 0 || labels == 0 || num_samples <= 0) {
             SC_REPORT_FATAL("rtl_trace_export", "invalid testing dataset");
         }
+        m_stats.test_samples = static_cast<unsigned>(num_samples);
 
         AccelCommand command = {};
         command.kind = AccelCommandKind::ResetInference;
@@ -542,6 +566,7 @@ private:
     HDC_Accelerator &m_accelerator;
     HDC_Memory &m_memory;
     const FootDataset &m_dataset;
+    TraceLimits m_limits;
     std::ostream &m_commands;
     std::ostream &m_responses;
     TraceStats &m_stats;
@@ -576,6 +601,8 @@ void write_stats(const TracePaths &paths, int dataset_id, const TraceStats &stat
     out << "dataset=" << dataset_id << '\n';
     out << "cycles=" << stats.cycles << '\n';
     out << "commands=" << stats.commands << '\n';
+    out << "train_samples=" << stats.train_samples << '\n';
+    out << "test_samples=" << stats.test_samples << '\n';
     out << "training_commands=" << stats.training_commands << '\n';
     out << "inference_commands=" << stats.inference_commands << '\n';
     out << "expected_responses=" << stats.responses << '\n';
@@ -588,9 +615,11 @@ void write_stats(const TracePaths &paths, int dataset_id, const TraceStats &stat
     out << "non_transition_accuracy=" << non_transition_accuracy << '\n';
 }
 
-void parse_args(int argc, char **argv, int &dataset_id, std::string &out_dir) {
+void parse_args(int argc, char **argv, int &dataset_id, std::string &out_dir, TraceLimits &limits) {
     dataset_id = 0;
     out_dir = "build/rtl_trace_dataset00";
+    limits.train_samples = -1;
+    limits.test_samples = -1;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg(argv[i]);
@@ -598,9 +627,18 @@ void parse_args(int argc, char **argv, int &dataset_id, std::string &out_dir) {
             dataset_id = std::atoi(argv[++i]);
         } else if (arg == "--out" && i + 1 < argc) {
             out_dir = argv[++i];
+        } else if (arg == "--sample-limit" && i + 1 < argc) {
+            const int limit = std::atoi(argv[++i]);
+            limits.train_samples = limit;
+            limits.test_samples = limit;
+        } else if (arg == "--train-limit" && i + 1 < argc) {
+            limits.train_samples = std::atoi(argv[++i]);
+        } else if (arg == "--test-limit" && i + 1 < argc) {
+            limits.test_samples = std::atoi(argv[++i]);
         } else {
             std::cerr << "Usage: " << argv[0]
-                      << " [--dataset 0] [--out build/rtl_trace_dataset00]\n";
+                      << " [--dataset 0] [--out build/rtl_trace_dataset00]"
+                      << " [--sample-limit N] [--train-limit N] [--test-limit N]\n";
             std::exit(EXIT_FAILURE);
         }
     }
@@ -618,7 +656,8 @@ void parse_args(int argc, char **argv, int &dataset_id, std::string &out_dir) {
 int sc_main(int argc, char **argv) {
     int dataset_id = 0;
     std::string out_dir;
-    parse_args(argc, argv, dataset_id, out_dir);
+    TraceLimits limits;
+    parse_args(argc, argv, dataset_id, out_dir, limits);
 
     ensure_directory(out_dir);
     const TracePaths paths = make_trace_paths(out_dir);
@@ -638,7 +677,7 @@ int sc_main(int argc, char **argv) {
 
     FootDataset dataset = load_foot_dataset_by_id(dataset_id);
     TraceStats stats;
-    RtlTraceDriver driver(accelerator, memory, dataset, commands, responses, stats);
+    RtlTraceDriver driver(accelerator, memory, dataset, limits, commands, responses, stats);
     driver.run();
 
     commands.close();
