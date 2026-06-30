@@ -1,0 +1,14 @@
+dataset=0
+cycles=1422
+commands=42
+train_samples=20
+test_samples=20
+training_commands=22
+inference_commands=20
+expected_responses=20
+correct=18
+not_correct=0
+transition_error=0
+total=18
+overall_accuracy=1.000000000000
+non_transition_accuracy=1.000000000000
