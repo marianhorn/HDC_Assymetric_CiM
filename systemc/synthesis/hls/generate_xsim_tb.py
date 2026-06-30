@@ -165,6 +165,7 @@ module hdc_accelerator_rtl_tb;
     localparam integer MAX_OUTSTANDING = {args.max_outstanding};
     localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
     localparam integer PROGRESS_CYCLES = {args.progress_cycles};
+    localparam integer RESET_CYCLES = {args.reset_cycles};
     localparam string COMMAND_PATH = {command_path};
     localparam string RESPONSE_PATH = {response_path};
 
@@ -377,9 +378,11 @@ module hdc_accelerator_rtl_tb;
         end
         read_next_command(has_command);
 
-        repeat (4) @(posedge clk);
+        repeat (RESET_CYCLES) @(posedge clk);
         #1;
         rst = 1'b0;
+        repeat (2) @(posedge clk);
+        #1;
 
         forever begin
             if (cycle_count > TIMEOUT_CYCLES) begin
@@ -440,6 +443,7 @@ def main() -> None:
     parser.add_argument("--max-outstanding", type=int, default=32)
     parser.add_argument("--timeout-cycles", type=int, default=50000000)
     parser.add_argument("--progress-cycles", type=int, default=100000)
+    parser.add_argument("--reset-cycles", type=int, default=32)
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
