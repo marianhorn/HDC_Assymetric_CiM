@@ -214,9 +214,56 @@ def generate_debug_task(module_body: str) -> str:
         ),
     ]
 
+    payload_groups = [
+        (
+            "enc_in_data",
+            [
+                ("kind", "m_encoder_in_m_chan_data_kind"),
+                ("kind_slice", "m_encoder_in_m_chan_data_kind_slice"),
+                ("class", "m_encoder_in_m_chan_data_class_id"),
+            ],
+        ),
+        (
+            "enc_out_data",
+            [
+                ("kind", "m_encoder_out_m_chan_data_kind"),
+                ("class", "m_encoder_out_m_chan_data_class_id"),
+            ],
+        ),
+        (
+            "bundler_in_data",
+            [
+                ("kind", "m_bundler_in_m_chan_data_kind"),
+                ("class", "m_bundler_in_m_chan_data_class_id"),
+                ("valid_ngram", "m_bundler_in_m_chan_data_valid_ngram"),
+            ],
+        ),
+        (
+            "distance_in_data",
+            [
+                ("kind", "m_distance_in_m_chan_data_kind"),
+                ("class", "m_distance_in_m_chan_data_class_id"),
+                ("valid_ngram", "m_distance_in_m_chan_data_valid_ngram"),
+            ],
+        ),
+        (
+            "distance_done_data",
+            [
+                ("valid_prediction", "m_distance_done_m_chan_data_valid_prediction"),
+                ("d0", "m_distance_done_m_chan_data_distances_0"),
+                ("d1", "m_distance_done_m_chan_data_distances_1"),
+                ("d2", "m_distance_done_m_chan_data_distances_2"),
+                ("d3", "m_distance_done_m_chan_data_distances_3"),
+                ("d4", "m_distance_done_m_chan_data_distances_4"),
+            ],
+        ),
+    ]
+
     displays = make_debug_display("states", state_fields, module_body, "%0d")
     for label, fields in channel_groups:
         displays += make_debug_display(label, fields, module_body, "%0b")
+    for label, fields in payload_groups:
+        displays += make_debug_display(label, fields, module_body, "%0d")
 
     return f"""
     task print_dut_debug;
