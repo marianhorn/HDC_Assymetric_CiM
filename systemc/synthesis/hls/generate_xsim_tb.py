@@ -31,9 +31,13 @@ def module_text(verilog: str, module_name: str) -> str:
     return verilog[match.start() : match.start() + end.end()]
 
 
-def parse_ports(verilog_path: pathlib.Path, module_name: str) -> Dict[str, Port]:
+def read_module_body(verilog_path: pathlib.Path, module_name: str) -> str:
     text = strip_comments(verilog_path.read_text())
-    body = module_text(text, module_name)
+    return module_text(text, module_name)
+
+
+def parse_ports(verilog_path: pathlib.Path, module_name: str) -> Dict[str, Port]:
+    body = read_module_body(verilog_path, module_name)
     decl_re = re.compile(
         r"\b(input|output|inout)\b\s+"
         r"(?:(?:wire|reg|logic|signed|unsigned)\s+)*"
@@ -119,7 +123,114 @@ def join_connections(connections: Iterable[str]) -> str:
     return ",\n        ".join(connections)
 
 
+def has_internal_signal(module_body: str, signal: str) -> bool:
+    return re.search(r"\b" + re.escape(signal) + r"\b", module_body) is not None
+
+
+def make_debug_display(label: str, fields: List[tuple], module_body: str, value_format: str) -> str:
+    present = [(name, signal) for name, signal in fields if has_internal_signal(module_body, signal)]
+    if not present:
+        return ""
+
+    format_fields = " ".join(f"{name}={value_format}" for name, _ in present)
+    args = ", ".join(f"dut.{signal}" for _, signal in present)
+    return (
+        f'            $display("debug {label} {format_fields}",\n'
+        f"                     {args});\n"
+    )
+
+
+def generate_debug_task(module_body: str) -> str:
+    state_fields = [
+        ("cmd", "global_state5"),
+        ("enc", "global_state4"),
+        ("ngram", "global_state3"),
+        ("train", "global_state2"),
+        ("dist", "global_state1"),
+        ("rsp", "global_state"),
+    ]
+
+    channel_groups = [
+        (
+            "enc_in",
+            [
+                ("vld", "m_encoder_in_m_chan_vld"),
+                ("busy", "m_encoder_in_m_chan_busy"),
+                ("out_unval", "m_encoder_in_output_m_unvalidated_req"),
+                ("in_unack", "m_encoder_in_input_m_unacked_req"),
+            ],
+        ),
+        (
+            "enc_out",
+            [
+                ("vld", "m_encoder_out_m_chan_vld"),
+                ("busy", "m_encoder_out_m_chan_busy"),
+                ("out_unval", "m_encoder_out_output_m_unvalidated_req"),
+                ("in_unack", "m_encoder_out_input_m_unacked_req"),
+            ],
+        ),
+        (
+            "bundler_in",
+            [
+                ("vld", "m_bundler_in_m_chan_vld"),
+                ("busy", "m_bundler_in_m_chan_busy"),
+                ("out_unval", "m_bundler_in_output_m_unvalidated_req"),
+                ("in_unack", "m_bundler_in_input_m_unacked_req"),
+            ],
+        ),
+        (
+            "distance_in",
+            [
+                ("vld", "m_distance_in_m_chan_vld"),
+                ("busy", "m_distance_in_m_chan_busy"),
+                ("out_unval", "m_distance_in_output_m_unvalidated_req"),
+                ("in_unack", "m_distance_in_input_m_unacked_req"),
+            ],
+        ),
+        (
+            "distance_done",
+            [
+                ("vld", "m_distance_done_m_chan_vld"),
+                ("busy", "m_distance_done_m_chan_busy"),
+                ("out_unval", "m_distance_done_output_m_unvalidated_req"),
+                ("in_unack", "m_distance_done_input_m_unacked_req"),
+            ],
+        ),
+        (
+            "ngram_control_done",
+            [
+                ("vld", "m_ngram_control_done_m_chan_vld"),
+                ("busy", "m_ngram_control_done_m_chan_busy"),
+                ("in_unack", "m_ngram_control_done_input_m_unacked_req"),
+            ],
+        ),
+        (
+            "train_control_done",
+            [
+                ("vld", "m_train_control_done_m_chan_vld"),
+                ("busy", "m_train_control_done_m_chan_busy"),
+                ("in_unack", "m_train_control_done_input_m_unacked_req"),
+            ],
+        ),
+    ]
+
+    displays = make_debug_display("states", state_fields, module_body, "%0d")
+    for label, fields in channel_groups:
+        displays += make_debug_display(label, fields, module_body, "%0b")
+
+    return f"""
+    task print_dut_debug;
+        begin
+            $display("debug top cmd_v=%0b cmd_r=%0b rsp_v=%0b rsp_r=%0b outstanding=%0d",
+                     cmd_valid, cmd_ready, rsp_valid, rsp_ready, outstanding);
+{displays.rstrip()}
+        end
+    endtask
+"""
+
+
 def generate_tb(args: argparse.Namespace) -> str:
+    module_body = read_module_body(args.top, "HDC_Accelerator")
     ports = parse_ports(args.top, "HDC_Accelerator")
     clk = find_exact(ports, "clk")
     rst = find_exact(ports, "rst")
@@ -347,6 +458,8 @@ module hdc_accelerator_rtl_tb;
         end
     endtask
 
+{generate_debug_task(module_body)}
+
     initial begin
         clk = 1'b0;
         rst = 1'b1;
@@ -400,6 +513,7 @@ module hdc_accelerator_rtl_tb;
             if (PROGRESS_CYCLES > 0 && (cycle_count % PROGRESS_CYCLES) == 0) begin
                 $display("progress cycles=%0d commands=%0d inference=%0d responses=%0d outstanding=%0d",
                          cycle_count, commands_sent, inference_sent, responses_received, outstanding);
+                print_dut_debug();
             end
 
             if (cmd_valid && cmd_ready) begin
