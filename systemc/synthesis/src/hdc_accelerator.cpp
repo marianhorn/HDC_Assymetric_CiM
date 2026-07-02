@@ -224,8 +224,10 @@ void HDC_Accelerator::command_thread() {
             const bool can_accept_command =
                 !output_valid && !wait_ngram_control && !wait_train_control;
             cmd_ready.write(can_accept_command);
-            m_ngram_control_done_ready.write(wait_ngram_control);
-            m_train_control_done_ready.write(wait_train_control);
+            m_ngram_control_done_ready.write(wait_ngram_control ||
+                                             m_ngram_control_done_valid.read());
+            m_train_control_done_ready.write(wait_train_control ||
+                                             m_train_control_done_valid.read());
 
             if (cmd_valid.read() && can_accept_command) {
                 AccelCommand command = {};
