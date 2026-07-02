@@ -140,6 +140,62 @@ def make_debug_display(label: str, fields: List[tuple], module_body: str, value_
     )
 
 
+def internal_handshake_channels(module_body: str) -> List[tuple]:
+    candidates = [
+        ("enc_in", "m_encoder_in_valid", "m_encoder_in_ready"),
+        ("enc_out", "m_encoder_out_valid", "m_encoder_out_ready"),
+        ("bundler_in", "m_bundler_in_valid", "m_bundler_in_ready"),
+        ("distance_in", "m_distance_in_valid", "m_distance_in_ready"),
+        ("distance_done", "m_distance_done_valid", "m_distance_done_ready"),
+        ("ngram_control_done", "m_ngram_control_done_valid", "m_ngram_control_done_ready"),
+        ("train_control_done", "m_train_control_done_valid", "m_train_control_done_ready"),
+    ]
+    return [
+        item for item in candidates
+        if has_internal_signal(module_body, item[1]) and has_internal_signal(module_body, item[2])
+    ]
+
+
+def generate_internal_counter_declarations(module_body: str) -> str:
+    channels = internal_handshake_channels(module_body)
+    if not channels:
+        return ""
+    return "".join(f"    integer internal_{label}_fire;\n" for label, _, _ in channels)
+
+
+def generate_internal_counter_reset(module_body: str) -> str:
+    channels = internal_handshake_channels(module_body)
+    if not channels:
+        return ""
+    return "".join(f"        internal_{label}_fire = 0;\n" for label, _, _ in channels)
+
+
+def generate_internal_counter_update(module_body: str) -> str:
+    channels = internal_handshake_channels(module_body)
+    if not channels:
+        return ""
+    lines = []
+    for label, valid, ready in channels:
+        lines.append(
+            f"            if (dut.{valid} && dut.{ready}) begin\n"
+            f"                internal_{label}_fire = internal_{label}_fire + 1;\n"
+            f"            end\n"
+        )
+    return "".join(lines)
+
+
+def generate_internal_counter_display(module_body: str) -> str:
+    channels = internal_handshake_channels(module_body)
+    if not channels:
+        return ""
+    fields = " ".join(f"{label}=%0d" for label, _, _ in channels)
+    args = ", ".join(f"internal_{label}_fire" for label, _, _ in channels)
+    return (
+        f'                $display("debug internal_fires {fields}",\n'
+        f"                         {args});\n"
+    )
+
+
 def generate_debug_task(module_body: str) -> str:
     state_fields = [
         ("cmd", "global_state5"),
@@ -392,6 +448,7 @@ module hdc_accelerator_rtl_tb;
     integer total_latency;
     integer max_latency;
     integer error_count;
+{generate_internal_counter_declarations(module_body)}
 
     always #5 clk = ~clk;
 
@@ -557,6 +614,7 @@ module hdc_accelerator_rtl_tb;
         total_latency = 0;
         max_latency = 0;
         error_count = 0;
+{generate_internal_counter_reset(module_body)}
 
         command_fd = $fopen(COMMAND_PATH, "r");
         if (command_fd == 0) begin
@@ -587,9 +645,11 @@ module hdc_accelerator_rtl_tb;
             @(posedge clk);
             #1;
             cycle_count = cycle_count + 1;
+{generate_internal_counter_update(module_body)}
             if (PROGRESS_CYCLES > 0 && (cycle_count % PROGRESS_CYCLES) == 0) begin
                 $display("progress cycles=%0d commands=%0d inference=%0d responses=%0d outstanding=%0d",
                          cycle_count, commands_sent, inference_sent, responses_received, outstanding);
+{generate_internal_counter_display(module_body)}
                 print_dut_debug();
             end
 
