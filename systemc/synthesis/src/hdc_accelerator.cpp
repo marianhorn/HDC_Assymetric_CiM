@@ -186,7 +186,6 @@ void HDC_Accelerator::command_thread() {
     bool release_train_control = false;
 
     {
-        HLS_DEFINE_PROTOCOL("command_reset");
         cmd_ready.write(false);
         m_encoder_in_data.write(EncoderPacket());
         m_encoder_in_valid.write(false);
@@ -197,8 +196,6 @@ void HDC_Accelerator::command_thread() {
 
     while (true) {
         {
-            HLS_DEFINE_PROTOCOL("command_cycle");
-
             if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_encoder_in_ready.read()) {
@@ -273,7 +270,6 @@ void HDC_Accelerator::encoder_thread() {
     unsigned word_index = 0;
 
     {
-        HLS_DEFINE_PROTOCOL("encoder_reset");
         clear_hv(encoder_result);
         clear_hv(output_packet.encoded);
         m_encoder_in_ready.write(false);
@@ -284,8 +280,6 @@ void HDC_Accelerator::encoder_thread() {
 
     while (true) {
         {
-            HLS_DEFINE_PROTOCOL("encoder_cycle");
-
             if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_encoder_out_ready.read()) {
@@ -362,7 +356,6 @@ void HDC_Accelerator::ngram_thread() {
     unsigned oldest_slot = 0;
 
     {
-        HLS_DEFINE_PROTOCOL("ngram_reset");
         clear_hv(work);
         clear_hv(next);
         reset_ngram_buffer();
@@ -377,8 +370,6 @@ void HDC_Accelerator::ngram_thread() {
 
     while (true) {
         {
-            HLS_DEFINE_PROTOCOL("ngram_cycle");
-
             if (control_done_valid && !control_done_presented) {
                 control_done_presented = true;
             } else if (control_done_valid && m_ngram_control_done_ready.read()) {
@@ -537,7 +528,6 @@ void HDC_Accelerator::train_thread() {
     unsigned assoc_class = 0;
 
     {
-        HLS_DEFINE_PROTOCOL("train_reset");
         for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
             HLS_UNROLL_LOOP(OFF, "reset-assoc-mem-loop");
             for (unsigned word = 0; word < HV_WORDS; ++word) {
@@ -555,8 +545,6 @@ void HDC_Accelerator::train_thread() {
 
     while (true) {
         {
-            HLS_DEFINE_PROTOCOL("train_cycle");
-
             if (done_valid && !done_presented) {
                 done_presented = true;
             } else if (done_valid && m_train_control_done_ready.read()) {
@@ -697,7 +685,6 @@ void HDC_Accelerator::distance_thread() {
     unsigned class_id = 0;
 
     {
-        HLS_DEFINE_PROTOCOL("distance_reset");
         m_distance_in_ready.write(false);
         m_distance_done_data.write(DistancePacket());
         m_distance_done_valid.write(false);
@@ -706,8 +693,6 @@ void HDC_Accelerator::distance_thread() {
 
     while (true) {
         {
-            HLS_DEFINE_PROTOCOL("distance_cycle");
-
             if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_distance_done_ready.read()) {
@@ -768,7 +753,6 @@ void HDC_Accelerator::response_thread() {
     bool distance_token_consumed = false;
 
     {
-        HLS_DEFINE_PROTOCOL("response_reset");
         rsp_valid.write(false);
         rsp_valid_prediction.write(false);
         for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
@@ -780,8 +764,6 @@ void HDC_Accelerator::response_thread() {
 
     while (true) {
         {
-            HLS_DEFINE_PROTOCOL("response_cycle");
-
             if (holding_response) {
                 rsp_valid.write(true);
                 rsp_valid_prediction.write(work.valid_prediction);
