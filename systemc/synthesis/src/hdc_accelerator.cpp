@@ -182,8 +182,8 @@ void HDC_Accelerator::command_thread() {
     bool output_presented = false;
     bool wait_ngram_control = false;
     bool wait_train_control = false;
-    bool release_ngram_control = false;
-    bool release_train_control = false;
+    bool ngram_control_done_seen = false;
+    bool train_control_done_seen = false;
 
     {
         cmd_ready.write(false);
@@ -203,18 +203,22 @@ void HDC_Accelerator::command_thread() {
                 output_presented = false;
             }
 
-            if (release_ngram_control) {
-                wait_ngram_control = false;
-                release_ngram_control = false;
-            } else if (wait_ngram_control && m_ngram_control_done_valid.read()) {
-                release_ngram_control = true;
+            if (wait_ngram_control) {
+                if (!ngram_control_done_seen && m_ngram_control_done_valid.read()) {
+                    ngram_control_done_seen = true;
+                } else if (ngram_control_done_seen && !m_ngram_control_done_valid.read()) {
+                    wait_ngram_control = false;
+                    ngram_control_done_seen = false;
+                }
             }
 
-            if (release_train_control) {
-                wait_train_control = false;
-                release_train_control = false;
-            } else if (wait_train_control && m_train_control_done_valid.read()) {
-                release_train_control = true;
+            if (wait_train_control) {
+                if (!train_control_done_seen && m_train_control_done_valid.read()) {
+                    train_control_done_seen = true;
+                } else if (train_control_done_seen && !m_train_control_done_valid.read()) {
+                    wait_train_control = false;
+                    train_control_done_seen = false;
+                }
             }
 
             const bool can_accept_command =
@@ -247,9 +251,11 @@ void HDC_Accelerator::command_thread() {
 
                 if (is_ngram_control_command(command.kind)) {
                     wait_ngram_control = true;
+                    ngram_control_done_seen = false;
                 }
                 if (is_train_control_command(command.kind)) {
                     wait_train_control = true;
+                    train_control_done_seen = false;
                 }
             }
 
