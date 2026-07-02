@@ -154,6 +154,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "enc_in",
             [
+                ("valid", "m_encoder_in_valid"),
+                ("ready", "m_encoder_in_ready"),
                 ("vld", "m_encoder_in_m_chan_vld"),
                 ("busy", "m_encoder_in_m_chan_busy"),
                 ("out_unval", "m_encoder_in_output_m_unvalidated_req"),
@@ -163,6 +165,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "enc_out",
             [
+                ("valid", "m_encoder_out_valid"),
+                ("ready", "m_encoder_out_ready"),
                 ("vld", "m_encoder_out_m_chan_vld"),
                 ("busy", "m_encoder_out_m_chan_busy"),
                 ("out_unval", "m_encoder_out_output_m_unvalidated_req"),
@@ -172,6 +176,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "bundler_in",
             [
+                ("valid", "m_bundler_in_valid"),
+                ("ready", "m_bundler_in_ready"),
                 ("vld", "m_bundler_in_m_chan_vld"),
                 ("busy", "m_bundler_in_m_chan_busy"),
                 ("out_unval", "m_bundler_in_output_m_unvalidated_req"),
@@ -181,6 +187,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "distance_in",
             [
+                ("valid", "m_distance_in_valid"),
+                ("ready", "m_distance_in_ready"),
                 ("vld", "m_distance_in_m_chan_vld"),
                 ("busy", "m_distance_in_m_chan_busy"),
                 ("out_unval", "m_distance_in_output_m_unvalidated_req"),
@@ -190,6 +198,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "distance_done",
             [
+                ("valid", "m_distance_done_valid"),
+                ("ready", "m_distance_done_ready"),
                 ("vld", "m_distance_done_m_chan_vld"),
                 ("busy", "m_distance_done_m_chan_busy"),
                 ("out_unval", "m_distance_done_output_m_unvalidated_req"),
@@ -199,6 +209,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "ngram_control_done",
             [
+                ("valid", "m_ngram_control_done_valid"),
+                ("ready", "m_ngram_control_done_ready"),
                 ("vld", "m_ngram_control_done_m_chan_vld"),
                 ("busy", "m_ngram_control_done_m_chan_busy"),
                 ("in_unack", "m_ngram_control_done_input_m_unacked_req"),
@@ -207,6 +219,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "train_control_done",
             [
+                ("valid", "m_train_control_done_valid"),
+                ("ready", "m_train_control_done_ready"),
                 ("vld", "m_train_control_done_m_chan_vld"),
                 ("busy", "m_train_control_done_m_chan_busy"),
                 ("in_unack", "m_train_control_done_input_m_unacked_req"),
@@ -218,6 +232,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "enc_in_data",
             [
+                ("kind", "m_encoder_in_data_kind"),
+                ("class", "m_encoder_in_data_class_id"),
                 ("kind", "m_encoder_in_m_chan_data_kind"),
                 ("kind_slice", "m_encoder_in_m_chan_data_kind_slice"),
                 ("class", "m_encoder_in_m_chan_data_class_id"),
@@ -226,6 +242,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "enc_out_data",
             [
+                ("kind", "m_encoder_out_data_kind"),
+                ("class", "m_encoder_out_data_class_id"),
                 ("kind", "m_encoder_out_m_chan_data_kind"),
                 ("class", "m_encoder_out_m_chan_data_class_id"),
             ],
@@ -233,6 +251,9 @@ def generate_debug_task(module_body: str) -> str:
         (
             "bundler_in_data",
             [
+                ("kind", "m_bundler_in_data_kind"),
+                ("class", "m_bundler_in_data_class_id"),
+                ("valid_ngram", "m_bundler_in_data_valid_ngram"),
                 ("kind", "m_bundler_in_m_chan_data_kind"),
                 ("class", "m_bundler_in_m_chan_data_class_id"),
                 ("valid_ngram", "m_bundler_in_m_chan_data_valid_ngram"),
@@ -241,6 +262,9 @@ def generate_debug_task(module_body: str) -> str:
         (
             "distance_in_data",
             [
+                ("kind", "m_distance_in_data_kind"),
+                ("class", "m_distance_in_data_class_id"),
+                ("valid_ngram", "m_distance_in_data_valid_ngram"),
                 ("kind", "m_distance_in_m_chan_data_kind"),
                 ("class", "m_distance_in_m_chan_data_class_id"),
                 ("valid_ngram", "m_distance_in_m_chan_data_valid_ngram"),
@@ -249,6 +273,12 @@ def generate_debug_task(module_body: str) -> str:
         (
             "distance_done_data",
             [
+                ("valid_prediction", "m_distance_done_data_valid_prediction"),
+                ("d0", "m_distance_done_data_distances_0"),
+                ("d1", "m_distance_done_data_distances_1"),
+                ("d2", "m_distance_done_data_distances_2"),
+                ("d3", "m_distance_done_data_distances_3"),
+                ("d4", "m_distance_done_data_distances_4"),
                 ("valid_prediction", "m_distance_done_m_chan_data_valid_prediction"),
                 ("d0", "m_distance_done_m_chan_data_distances_0"),
                 ("d1", "m_distance_done_m_chan_data_distances_1"),
