@@ -532,6 +532,8 @@ void HDC_Accelerator::train_thread() {
     NGramPacket work;
     bool done_valid = false;
     bool done_presented = false;
+    bool init_reset_done_pending = false;
+    bool init_reset_token_drain = false;
     unsigned word_index = 0;
     unsigned assoc_class = 0;
 
@@ -553,6 +555,25 @@ void HDC_Accelerator::train_thread() {
 
     while (true) {
         {
+            const bool bundler_valid = m_bundler_in_valid.read();
+            NGramPacket bundler_item = NGramPacket();
+            if (bundler_valid) {
+                bundler_item = m_bundler_in_data.read();
+            }
+
+            if (init_reset_token_drain && !bundler_valid) {
+                init_reset_token_drain = false;
+            }
+
+            const bool startup_clear_active =
+                state == TRAIN_INIT_RESET_SCORES ||
+                state == TRAIN_INIT_RESET_ASSOC;
+            if (startup_clear_active && bundler_valid &&
+                bundler_item.kind == AccelCommandKind::ResetTraining) {
+                init_reset_done_pending = true;
+                init_reset_token_drain = true;
+            }
+
             if (done_valid && !done_presented) {
                 done_presented = true;
             } else if (done_valid && m_train_control_done_ready.read()) {
@@ -581,6 +602,11 @@ void HDC_Accelerator::train_thread() {
                     word_index = 0;
                     if (assoc_class + 1u == NUM_CLASSES) {
                         assoc_class = 0;
+                        if (init_reset_done_pending) {
+                            done_valid = true;
+                            done_presented = false;
+                            init_reset_done_pending = false;
+                        }
                         state = TRAIN_IDLE;
                     } else {
                         assoc_class = assoc_class + 1u;
@@ -651,8 +677,8 @@ void HDC_Accelerator::train_thread() {
                 } else {
                     word_index = word_index + 1u;
                 }
-            } else if (!done_valid && m_bundler_in_valid.read()) {
-                const NGramPacket item = m_bundler_in_data.read();
+            } else if (!done_valid && !init_reset_token_drain && bundler_valid) {
+                const NGramPacket item = bundler_item;
 
                 if (item.kind == AccelCommandKind::TrainSample) {
                     if (item.valid_ngram) {
@@ -678,7 +704,8 @@ void HDC_Accelerator::train_thread() {
             }
 
             m_train_control_done_valid.write(done_valid);
-            m_bundler_in_ready.write(state == TRAIN_IDLE && !done_valid);
+            m_bundler_in_ready.write((state == TRAIN_IDLE && !done_valid) ||
+                                     init_reset_token_drain);
             wait();
         }
     }
