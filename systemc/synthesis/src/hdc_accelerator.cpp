@@ -17,13 +17,21 @@ void clear_hv(hv_t &hv) {
     hv_clear(hv);
 }
 
-bool is_train_control_command(AccelCommandKind kind) {
-    return kind == AccelCommandKind::ResetTraining ||
-           kind == AccelCommandKind::InvalidTrainingStep;
+command_kind_t command_kind_value(AccelCommandKind kind) {
+    return static_cast<unsigned>(kind);
 }
 
-bool is_ngram_control_command(AccelCommandKind kind) {
-    return kind == AccelCommandKind::ResetInference;
+bool command_kind_is(command_kind_t actual, AccelCommandKind expected) {
+    return actual == command_kind_value(expected);
+}
+
+bool is_train_control_command(command_kind_t kind) {
+    return command_kind_is(kind, AccelCommandKind::ResetTraining) ||
+           command_kind_is(kind, AccelCommandKind::InvalidTrainingStep);
+}
+
+bool is_ngram_control_command(command_kind_t kind) {
+    return command_kind_is(kind, AccelCommandKind::ResetInference);
 }
 
 #ifdef STRATUS_HLS
@@ -238,12 +246,12 @@ void HDC_Accelerator::command_thread() {
                 }
 
                 EncoderPacket packet = {};
-                packet.kind = command.kind;
+                packet.kind = cmd_kind.read();
                 packet.class_id = command.class_id;
                 packet.sample = command.sample;
                 clear_hv(packet.encoded);
 
-                if (command.kind == AccelCommandKind::InferSample) {
+                if (command_kind_is(packet.kind, AccelCommandKind::InferSample)) {
                     packet.class_id = 0;
                 }
 
@@ -251,11 +259,11 @@ void HDC_Accelerator::command_thread() {
                 output_valid = true;
                 output_presented = false;
 
-                if (is_ngram_control_command(command.kind)) {
+                if (is_ngram_control_command(packet.kind)) {
                     wait_ngram_control = true;
                     ngram_control_done_seen = false;
                 }
-                if (is_train_control_command(command.kind)) {
+                if (is_train_control_command(packet.kind)) {
                     wait_train_control = true;
                     train_control_done_seen = false;
                 }
@@ -307,8 +315,8 @@ void HDC_Accelerator::encoder_thread() {
 
             if (busy && !output_valid) {
                 const bool should_encode =
-                    work.kind == AccelCommandKind::TrainSample ||
-                    work.kind == AccelCommandKind::InferSample;
+                    command_kind_is(work.kind, AccelCommandKind::TrainSample) ||
+                    command_kind_is(work.kind, AccelCommandKind::InferSample);
 
                 if (!should_encode) {
                     output_packet = work;
@@ -424,7 +432,7 @@ void HDC_Accelerator::ngram_thread() {
                         output_packet.class_id = work_packet.class_id;
                         output_packet.ngram = work;
                         output_packet.valid_ngram = true;
-                        output_target = (work_packet.kind == AccelCommandKind::TrainSample)
+                        output_target = command_kind_is(work_packet.kind, AccelCommandKind::TrainSample)
                                             ? OUTPUT_BUNDLER
                                             : OUTPUT_DISTANCE;
                         output_pending = true;
@@ -448,7 +456,7 @@ void HDC_Accelerator::ngram_thread() {
             if (can_accept_encoder && m_encoder_out_valid.read()) {
                 EncoderPacket item = m_encoder_out_data.read();
 
-                if (item.kind == AccelCommandKind::ResetTraining) {
+                if (command_kind_is(item.kind, AccelCommandKind::ResetTraining)) {
                     reset_ngram_buffer();
                     output_packet = NGramPacket();
                     output_packet.kind = item.kind;
@@ -458,11 +466,11 @@ void HDC_Accelerator::ngram_thread() {
                     output_target = OUTPUT_BUNDLER;
                     output_pending = true;
                     output_presented = false;
-                } else if (item.kind == AccelCommandKind::ResetInference) {
+                } else if (command_kind_is(item.kind, AccelCommandKind::ResetInference)) {
                     reset_ngram_buffer();
                     control_done_valid = true;
                     control_done_presented = false;
-                } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+                } else if (command_kind_is(item.kind, AccelCommandKind::InvalidTrainingStep)) {
                     reset_ngram_buffer();
                     output_packet = NGramPacket();
                     output_packet.kind = item.kind;
@@ -472,8 +480,8 @@ void HDC_Accelerator::ngram_thread() {
                     output_target = OUTPUT_BUNDLER;
                     output_pending = true;
                     output_presented = false;
-                } else if (item.kind == AccelCommandKind::TrainSample ||
-                           item.kind == AccelCommandKind::InferSample) {
+                } else if (command_kind_is(item.kind, AccelCommandKind::TrainSample) ||
+                           command_kind_is(item.kind, AccelCommandKind::InferSample)) {
                     push_encoded_sample_to_ngram_buffer(item.encoded);
 
                     output_packet = NGramPacket();
@@ -483,7 +491,7 @@ void HDC_Accelerator::ngram_thread() {
                     clear_hv(output_packet.ngram);
 
                     if (m_ngram_buffer_fill_count != N_GRAM_SIZE) {
-                        output_target = (item.kind == AccelCommandKind::TrainSample)
+                        output_target = command_kind_is(item.kind, AccelCommandKind::TrainSample)
                                             ? OUTPUT_BUNDLER
                                             : OUTPUT_DISTANCE;
                         output_pending = true;
@@ -502,7 +510,7 @@ void HDC_Accelerator::ngram_thread() {
                             output_packet.class_id = item.class_id;
                             output_packet.ngram = work;
                             output_packet.valid_ngram = true;
-                            output_target = (item.kind == AccelCommandKind::TrainSample)
+                            output_target = command_kind_is(item.kind, AccelCommandKind::TrainSample)
                                                 ? OUTPUT_BUNDLER
                                                 : OUTPUT_DISTANCE;
                             output_pending = true;
@@ -569,7 +577,7 @@ void HDC_Accelerator::train_thread() {
                 state == TRAIN_INIT_RESET_SCORES ||
                 state == TRAIN_INIT_RESET_ASSOC;
             if (startup_clear_active && bundler_valid &&
-                bundler_item.kind == AccelCommandKind::ResetTraining) {
+                command_kind_is(bundler_item.kind, AccelCommandKind::ResetTraining)) {
                 init_reset_done_pending = true;
                 init_reset_token_drain = true;
             }
@@ -680,7 +688,7 @@ void HDC_Accelerator::train_thread() {
             } else if (!done_valid && !init_reset_token_drain && bundler_valid) {
                 const NGramPacket item = bundler_item;
 
-                if (item.kind == AccelCommandKind::TrainSample) {
+                if (command_kind_is(item.kind, AccelCommandKind::TrainSample)) {
                     if (item.valid_ngram) {
                         work = item;
                         if (!m_current_class_valid) {
@@ -690,14 +698,14 @@ void HDC_Accelerator::train_thread() {
                         word_index = 0;
                         state = TRAIN_ADD_NGRAM;
                     }
-                } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+                } else if (command_kind_is(item.kind, AccelCommandKind::InvalidTrainingStep)) {
                     word_index = 0;
                     if (m_current_class_valid) {
                         state = TRAIN_FINALIZE_CLASS;
                     } else {
                         state = TRAIN_RESET_TRAINING;
                     }
-                } else if (item.kind == AccelCommandKind::ResetTraining) {
+                } else if (command_kind_is(item.kind, AccelCommandKind::ResetTraining)) {
                     word_index = 0;
                     state = TRAIN_RESET_TRAINING;
                 }

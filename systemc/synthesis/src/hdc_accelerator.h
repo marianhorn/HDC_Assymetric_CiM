@@ -30,7 +30,7 @@ using hdc_systemc::train_counter_t;
 using hdc_systemc::train_score_t;
 
 struct EncoderPacket {
-    AccelCommandKind kind = AccelCommandKind::ResetTraining;
+    command_kind_t kind = 0;
     class_t class_id = 0;
     QuantizedSample sample = {};
     hv_t encoded = {};
@@ -48,7 +48,7 @@ struct EncoderPacket {
 };
 
 struct NGramPacket {
-    AccelCommandKind kind = AccelCommandKind::ResetTraining;
+    command_kind_t kind = 0;
     class_t class_id = 0;
     hv_t ngram = {};
     bool valid_ngram = false;
@@ -87,14 +87,14 @@ struct DistancePacket {
 };
 
 inline void clear_encoder_packet(EncoderPacket &packet) {
-    packet.kind = AccelCommandKind::ResetTraining;
+    packet.kind = 0;
     packet.class_id = 0;
     clear_quantized_sample(packet.sample);
     hv_clear(packet.encoded);
 }
 
 inline void clear_ngram_packet(NGramPacket &packet) {
-    packet.kind = AccelCommandKind::ResetTraining;
+    packet.kind = 0;
     packet.class_id = 0;
     hv_clear(packet.ngram);
     packet.valid_ngram = false;
