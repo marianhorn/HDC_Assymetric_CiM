@@ -156,24 +156,88 @@ def internal_handshake_channels(module_body: str) -> List[tuple]:
     ]
 
 
+def first_present_signal(module_body: str, candidates: List[str]) -> Optional[str]:
+    for signal in candidates:
+        if has_internal_signal(module_body, signal):
+            return signal
+    return None
+
+
+def internal_payload_kind_channels(module_body: str) -> List[tuple]:
+    candidates = [
+        (
+            "enc_in",
+            "m_encoder_in_valid",
+            "m_encoder_in_ready",
+            [
+                "m_encoder_in_data_kind",
+                "m_encoder_in_m_chan_data_kind",
+                "m_encoder_in_m_chan_data_kind_slice",
+            ],
+        ),
+        (
+            "enc_out",
+            "m_encoder_out_valid",
+            "m_encoder_out_ready",
+            [
+                "m_encoder_out_data_kind",
+                "m_encoder_out_m_chan_data_kind",
+            ],
+        ),
+        (
+            "bundler_in",
+            "m_bundler_in_valid",
+            "m_bundler_in_ready",
+            [
+                "m_bundler_in_data_kind",
+                "m_bundler_in_m_chan_data_kind",
+            ],
+        ),
+        (
+            "distance_in",
+            "m_distance_in_valid",
+            "m_distance_in_ready",
+            [
+                "m_distance_in_data_kind",
+                "m_distance_in_m_chan_data_kind",
+            ],
+        ),
+    ]
+
+    channels = []
+    for label, valid, ready, kind_candidates in candidates:
+        kind_signal = first_present_signal(module_body, kind_candidates)
+        if (
+            has_internal_signal(module_body, valid)
+            and has_internal_signal(module_body, ready)
+            and kind_signal is not None
+        ):
+            channels.append((label, valid, ready, kind_signal))
+    return channels
+
+
 def generate_internal_counter_declarations(module_body: str) -> str:
     channels = internal_handshake_channels(module_body)
-    if not channels:
-        return ""
-    return "".join(f"    integer internal_{label}_fire;\n" for label, _, _ in channels)
+    kind_channels = internal_payload_kind_channels(module_body)
+    declarations = "".join(f"    integer internal_{label}_fire;\n" for label, _, _ in channels)
+    for label, _, _, _ in kind_channels:
+        for kind in range(5):
+            declarations += f"    integer internal_{label}_kind{kind}_fire;\n"
+    return declarations
 
 
 def generate_internal_counter_reset(module_body: str) -> str:
     channels = internal_handshake_channels(module_body)
-    if not channels:
-        return ""
-    return "".join(f"        internal_{label}_fire = 0;\n" for label, _, _ in channels)
+    kind_channels = internal_payload_kind_channels(module_body)
+    resets = "".join(f"        internal_{label}_fire = 0;\n" for label, _, _ in channels)
+    for label, _, _, _ in kind_channels:
+        for kind in range(5):
+            resets += f"        internal_{label}_kind{kind}_fire = 0;\n"
+    return resets
 
 
 def generate_internal_counter_update(module_body: str) -> str:
     channels = internal_handshake_channels(module_body)
-    if not channels:
-        return ""
     lines = []
     for label, valid, ready in channels:
         lines.append(
@@ -181,18 +245,48 @@ def generate_internal_counter_update(module_body: str) -> str:
             f"                internal_{label}_fire = internal_{label}_fire + 1;\n"
             f"            end\n"
         )
+    for label, valid, ready, kind_signal in internal_payload_kind_channels(module_body):
+        lines.append(
+            f"            if (dut.{valid} && dut.{ready}) begin\n"
+            f"                case (dut.{kind_signal})\n"
+        )
+        for kind in range(5):
+            lines.append(
+                f"                    {kind}: internal_{label}_kind{kind}_fire = "
+                f"internal_{label}_kind{kind}_fire + 1;\n"
+            )
+        lines.append("                    default: begin end\n")
+        lines.append("                endcase\n")
+        lines.append("            end\n")
     return "".join(lines)
 
 
 def generate_internal_counter_display(module_body: str) -> str:
     channels = internal_handshake_channels(module_body)
-    if not channels:
-        return ""
-    fields = " ".join(f"{label}=%0d" for label, _, _ in channels)
-    args = ", ".join(f"internal_{label}_fire" for label, _, _ in channels)
-    return (
-        f'                $display("debug internal_fires {fields}",\n'
-        f"                         {args});\n"
+    display = ""
+    if channels:
+        fields = " ".join(f"{label}=%0d" for label, _, _ in channels)
+        args = ", ".join(f"internal_{label}_fire" for label, _, _ in channels)
+        display += (
+            f'                $display("debug internal_fires {fields}",\n'
+            f"                         {args});\n"
+        )
+    for label, _, _, _ in internal_payload_kind_channels(module_body):
+        display += (
+            f'                $display("debug {label}_kind_fires '
+            f'k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d",\n'
+            f"                         internal_{label}_kind0_fire,\n"
+            f"                         internal_{label}_kind1_fire,\n"
+            f"                         internal_{label}_kind2_fire,\n"
+            f"                         internal_{label}_kind3_fire,\n"
+            f"                         internal_{label}_kind4_fire);\n"
+        )
+    return display
+
+
+def generate_final_internal_counter_display(module_body: str) -> str:
+    return generate_internal_counter_display(module_body).replace(
+        '                $display("debug ', '                $display("final debug '
     )
 
 
@@ -581,6 +675,7 @@ module hdc_accelerator_rtl_tb;
                 $display("average_inference_latency=%0f", average_latency);
                 $display("max_inference_latency=%0d", max_latency);
                 $display("errors=%0d", error_count);
+{generate_final_internal_counter_display(module_body)}
 
                 $fclose(command_fd);
                 $fclose(response_fd);
