@@ -305,6 +305,7 @@ DistancePacket HDC_Accelerator::read_distance_done_packet() const {
 void HDC_Accelerator::command_thread() {
     EncoderPacket output_packet = EncoderPacket();
     bool output_valid = false;
+    bool output_payload_presented = false;
     bool output_presented = false;
     bool wait_ngram_control = false;
     bool wait_train_control = false;
@@ -331,10 +332,13 @@ void HDC_Accelerator::command_thread() {
                 cmd_sample_snapshot.levels[feature] = cmd_sample_levels[feature].read();
             }
 
-            if (output_valid && !output_presented) {
+            if (output_valid && !output_payload_presented) {
+                output_payload_presented = true;
+            } else if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_encoder_in_ready.read()) {
                 output_valid = false;
+                output_payload_presented = false;
                 output_presented = false;
             }
 
@@ -377,6 +381,7 @@ void HDC_Accelerator::command_thread() {
 
                 output_packet = packet;
                 output_valid = true;
+                output_payload_presented = false;
                 output_presented = false;
 
                 if (is_ngram_control_command(packet.kind)) {
@@ -390,7 +395,7 @@ void HDC_Accelerator::command_thread() {
             }
 
             write_encoder_in_packet(output_packet);
-            m_encoder_in_valid.write(output_valid);
+            m_encoder_in_valid.write(output_valid && output_payload_presented);
             wait();
         }
     }
