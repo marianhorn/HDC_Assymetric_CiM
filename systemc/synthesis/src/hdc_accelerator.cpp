@@ -427,7 +427,17 @@ void HDC_Accelerator::encoder_thread() {
             m_encoder_in_ready.write(can_accept_input);
 
             if (can_accept_input && m_encoder_in_valid.read()) {
-                work = read_encoder_in_packet();
+                work = EncoderPacket();
+                work.kind = m_encoder_in_kind.read();
+                work.class_id = m_encoder_in_class_id.read();
+                for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                    HLS_UNROLL_LOOP(OFF, "encoder-read-input-sample-loop");
+                    work.sample.levels[feature] = m_encoder_in_sample_levels[feature].read();
+                }
+                for (unsigned word = 0; word < HV_WORDS; ++word) {
+                    HLS_UNROLL_LOOP(OFF, "encoder-read-input-encoded-loop");
+                    work.encoded.words[word] = m_encoder_in_encoded_words[word].read();
+                }
                 clear_hv(encoder_result);
                 word_index = 0;
                 busy = true;

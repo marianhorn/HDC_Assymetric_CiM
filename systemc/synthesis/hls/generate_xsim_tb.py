@@ -621,21 +621,37 @@ module hdc_accelerator_rtl_tb;
         integer predicted;
         integer best_distance;
         integer latency;
+        string expected_line;
         begin
-            rc = $fscanf(response_fd, "%d", expected_valid);
-            if (rc != 1) begin
+            rc = $fgets(expected_line, response_fd);
+            if (rc == 0) begin
                 $fatal(1, "Missing expected response for received response %0d", responses_received);
             end
 
-            for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
-                rc = $fscanf(response_fd, "%d", expected_distance[class_id]);
-                if (rc != 1) begin
-                    $fatal(1, "Malformed expected response distance %0d", class_id);
-                end
+            rc = $sscanf(expected_line, "%d %d %d %d %d %d %d %d",
+                         expected_valid,
+                         expected_distance[0],
+                         expected_distance[1],
+                         expected_distance[2],
+                         expected_distance[3],
+                         expected_distance[4],
+                         expected_predicted,
+                         expected_actual);
+            if (rc != 8 && rc != 6) begin
+                $fatal(1, "Malformed expected response line %0d: %s",
+                       responses_received, expected_line);
             end
-            rc = $fscanf(response_fd, "%d %d", expected_predicted, expected_actual);
-            if (rc != 2) begin
-                $fatal(1, "Malformed expected response predicted/actual fields");
+
+            if (rc == 6) begin
+                expected_predicted = 0;
+                expected_actual = -1;
+                best_distance = expected_distance[0];
+                for (class_id = 1; class_id < NUM_CLASSES; class_id = class_id + 1) begin
+                    if (expected_distance[class_id] < best_distance) begin
+                        best_distance = expected_distance[class_id];
+                        expected_predicted = class_id;
+                    end
+                end
             end
 
             if (rsp_valid_prediction !== (expected_valid != 0)) begin
