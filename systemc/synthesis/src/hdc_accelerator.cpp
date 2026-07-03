@@ -322,6 +322,15 @@ void HDC_Accelerator::command_thread() {
 
     while (true) {
         {
+            const bool cmd_valid_snapshot = cmd_valid.read();
+            const command_kind_t cmd_kind_snapshot = cmd_kind.read();
+            const class_t cmd_class_id_snapshot = cmd_class_id.read();
+            QuantizedSample cmd_sample_snapshot = {};
+            for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                HLS_UNROLL_LOOP(OFF, "command-sample-snapshot-loop");
+                cmd_sample_snapshot.levels[feature] = cmd_sample_levels[feature].read();
+            }
+
             if (output_valid && !output_presented) {
                 output_presented = true;
             } else if (output_valid && m_encoder_in_ready.read()) {
@@ -355,18 +364,11 @@ void HDC_Accelerator::command_thread() {
             m_train_control_done_ready.write(wait_train_control ||
                                              m_train_control_done_valid.read());
 
-            if (cmd_valid.read() && can_accept_command) {
-                AccelCommand command = {};
-                command.kind = static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
-                command.class_id = cmd_class_id.read();
-                for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-                    command.sample.levels[feature] = cmd_sample_levels[feature].read();
-                }
-
+            if (cmd_valid_snapshot && can_accept_command) {
                 EncoderPacket packet = {};
-                packet.kind = cmd_kind.read();
-                packet.class_id = command.class_id;
-                packet.sample = command.sample;
+                packet.kind = cmd_kind_snapshot;
+                packet.class_id = cmd_class_id_snapshot;
+                packet.sample = cmd_sample_snapshot;
                 clear_hv(packet.encoded);
 
                 if (command_kind_is(packet.kind, AccelCommandKind::InferSample)) {
