@@ -170,6 +170,7 @@ def internal_payload_kind_channels(module_body: str) -> List[tuple]:
             "m_encoder_in_valid",
             "m_encoder_in_ready",
             [
+                "m_encoder_in_kind",
                 "m_encoder_in_data_kind",
                 "m_encoder_in_m_chan_data_kind",
                 "m_encoder_in_m_chan_data_kind_slice",
@@ -180,6 +181,7 @@ def internal_payload_kind_channels(module_body: str) -> List[tuple]:
             "m_encoder_out_valid",
             "m_encoder_out_ready",
             [
+                "m_encoder_out_kind",
                 "m_encoder_out_data_kind",
                 "m_encoder_out_m_chan_data_kind",
             ],
@@ -189,6 +191,7 @@ def internal_payload_kind_channels(module_body: str) -> List[tuple]:
             "m_bundler_in_valid",
             "m_bundler_in_ready",
             [
+                "m_bundler_in_kind",
                 "m_bundler_in_data_kind",
                 "m_bundler_in_m_chan_data_kind",
             ],
@@ -198,6 +201,7 @@ def internal_payload_kind_channels(module_body: str) -> List[tuple]:
             "m_distance_in_valid",
             "m_distance_in_ready",
             [
+                "m_distance_in_kind",
                 "m_distance_in_data_kind",
                 "m_distance_in_m_chan_data_kind",
             ],
@@ -382,6 +386,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "enc_in_data",
             [
+                ("kind", "m_encoder_in_kind"),
+                ("class", "m_encoder_in_class_id"),
                 ("kind", "m_encoder_in_data_kind"),
                 ("class", "m_encoder_in_data_class_id"),
                 ("kind", "m_encoder_in_m_chan_data_kind"),
@@ -392,6 +398,8 @@ def generate_debug_task(module_body: str) -> str:
         (
             "enc_out_data",
             [
+                ("kind", "m_encoder_out_kind"),
+                ("class", "m_encoder_out_class_id"),
                 ("kind", "m_encoder_out_data_kind"),
                 ("class", "m_encoder_out_data_class_id"),
                 ("kind", "m_encoder_out_m_chan_data_kind"),
@@ -401,6 +409,9 @@ def generate_debug_task(module_body: str) -> str:
         (
             "bundler_in_data",
             [
+                ("kind", "m_bundler_in_kind"),
+                ("class", "m_bundler_in_class_id"),
+                ("valid_ngram", "m_bundler_in_valid_ngram"),
                 ("kind", "m_bundler_in_data_kind"),
                 ("class", "m_bundler_in_data_class_id"),
                 ("valid_ngram", "m_bundler_in_data_valid_ngram"),
@@ -412,6 +423,9 @@ def generate_debug_task(module_body: str) -> str:
         (
             "distance_in_data",
             [
+                ("kind", "m_distance_in_kind"),
+                ("class", "m_distance_in_class_id"),
+                ("valid_ngram", "m_distance_in_valid_ngram"),
                 ("kind", "m_distance_in_data_kind"),
                 ("class", "m_distance_in_data_class_id"),
                 ("valid_ngram", "m_distance_in_data_valid_ngram"),
@@ -423,6 +437,12 @@ def generate_debug_task(module_body: str) -> str:
         (
             "distance_done_data",
             [
+                ("valid_prediction", "m_distance_done_valid_prediction"),
+                ("d0", "m_distance_done_distances_0"),
+                ("d1", "m_distance_done_distances_1"),
+                ("d2", "m_distance_done_distances_2"),
+                ("d3", "m_distance_done_distances_3"),
+                ("d4", "m_distance_done_distances_4"),
                 ("valid_prediction", "m_distance_done_data_valid_prediction"),
                 ("d0", "m_distance_done_data_distances_0"),
                 ("d1", "m_distance_done_data_distances_1"),

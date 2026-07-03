@@ -181,6 +181,124 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
     m_assoc_mem[class_id] = value;
 }
 
+void HDC_Accelerator::write_encoder_in_packet(const EncoderPacket &packet) {
+    m_encoder_in_kind.write(packet.kind);
+    m_encoder_in_class_id.write(packet.class_id);
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        HLS_UNROLL_LOOP(OFF, "write-encoder-in-sample-loop");
+        m_encoder_in_sample_levels[feature].write(packet.sample.levels[feature]);
+    }
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "write-encoder-in-encoded-loop");
+        m_encoder_in_encoded_words[word].write(packet.encoded.words[word]);
+    }
+}
+
+EncoderPacket HDC_Accelerator::read_encoder_in_packet() const {
+    EncoderPacket packet = EncoderPacket();
+    packet.kind = m_encoder_in_kind.read();
+    packet.class_id = m_encoder_in_class_id.read();
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        HLS_UNROLL_LOOP(OFF, "read-encoder-in-sample-loop");
+        packet.sample.levels[feature] = m_encoder_in_sample_levels[feature].read();
+    }
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "read-encoder-in-encoded-loop");
+        packet.encoded.words[word] = m_encoder_in_encoded_words[word].read();
+    }
+    return packet;
+}
+
+void HDC_Accelerator::write_encoder_out_packet(const EncoderPacket &packet) {
+    m_encoder_out_kind.write(packet.kind);
+    m_encoder_out_class_id.write(packet.class_id);
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        HLS_UNROLL_LOOP(OFF, "write-encoder-out-sample-loop");
+        m_encoder_out_sample_levels[feature].write(packet.sample.levels[feature]);
+    }
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "write-encoder-out-encoded-loop");
+        m_encoder_out_encoded_words[word].write(packet.encoded.words[word]);
+    }
+}
+
+EncoderPacket HDC_Accelerator::read_encoder_out_packet() const {
+    EncoderPacket packet = EncoderPacket();
+    packet.kind = m_encoder_out_kind.read();
+    packet.class_id = m_encoder_out_class_id.read();
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        HLS_UNROLL_LOOP(OFF, "read-encoder-out-sample-loop");
+        packet.sample.levels[feature] = m_encoder_out_sample_levels[feature].read();
+    }
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "read-encoder-out-encoded-loop");
+        packet.encoded.words[word] = m_encoder_out_encoded_words[word].read();
+    }
+    return packet;
+}
+
+void HDC_Accelerator::write_bundler_in_packet(const NGramPacket &packet) {
+    m_bundler_in_kind.write(packet.kind);
+    m_bundler_in_class_id.write(packet.class_id);
+    m_bundler_in_valid_ngram.write(packet.valid_ngram);
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "write-bundler-in-ngram-loop");
+        m_bundler_in_ngram_words[word].write(packet.ngram.words[word]);
+    }
+}
+
+NGramPacket HDC_Accelerator::read_bundler_in_packet() const {
+    NGramPacket packet = NGramPacket();
+    packet.kind = m_bundler_in_kind.read();
+    packet.class_id = m_bundler_in_class_id.read();
+    packet.valid_ngram = m_bundler_in_valid_ngram.read();
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "read-bundler-in-ngram-loop");
+        packet.ngram.words[word] = m_bundler_in_ngram_words[word].read();
+    }
+    return packet;
+}
+
+void HDC_Accelerator::write_distance_in_packet(const NGramPacket &packet) {
+    m_distance_in_kind.write(packet.kind);
+    m_distance_in_class_id.write(packet.class_id);
+    m_distance_in_valid_ngram.write(packet.valid_ngram);
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "write-distance-in-ngram-loop");
+        m_distance_in_ngram_words[word].write(packet.ngram.words[word]);
+    }
+}
+
+NGramPacket HDC_Accelerator::read_distance_in_packet() const {
+    NGramPacket packet = NGramPacket();
+    packet.kind = m_distance_in_kind.read();
+    packet.class_id = m_distance_in_class_id.read();
+    packet.valid_ngram = m_distance_in_valid_ngram.read();
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "read-distance-in-ngram-loop");
+        packet.ngram.words[word] = m_distance_in_ngram_words[word].read();
+    }
+    return packet;
+}
+
+void HDC_Accelerator::write_distance_done_packet(const DistancePacket &packet) {
+    m_distance_done_valid_prediction.write(packet.valid_prediction);
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        HLS_UNROLL_LOOP(OFF, "write-distance-done-loop");
+        m_distance_done_distances[class_id].write(packet.distances[class_id]);
+    }
+}
+
+DistancePacket HDC_Accelerator::read_distance_done_packet() const {
+    DistancePacket packet = DistancePacket();
+    packet.valid_prediction = m_distance_done_valid_prediction.read();
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        HLS_UNROLL_LOOP(OFF, "read-distance-done-loop");
+        packet.distances[class_id] = m_distance_done_distances[class_id].read();
+    }
+    return packet;
+}
+
 // Data commands are pipelined: TrainSample and InferSample are dispatched
 // without waiting for completion. Control commands are blocking stream
 // boundaries and wait until their token passes through the internal pipeline.
@@ -195,7 +313,7 @@ void HDC_Accelerator::command_thread() {
 
     {
         cmd_ready.write(false);
-        m_encoder_in_data.write(EncoderPacket());
+        write_encoder_in_packet(EncoderPacket());
         m_encoder_in_valid.write(false);
         m_ngram_control_done_ready.write(false);
         m_train_control_done_ready.write(false);
@@ -269,7 +387,7 @@ void HDC_Accelerator::command_thread() {
                 }
             }
 
-            m_encoder_in_data.write(output_packet);
+            write_encoder_in_packet(output_packet);
             m_encoder_in_valid.write(output_valid);
             wait();
         }
@@ -289,7 +407,7 @@ void HDC_Accelerator::encoder_thread() {
         clear_hv(encoder_result);
         clear_hv(output_packet.encoded);
         m_encoder_in_ready.write(false);
-        m_encoder_out_data.write(EncoderPacket());
+        write_encoder_out_packet(EncoderPacket());
         m_encoder_out_valid.write(false);
         wait();
     }
@@ -307,7 +425,7 @@ void HDC_Accelerator::encoder_thread() {
             m_encoder_in_ready.write(can_accept_input);
 
             if (can_accept_input && m_encoder_in_valid.read()) {
-                work = m_encoder_in_data.read();
+                work = read_encoder_in_packet();
                 clear_hv(encoder_result);
                 word_index = 0;
                 busy = true;
@@ -349,7 +467,7 @@ void HDC_Accelerator::encoder_thread() {
                 }
             }
 
-            m_encoder_out_data.write(output_packet);
+            write_encoder_out_packet(output_packet);
             m_encoder_out_valid.write(output_valid);
             wait();
         }
@@ -376,9 +494,9 @@ void HDC_Accelerator::ngram_thread() {
         clear_hv(next);
         reset_ngram_buffer();
         m_encoder_out_ready.write(false);
-        m_bundler_in_data.write(NGramPacket());
+        write_bundler_in_packet(NGramPacket());
         m_bundler_in_valid.write(false);
-        m_distance_in_data.write(NGramPacket());
+        write_distance_in_packet(NGramPacket());
         m_distance_in_valid.write(false);
         m_ngram_control_done_valid.write(false);
         wait();
@@ -413,8 +531,8 @@ void HDC_Accelerator::ngram_thread() {
             m_bundler_in_valid.write(output_pending && output_target == OUTPUT_BUNDLER);
             m_distance_in_valid.write(output_pending && output_target == OUTPUT_DISTANCE);
             m_ngram_control_done_valid.write(control_done_valid);
-            m_bundler_in_data.write(output_packet);
-            m_distance_in_data.write(output_packet);
+            write_bundler_in_packet(output_packet);
+            write_distance_in_packet(output_packet);
 
             if (bind_busy) {
                 m_encoder_out_ready.write(false);
@@ -454,7 +572,7 @@ void HDC_Accelerator::ngram_thread() {
             m_encoder_out_ready.write(can_accept_encoder);
 
             if (can_accept_encoder && m_encoder_out_valid.read()) {
-                EncoderPacket item = m_encoder_out_data.read();
+                EncoderPacket item = read_encoder_out_packet();
 
                 if (command_kind_is(item.kind, AccelCommandKind::ResetTraining)) {
                     reset_ngram_buffer();
@@ -566,7 +684,7 @@ void HDC_Accelerator::train_thread() {
             const bool bundler_valid = m_bundler_in_valid.read();
             NGramPacket bundler_item = NGramPacket();
             if (bundler_valid) {
-                bundler_item = m_bundler_in_data.read();
+                bundler_item = read_bundler_in_packet();
             }
 
             if (init_reset_token_drain && !bundler_valid) {
@@ -729,7 +847,7 @@ void HDC_Accelerator::distance_thread() {
 
     {
         m_distance_in_ready.write(false);
-        m_distance_done_data.write(DistancePacket());
+        write_distance_done_packet(DistancePacket());
         m_distance_done_valid.write(false);
         wait();
     }
@@ -747,7 +865,7 @@ void HDC_Accelerator::distance_thread() {
             m_distance_in_ready.write(can_accept_input);
 
             if (can_accept_input && m_distance_in_valid.read()) {
-                const NGramPacket item = m_distance_in_data.read();
+                const NGramPacket item = read_distance_in_packet();
                 if (!item.valid_ngram) {
                     output_packet = DistancePacket();
                     output_packet.valid_prediction = false;
@@ -782,7 +900,7 @@ void HDC_Accelerator::distance_thread() {
                 }
             }
 
-            m_distance_done_data.write(output_packet);
+            write_distance_done_packet(output_packet);
             m_distance_done_valid.write(output_valid);
             wait();
         }
@@ -832,7 +950,7 @@ void HDC_Accelerator::response_thread() {
                 }
 
                 if (!distance_token_consumed && m_distance_done_valid.read()) {
-                    work = m_distance_done_data.read();
+                    work = read_distance_done_packet();
                     holding_response = true;
                     distance_token_consumed = true;
                 }

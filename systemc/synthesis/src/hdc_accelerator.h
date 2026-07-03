@@ -25,6 +25,8 @@ using hdc_systemc::distance_counter_t;
 using hdc_systemc::feature_score_t;
 using hdc_systemc::hv_clear;
 using hdc_systemc::hv_t;
+using hdc_systemc::hv_word_t;
+using hdc_systemc::HV_WORDS;
 using hdc_systemc::level_t;
 using hdc_systemc::train_counter_t;
 using hdc_systemc::train_score_t;
@@ -188,23 +190,47 @@ private:
 
     void reset_ngram_buffer();
 
-    sc_core::sc_signal<EncoderPacket> m_encoder_in_data;
+    void write_encoder_in_packet(const EncoderPacket &packet);
+    EncoderPacket read_encoder_in_packet() const;
+    void write_encoder_out_packet(const EncoderPacket &packet);
+    EncoderPacket read_encoder_out_packet() const;
+    void write_bundler_in_packet(const NGramPacket &packet);
+    NGramPacket read_bundler_in_packet() const;
+    void write_distance_in_packet(const NGramPacket &packet);
+    NGramPacket read_distance_in_packet() const;
+    void write_distance_done_packet(const DistancePacket &packet);
+    DistancePacket read_distance_done_packet() const;
+
+    sc_core::sc_signal<command_kind_t> m_encoder_in_kind;
+    sc_core::sc_signal<class_t> m_encoder_in_class_id;
+    sc_core::sc_signal<level_t> m_encoder_in_sample_levels[NUM_FEATURES];
+    sc_core::sc_signal<hv_word_t> m_encoder_in_encoded_words[HV_WORDS];
     sc_core::sc_signal<bool> m_encoder_in_valid;
     sc_core::sc_signal<bool> m_encoder_in_ready;
 
-    sc_core::sc_signal<EncoderPacket> m_encoder_out_data;
+    sc_core::sc_signal<command_kind_t> m_encoder_out_kind;
+    sc_core::sc_signal<class_t> m_encoder_out_class_id;
+    sc_core::sc_signal<level_t> m_encoder_out_sample_levels[NUM_FEATURES];
+    sc_core::sc_signal<hv_word_t> m_encoder_out_encoded_words[HV_WORDS];
     sc_core::sc_signal<bool> m_encoder_out_valid;
     sc_core::sc_signal<bool> m_encoder_out_ready;
 
-    sc_core::sc_signal<NGramPacket> m_bundler_in_data;
+    sc_core::sc_signal<command_kind_t> m_bundler_in_kind;
+    sc_core::sc_signal<class_t> m_bundler_in_class_id;
+    sc_core::sc_signal<hv_word_t> m_bundler_in_ngram_words[HV_WORDS];
+    sc_core::sc_signal<bool> m_bundler_in_valid_ngram;
     sc_core::sc_signal<bool> m_bundler_in_valid;
     sc_core::sc_signal<bool> m_bundler_in_ready;
 
-    sc_core::sc_signal<NGramPacket> m_distance_in_data;
+    sc_core::sc_signal<command_kind_t> m_distance_in_kind;
+    sc_core::sc_signal<class_t> m_distance_in_class_id;
+    sc_core::sc_signal<hv_word_t> m_distance_in_ngram_words[HV_WORDS];
+    sc_core::sc_signal<bool> m_distance_in_valid_ngram;
     sc_core::sc_signal<bool> m_distance_in_valid;
     sc_core::sc_signal<bool> m_distance_in_ready;
 
-    sc_core::sc_signal<DistancePacket> m_distance_done_data;
+    sc_core::sc_signal<bool> m_distance_done_valid_prediction;
+    sc_core::sc_signal<distance_counter_t> m_distance_done_distances[NUM_CLASSES];
     sc_core::sc_signal<bool> m_distance_done_valid;
     sc_core::sc_signal<bool> m_distance_done_ready;
 
