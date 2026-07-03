@@ -524,6 +524,7 @@ module hdc_accelerator_rtl_tb;
     localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
     localparam integer PROGRESS_CYCLES = {args.progress_cycles};
     localparam integer RESET_CYCLES = {args.reset_cycles};
+    localparam integer POST_COMMAND_HOLD_CYCLES = {args.post_command_hold_cycles};
     localparam string COMMAND_PATH = {command_path};
     localparam string RESPONSE_PATH = {response_path};
 
@@ -559,6 +560,7 @@ module hdc_accelerator_rtl_tb;
     integer issue_cycles [0:1048575];
     integer issue_head;
     integer issue_tail;
+    integer command_hold_cycles;
     integer total_latency;
     integer max_latency;
     integer error_count;
@@ -726,6 +728,7 @@ module hdc_accelerator_rtl_tb;
         has_command = 0;
         issue_head = 0;
         issue_tail = 0;
+        command_hold_cycles = 0;
         total_latency = 0;
         max_latency = 0;
         error_count = 0;
@@ -752,7 +755,7 @@ module hdc_accelerator_rtl_tb;
                 $fatal(1, "RTL simulation timeout after %0d cycles", cycle_count);
             end
 
-            if (!cmd_valid && can_drive_next_command()) begin
+            if (!cmd_valid && command_hold_cycles == 0 && can_drive_next_command()) begin
                 drive_next_command();
             end
             rsp_ready = (outstanding > 0);
@@ -778,8 +781,13 @@ module hdc_accelerator_rtl_tb;
                 end
                 cmd_valid = 1'b0;
                 read_next_command(has_command);
+                command_hold_cycles = POST_COMMAND_HOLD_CYCLES;
             end else if (cmd_valid && !cmd_ready) begin
                 command_stall_cycles = command_stall_cycles + 1;
+            end
+
+            if (!cmd_valid && command_hold_cycles > 0) begin
+                command_hold_cycles = command_hold_cycles - 1;
             end
 
             if (rsp_valid && !rsp_ready) begin
@@ -810,6 +818,7 @@ def main() -> None:
     parser.add_argument("--timeout-cycles", type=int, default=50000000)
     parser.add_argument("--progress-cycles", type=int, default=100000)
     parser.add_argument("--reset-cycles", type=int, default=32)
+    parser.add_argument("--post-command-hold-cycles", type=int, default=8)
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
