@@ -621,14 +621,8 @@ module hdc_accelerator_rtl_tb;
         integer predicted;
         integer best_distance;
         integer latency;
-        string expected_line;
         begin
-            rc = $fgets(expected_line, response_fd);
-            if (rc == 0) begin
-                $fatal(1, "Missing expected response for received response %0d", responses_received);
-            end
-
-            rc = $sscanf(expected_line, "%d %d %d %d %d %d %d %d",
+            rc = $fscanf(response_fd, "%d %d %d %d %d %d %d %d",
                          expected_valid,
                          expected_distance[0],
                          expected_distance[1],
@@ -637,19 +631,20 @@ module hdc_accelerator_rtl_tb;
                          expected_distance[4],
                          expected_predicted,
                          expected_actual);
-            if (rc != 8 && rc != 6) begin
-                $fatal(1, "Malformed expected response line %0d: %s",
-                       responses_received, expected_line);
+            if (rc != 8) begin
+                $fatal(1, "Malformed expected response %0d: parsed %0d fields",
+                       responses_received, rc);
             end
 
-            if (rc == 6) begin
+            if (expected_predicted < 0) begin
                 expected_predicted = 0;
-                expected_actual = -1;
-                best_distance = expected_distance[0];
-                for (class_id = 1; class_id < NUM_CLASSES; class_id = class_id + 1) begin
-                    if (expected_distance[class_id] < best_distance) begin
-                        best_distance = expected_distance[class_id];
-                        expected_predicted = class_id;
+                if (expected_valid != 0) begin
+                    best_distance = expected_distance[0];
+                    for (class_id = 1; class_id < NUM_CLASSES; class_id = class_id + 1) begin
+                        if (expected_distance[class_id] < best_distance) begin
+                            best_distance = expected_distance[class_id];
+                            expected_predicted = class_id;
+                        end
                     end
                 end
             end
