@@ -303,7 +303,6 @@ DistancePacket HDC_Accelerator::read_distance_done_packet() const {
 // without waiting for completion. Control commands are blocking stream
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::command_thread() {
-    EncoderPacket output_packet = EncoderPacket();
     bool output_valid = false;
     bool output_payload_presented = false;
     bool output_presented = false;
@@ -379,7 +378,7 @@ void HDC_Accelerator::command_thread() {
                     packet.class_id = 0;
                 }
 
-                output_packet = packet;
+                write_encoder_in_packet(packet);
                 output_valid = true;
                 output_payload_presented = false;
                 output_presented = false;
@@ -394,7 +393,6 @@ void HDC_Accelerator::command_thread() {
                 }
             }
 
-            write_encoder_in_packet(output_packet);
             m_encoder_in_valid.write(output_valid && output_payload_presented);
             wait();
         }
