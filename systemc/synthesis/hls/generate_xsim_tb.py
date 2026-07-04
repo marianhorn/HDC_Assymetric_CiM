@@ -220,23 +220,60 @@ def internal_payload_kind_channels(module_body: str) -> List[tuple]:
     return channels
 
 
+def internal_payload_bool_channels(module_body: str) -> List[tuple]:
+    candidates = [
+        (
+            "bundler_in_valid_ngram",
+            "m_bundler_in_valid",
+            "m_bundler_in_ready",
+            "m_bundler_in_valid_ngram",
+        ),
+        (
+            "distance_in_valid_ngram",
+            "m_distance_in_valid",
+            "m_distance_in_ready",
+            "m_distance_in_valid_ngram",
+        ),
+        (
+            "distance_done_valid_prediction",
+            "m_distance_done_valid",
+            "m_distance_done_ready",
+            "m_distance_done_valid_prediction",
+        ),
+    ]
+    return [
+        item for item in candidates
+        if has_internal_signal(module_body, item[1])
+        and has_internal_signal(module_body, item[2])
+        and has_internal_signal(module_body, item[3])
+    ]
+
+
 def generate_internal_counter_declarations(module_body: str) -> str:
     channels = internal_handshake_channels(module_body)
     kind_channels = internal_payload_kind_channels(module_body)
+    bool_channels = internal_payload_bool_channels(module_body)
     declarations = "".join(f"    integer internal_{label}_fire;\n" for label, _, _ in channels)
     for label, _, _, _ in kind_channels:
         for kind in range(5):
             declarations += f"    integer internal_{label}_kind{kind}_fire;\n"
+    for label, _, _, _ in bool_channels:
+        declarations += f"    integer internal_{label}_false_fire;\n"
+        declarations += f"    integer internal_{label}_true_fire;\n"
     return declarations
 
 
 def generate_internal_counter_reset(module_body: str) -> str:
     channels = internal_handshake_channels(module_body)
     kind_channels = internal_payload_kind_channels(module_body)
+    bool_channels = internal_payload_bool_channels(module_body)
     resets = "".join(f"        internal_{label}_fire = 0;\n" for label, _, _ in channels)
     for label, _, _, _ in kind_channels:
         for kind in range(5):
             resets += f"        internal_{label}_kind{kind}_fire = 0;\n"
+    for label, _, _, _ in bool_channels:
+        resets += f"        internal_{label}_false_fire = 0;\n"
+        resets += f"        internal_{label}_true_fire = 0;\n"
     return resets
 
 
@@ -262,6 +299,16 @@ def generate_internal_counter_update(module_body: str) -> str:
         lines.append("                    default: begin end\n")
         lines.append("                endcase\n")
         lines.append("            end\n")
+    for label, valid, ready, bool_signal in internal_payload_bool_channels(module_body):
+        lines.append(
+            f"            if (dut.{valid} && dut.{ready}) begin\n"
+            f"                if (dut.{bool_signal}) begin\n"
+            f"                    internal_{label}_true_fire = internal_{label}_true_fire + 1;\n"
+            f"                end else begin\n"
+            f"                    internal_{label}_false_fire = internal_{label}_false_fire + 1;\n"
+            f"                end\n"
+            f"            end\n"
+        )
     return "".join(lines)
 
 
@@ -284,6 +331,12 @@ def generate_internal_counter_display(module_body: str) -> str:
             f"                         internal_{label}_kind2_fire,\n"
             f"                         internal_{label}_kind3_fire,\n"
             f"                         internal_{label}_kind4_fire);\n"
+        )
+    for label, _, _, _ in internal_payload_bool_channels(module_body):
+        display += (
+            f'                $display("debug {label}_fires false=%0d true=%0d",\n'
+            f"                         internal_{label}_false_fire,\n"
+            f"                         internal_{label}_true_fire);\n"
         )
     return display
 

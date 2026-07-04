@@ -858,6 +858,7 @@ void HDC_Accelerator::distance_thread() {
     bool busy = false;
     bool output_valid = false;
     bool output_presented = false;
+    bool input_token_consumed = false;
     unsigned class_id = 0;
 
     {
@@ -876,10 +877,16 @@ void HDC_Accelerator::distance_thread() {
                 output_presented = false;
             }
 
-            const bool can_accept_input = !busy && !output_valid;
-            m_distance_in_ready.write(can_accept_input);
+            if (!m_distance_in_valid.read()) {
+                input_token_consumed = false;
+            }
 
-            if (can_accept_input && m_distance_in_valid.read()) {
+            const bool can_accept_input = !busy && !output_valid;
+            m_distance_in_ready.write(can_accept_input ||
+                                      (input_token_consumed && m_distance_in_valid.read()));
+
+            if (can_accept_input && m_distance_in_valid.read() && !input_token_consumed) {
+                input_token_consumed = true;
                 const NGramPacket item = read_distance_in_packet();
                 if (!item.valid_ngram) {
                     output_packet = DistancePacket();
