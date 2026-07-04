@@ -621,20 +621,25 @@ module hdc_accelerator_rtl_tb;
         integer predicted;
         integer best_distance;
         integer latency;
+        string expected_predicted_text;
+        string expected_actual_text;
         begin
-            rc = $fscanf(response_fd, "%d %d %d %d %d %d %d %d",
+            rc = $fscanf(response_fd, "%d %d %d %d %d %d %s %s",
                          expected_valid,
                          expected_distance[0],
                          expected_distance[1],
                          expected_distance[2],
                          expected_distance[3],
                          expected_distance[4],
-                         expected_predicted,
-                         expected_actual);
+                         expected_predicted_text,
+                         expected_actual_text);
             if (rc != 8) begin
                 $fatal(1, "Malformed expected response %0d: parsed %0d fields",
                        responses_received, rc);
             end
+
+            expected_predicted = expected_predicted_text.atoi();
+            expected_actual = expected_actual_text.atoi();
 
             if (expected_predicted < 0) begin
                 expected_predicted = 0;
