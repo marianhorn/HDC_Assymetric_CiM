@@ -617,6 +617,11 @@ module hdc_accelerator_rtl_tb;
     integer total_latency;
     integer max_latency;
     integer error_count;
+    integer top_cmd_kind0_fire;
+    integer top_cmd_kind1_fire;
+    integer top_cmd_kind2_fire;
+    integer top_cmd_kind3_fire;
+    integer top_cmd_kind4_fire;
 {generate_internal_counter_declarations(module_body)}
 
     always #5 clk = ~clk;
@@ -766,6 +771,12 @@ module hdc_accelerator_rtl_tb;
                 $display("average_inference_latency=%0f", average_latency);
                 $display("max_inference_latency=%0d", max_latency);
                 $display("errors=%0d", error_count);
+                $display("final debug top_cmd_kind_fires k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d",
+                         top_cmd_kind0_fire,
+                         top_cmd_kind1_fire,
+                         top_cmd_kind2_fire,
+                         top_cmd_kind3_fire,
+                         top_cmd_kind4_fire);
 {generate_final_internal_counter_display(module_body)}
 
                 $fclose(command_fd);
@@ -801,6 +812,11 @@ module hdc_accelerator_rtl_tb;
         total_latency = 0;
         max_latency = 0;
         error_count = 0;
+        top_cmd_kind0_fire = 0;
+        top_cmd_kind1_fire = 0;
+        top_cmd_kind2_fire = 0;
+        top_cmd_kind3_fire = 0;
+        top_cmd_kind4_fire = 0;
 {generate_internal_counter_reset(module_body)}
 
         command_fd = $fopen(COMMAND_PATH, "r");
@@ -836,12 +852,26 @@ module hdc_accelerator_rtl_tb;
             if (PROGRESS_CYCLES > 0 && (cycle_count % PROGRESS_CYCLES) == 0) begin
                 $display("progress cycles=%0d commands=%0d inference=%0d responses=%0d outstanding=%0d",
                          cycle_count, commands_sent, inference_sent, responses_received, outstanding);
+                $display("debug top_cmd_kind_fires k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d",
+                         top_cmd_kind0_fire,
+                         top_cmd_kind1_fire,
+                         top_cmd_kind2_fire,
+                         top_cmd_kind3_fire,
+                         top_cmd_kind4_fire);
 {generate_internal_counter_display(module_body)}
                 print_dut_debug();
             end
 
             if (cmd_valid && cmd_ready) begin
                 commands_sent = commands_sent + 1;
+                case (cmd_kind)
+                    0: top_cmd_kind0_fire = top_cmd_kind0_fire + 1;
+                    1: top_cmd_kind1_fire = top_cmd_kind1_fire + 1;
+                    2: top_cmd_kind2_fire = top_cmd_kind2_fire + 1;
+                    3: top_cmd_kind3_fire = top_cmd_kind3_fire + 1;
+                    4: top_cmd_kind4_fire = top_cmd_kind4_fire + 1;
+                    default: begin end
+                endcase
                 if (cmd_kind == 4) begin
                     inference_sent = inference_sent + 1;
                     outstanding = outstanding + 1;
