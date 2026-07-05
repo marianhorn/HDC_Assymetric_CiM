@@ -433,6 +433,7 @@ void HDC_Accelerator::encoder_thread() {
     bool busy = false;
     bool output_valid = false;
     bool output_presented = false;
+    bool input_token_consumed = false;
     unsigned word_index = 0;
 
     {
@@ -453,10 +454,16 @@ void HDC_Accelerator::encoder_thread() {
                 output_presented = false;
             }
 
-            const bool can_accept_input = !busy && !output_valid;
-            m_encoder_in_ready.write(can_accept_input);
+            if (!m_encoder_in_valid.read()) {
+                input_token_consumed = false;
+            }
 
-            if (can_accept_input && m_encoder_in_valid.read()) {
+            const bool can_accept_input = !busy && !output_valid;
+            m_encoder_in_ready.write(can_accept_input ||
+                                     (input_token_consumed && m_encoder_in_valid.read()));
+
+            if (can_accept_input && m_encoder_in_valid.read() && !input_token_consumed) {
+                input_token_consumed = true;
                 work = EncoderPacket();
                 work.kind = m_encoder_in_kind.read();
                 work.class_id = m_encoder_in_class_id.read();
