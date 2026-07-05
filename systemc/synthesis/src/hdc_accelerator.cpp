@@ -303,7 +303,10 @@ DistancePacket HDC_Accelerator::read_distance_done_packet() const {
 // without waiting for completion. Control commands are blocking stream
 // boundaries and wait until their token passes through the internal pipeline.
 void HDC_Accelerator::command_thread() {
-    EncoderPacket output_packet = EncoderPacket();
+    command_kind_t output_kind = 0;
+    class_t output_class_id = 0;
+    level_t output_sample_levels[NUM_FEATURES] = {};
+    hv_word_t output_encoded_words[HV_WORDS] = {};
     bool output_valid = false;
     bool output_payload_presented = false;
     bool output_presented = false;
@@ -314,8 +317,18 @@ void HDC_Accelerator::command_thread() {
 
     {
         cmd_ready.write(false);
-        clear_hv(output_packet.encoded);
-        write_encoder_in_packet(output_packet);
+        m_encoder_in_kind.write(0);
+        m_encoder_in_class_id.write(0);
+        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+            HLS_UNROLL_LOOP(OFF, "command-reset-output-sample-loop");
+            output_sample_levels[feature] = 0;
+            m_encoder_in_sample_levels[feature].write(0);
+        }
+        for (unsigned word = 0; word < HV_WORDS; ++word) {
+            HLS_UNROLL_LOOP(OFF, "command-reset-output-encoded-loop");
+            output_encoded_words[word] = 0;
+            m_encoder_in_encoded_words[word].write(0);
+        }
         m_encoder_in_valid.write(false);
         m_ngram_control_done_ready.write(false);
         m_train_control_done_ready.write(false);
@@ -370,32 +383,43 @@ void HDC_Accelerator::command_thread() {
                                              m_train_control_done_valid.read());
 
             if (cmd_valid_snapshot && can_accept_command) {
-                EncoderPacket packet = {};
-                packet.kind = cmd_kind_snapshot;
-                packet.class_id = cmd_class_id_snapshot;
-                packet.sample = cmd_sample_snapshot;
-                clear_hv(packet.encoded);
-
-                if (command_kind_is(packet.kind, AccelCommandKind::InferSample)) {
-                    packet.class_id = 0;
+                output_kind = cmd_kind_snapshot;
+                output_class_id = cmd_class_id_snapshot;
+                if (command_kind_is(output_kind, AccelCommandKind::InferSample)) {
+                    output_class_id = 0;
                 }
-
-                output_packet = packet;
+                for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                    HLS_UNROLL_LOOP(OFF, "command-store-output-sample-loop");
+                    output_sample_levels[feature] = cmd_sample_snapshot.levels[feature];
+                }
+                for (unsigned word = 0; word < HV_WORDS; ++word) {
+                    HLS_UNROLL_LOOP(OFF, "command-clear-output-encoded-loop");
+                    output_encoded_words[word] = 0;
+                }
                 output_valid = true;
                 output_payload_presented = false;
                 output_presented = false;
 
-                if (is_ngram_control_command(packet.kind)) {
+                if (is_ngram_control_command(output_kind)) {
                     wait_ngram_control = true;
                     ngram_control_done_seen = false;
                 }
-                if (is_train_control_command(packet.kind)) {
+                if (is_train_control_command(output_kind)) {
                     wait_train_control = true;
                     train_control_done_seen = false;
                 }
             }
 
-            write_encoder_in_packet(output_packet);
+            m_encoder_in_kind.write(output_kind);
+            m_encoder_in_class_id.write(output_class_id);
+            for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                HLS_UNROLL_LOOP(OFF, "command-write-output-sample-loop");
+                m_encoder_in_sample_levels[feature].write(output_sample_levels[feature]);
+            }
+            for (unsigned word = 0; word < HV_WORDS; ++word) {
+                HLS_UNROLL_LOOP(OFF, "command-write-output-encoded-loop");
+                m_encoder_in_encoded_words[word].write(output_encoded_words[word]);
+            }
             m_encoder_in_valid.write(output_valid && output_payload_presented);
             wait();
         }
