@@ -1,19 +1,24 @@
-SYSTEMC_HOME ?= $(firstword $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
+SYSTEMC_PREFIX ?= $(firstword $(SYSTEMC_HOME) $(SYSTEMC_ROOT) $(SYSTEMC) $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
 STRATUS_HOME ?= /eda/cadence/2022-23/RHELx86/STRATUS_22.01.003/share/stratus
 CXX ?= g++
+CXXSTD ?= c++14
 TARGET ?= p2p_experiment
 SRC_DIR := src
 BUILD_DIR := build
 
-SYSTEMC_INCLUDE := $(SYSTEMC_HOME)/include
-SYSTEMC_LIB_DIR ?= $(firstword $(wildcard $(SYSTEMC_HOME)/lib-linux64) $(wildcard $(SYSTEMC_HOME)/lib64) $(wildcard $(SYSTEMC_HOME)/lib))
+SYSTEMC_INCLUDE := $(SYSTEMC_PREFIX)/include
+SYSTEMC_LIB_DIR ?= $(firstword $(wildcard $(SYSTEMC_PREFIX)/lib-linux64) $(wildcard $(SYSTEMC_PREFIX)/lib64) $(wildcard $(SYSTEMC_PREFIX)/lib))
 STRATUS_INCLUDE := $(STRATUS_HOME)/include
 
-ifeq ($(strip $(SYSTEMC_LIB_DIR)),)
-$(error Could not find a SystemC library directory under $(SYSTEMC_HOME). Set SYSTEMC_LIB_DIR explicitly.)
+ifeq ($(strip $(SYSTEMC_PREFIX)),)
+$(error Could not determine SystemC installation. Load a SystemC module or set SYSTEMC_HOME/SYSTEMC_ROOT/SYSTEMC explicitly.)
 endif
 
-CXXFLAGS ?= -std=c++17 -Wall -Wextra -pedantic -I$(SRC_DIR) -I$(SYSTEMC_INCLUDE) -I$(STRATUS_INCLUDE)
+ifeq ($(strip $(SYSTEMC_LIB_DIR)),)
+$(error Could not find a SystemC library directory under $(SYSTEMC_PREFIX). Set SYSTEMC_LIB_DIR explicitly.)
+endif
+
+CXXFLAGS ?= -std=$(CXXSTD) -Wall -Wextra -pedantic -I$(SRC_DIR) -I$(SYSTEMC_INCLUDE) -I$(STRATUS_INCLUDE)
 CXXFLAGS += $(EXTRA_CXXFLAGS)
 LDFLAGS ?= -L$(SYSTEMC_LIB_DIR) -Wl,-rpath,$(SYSTEMC_LIB_DIR) -lsystemc -lm
 
@@ -39,4 +44,3 @@ run: $(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
-
