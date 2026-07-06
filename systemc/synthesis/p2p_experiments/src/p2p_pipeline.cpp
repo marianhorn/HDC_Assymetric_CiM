@@ -12,14 +12,20 @@ P2PToken transform_token(const P2PToken &input) {
 }  // namespace
 
 void P2PPipeline::source_thread() {
+    enum SourceState {
+        SOURCE_WAIT_INPUT,
+        SOURCE_PUT
+    };
+
+    SourceState state = SOURCE_WAIT_INPUT;
     P2PToken pending;
-    bool pending_valid = false;
     sc_dt::sc_uint<16> count = 0;
 
     {
         HLS_DEFINE_PROTOCOL("source_reset");
         in_ready.write(false);
         source_count.write(0);
+        state = SOURCE_WAIT_INPUT;
         m_source_to_stage.input.reset();
         wait();
     }
@@ -28,25 +34,24 @@ void P2PPipeline::source_thread() {
         {
             HLS_DEFINE_PROTOCOL("source_cycle");
 
-            const bool can_accept_input = !pending_valid;
-            in_ready.write(can_accept_input);
-
-            if (can_accept_input && in_valid.read()) {
-                pending.kind = in_kind.read();
-                pending.value = in_value.read();
-                pending_valid = true;
-            }
-
-            if (pending_valid) {
+            if (state == SOURCE_WAIT_INPUT) {
+                in_ready.write(true);
+                if (in_valid.read()) {
+                    pending.kind = in_kind.read();
+                    pending.value = in_value.read();
+                    state = SOURCE_PUT;
+                }
+            } else {
+                in_ready.write(false);
 #ifdef P2P_EXPERIMENT_NB
                 if (m_source_to_stage.input.nb_can_put()) {
                     m_source_to_stage.input.nb_put(pending);
-                    pending_valid = false;
+                    state = SOURCE_WAIT_INPUT;
                     count = count + 1u;
                 }
 #else
                 m_source_to_stage.input.put(pending);
-                pending_valid = false;
+                state = SOURCE_WAIT_INPUT;
                 count = count + 1u;
 #endif
             }
