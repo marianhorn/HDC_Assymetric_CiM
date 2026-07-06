@@ -150,13 +150,13 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
 #endif
       m_current_class_valid(false) {
 #ifdef STRATUS_HLS
-    m_encoder_in.clk_rst(clk, rst);
-    m_encoder_out.clk_rst(clk, rst);
-    m_bundler_in.clk_rst(clk, rst);
-    m_distance_in.clk_rst(clk, rst);
-    m_distance_done.clk_rst(clk, rst);
-    m_ngram_control_done.clk_rst(clk, rst);
-    m_train_control_done.clk_rst(clk, rst);
+    m_encoder_in.clk_rst(clk, rst, true);
+    m_encoder_out.clk_rst(clk, rst, true);
+    m_bundler_in.clk_rst(clk, rst, true);
+    m_distance_in.clk_rst(clk, rst, true);
+    m_distance_done.clk_rst(clk, rst, true);
+    m_ngram_control_done.clk_rst(clk, rst, true);
+    m_train_control_done.clk_rst(clk, rst, true);
 #endif
 
     SC_CTHREAD(command_thread, clk.pos());

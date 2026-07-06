@@ -64,8 +64,8 @@ SC_MODULE(P2PPipeline) {
           sink_count("sink_count"),
           m_source_to_stage("m_source_to_stage"),
           m_stage_to_sink("m_stage_to_sink") {
-        m_source_to_stage.clk_rst(clk, rst);
-        m_stage_to_sink.clk_rst(clk, rst);
+        m_source_to_stage.clk_rst(clk, rst, true);
+        m_stage_to_sink.clk_rst(clk, rst, true);
 
         SC_CTHREAD(source_thread, clk.pos());
         reset_signal_is(rst, true);
@@ -87,4 +87,3 @@ SC_MODULE(P2PPipeline) {
 };
 
 #endif
-
