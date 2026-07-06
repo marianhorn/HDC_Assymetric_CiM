@@ -140,6 +140,130 @@ def make_debug_display(label: str, fields: List[tuple], module_body: str, value_
     )
 
 
+def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
+    channels = [
+        ("enc_in", "m_encoder_in"),
+        ("enc_out", "m_encoder_out"),
+        ("bundler_in", "m_bundler_in"),
+        ("distance_in", "m_distance_in"),
+        ("distance_done", "m_distance_done"),
+        ("ngram_control_done", "m_ngram_control_done"),
+        ("train_control_done", "m_train_control_done"),
+    ]
+
+    decls: List[str] = []
+    inits: List[str] = []
+    updates: List[str] = []
+    prev_updates: List[str] = []
+    displays: List[str] = []
+
+    present_channels = []
+    for label, prefix in channels:
+        vld = f"{prefix}_m_chan_vld"
+        if not has_internal_signal(module_body, vld):
+            continue
+
+        busy = f"{prefix}_m_chan_busy"
+        has_busy = has_internal_signal(module_body, busy)
+        present_channels.append((label, vld, busy if has_busy else None))
+
+        decls.extend(
+            [
+                f"    integer {label}_vld_cycles;",
+                f"    integer {label}_vld_edges;",
+                f"    integer {label}_busy_cycles;",
+                f"    integer {label}_prev_vld;",
+            ]
+        )
+        inits.extend(
+            [
+                f"        {label}_vld_cycles = 0;",
+                f"        {label}_vld_edges = 0;",
+                f"        {label}_busy_cycles = 0;",
+                f"        {label}_prev_vld = 0;",
+            ]
+        )
+        updates.append(
+            f"""            if (dut.{vld}) begin
+                {label}_vld_cycles = {label}_vld_cycles + 1;
+                if (!{label}_prev_vld) begin
+                    {label}_vld_edges = {label}_vld_edges + 1;
+                end
+            end"""
+        )
+        prev_updates.append(f"            {label}_prev_vld = dut.{vld};")
+        if has_busy:
+            updates.append(
+                f"""            if (dut.{busy}) begin
+                {label}_busy_cycles = {label}_busy_cycles + 1;
+            end"""
+            )
+
+    if present_channels:
+        format_fields = " ".join(
+            f"{label}_vld_cycles=%0d {label}_vld_edges=%0d {label}_busy_cycles=%0d"
+            for label, _, _ in present_channels
+        )
+        args = ", ".join(
+            f"{label}_vld_cycles, {label}_vld_edges, {label}_busy_cycles"
+            for label, _, _ in present_channels
+        )
+        displays.append(
+            f'            $display("debug p2p_counters {format_fields}",\n'
+            f"                     {args});"
+        )
+
+    enc_kind_signal = None
+    for candidate in (
+        "m_encoder_in_m_chan_data_kind",
+        "m_encoder_in_m_chan_data_kind_slice",
+    ):
+        if has_internal_signal(module_body, candidate):
+            enc_kind_signal = candidate
+            break
+
+    if enc_kind_signal and has_internal_signal(module_body, "m_encoder_in_m_chan_vld"):
+        decls.extend(
+            [
+                "    integer enc_in_kind_vld_cycles [0:4];",
+                "    integer enc_in_kind_vld_edges [0:4];",
+            ]
+        )
+        inits.append(
+            """        for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
+            enc_in_kind_vld_cycles[counter_index] = 0;
+            enc_in_kind_vld_edges[counter_index] = 0;
+        end"""
+        )
+        updates.append(
+            f"""            if (dut.m_encoder_in_m_chan_vld && dut.{enc_kind_signal} >= 0 && dut.{enc_kind_signal} <= 4) begin
+                enc_in_kind_vld_cycles[dut.{enc_kind_signal}] =
+                    enc_in_kind_vld_cycles[dut.{enc_kind_signal}] + 1;
+                if (!enc_in_prev_vld) begin
+                    enc_in_kind_vld_edges[dut.{enc_kind_signal}] =
+                        enc_in_kind_vld_edges[dut.{enc_kind_signal}] + 1;
+                end
+            end"""
+        )
+        displays.append(
+            """            $display("debug enc_in_kind_vld_cycles k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d",
+                     enc_in_kind_vld_cycles[0], enc_in_kind_vld_cycles[1],
+                     enc_in_kind_vld_cycles[2], enc_in_kind_vld_cycles[3],
+                     enc_in_kind_vld_cycles[4]);
+            $display("debug enc_in_kind_vld_edges k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d",
+                     enc_in_kind_vld_edges[0], enc_in_kind_vld_edges[1],
+                     enc_in_kind_vld_edges[2], enc_in_kind_vld_edges[3],
+                     enc_in_kind_vld_edges[4]);"""
+        )
+
+    return {
+        "decls": "\n".join(decls),
+        "inits": "\n".join(inits),
+        "updates": "\n".join(updates + prev_updates),
+        "displays": "\n".join(displays),
+    }
+
+
 def generate_debug_task(module_body: str) -> str:
     state_fields = [
         ("cmd", "global_state5"),
@@ -265,9 +389,16 @@ def generate_debug_task(module_body: str) -> str:
     for label, fields in payload_groups:
         displays += make_debug_display(label, fields, module_body, "%0d")
 
+    p2p_counter_logic = generate_p2p_counter_logic(module_body)
+
     return f"""
     task print_dut_debug;
         begin
+            $display("debug top_cmd_kind_fires k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d hold=%0d",
+                     top_cmd_kind_fires[0], top_cmd_kind_fires[1],
+                     top_cmd_kind_fires[2], top_cmd_kind_fires[3],
+                     top_cmd_kind_fires[4], command_hold_cycles);
+{p2p_counter_logic["displays"]}
             $display("debug top cmd_v=%0b cmd_r=%0b rsp_v=%0b rsp_r=%0b outstanding=%0d",
                      cmd_valid, cmd_ready, rsp_valid, rsp_ready, outstanding);
 {displays.rstrip()}
@@ -278,6 +409,7 @@ def generate_debug_task(module_body: str) -> str:
 
 def generate_tb(args: argparse.Namespace) -> str:
     module_body = read_module_body(args.top, "HDC_Accelerator")
+    p2p_counter_logic = generate_p2p_counter_logic(module_body)
     ports = parse_ports(args.top, "HDC_Accelerator")
     clk = find_exact(ports, "clk")
     rst = find_exact(ports, "rst")
@@ -324,6 +456,7 @@ module hdc_accelerator_rtl_tb;
     localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
     localparam integer PROGRESS_CYCLES = {args.progress_cycles};
     localparam integer RESET_CYCLES = {args.reset_cycles};
+    localparam integer POST_COMMAND_HOLD_CYCLES = {args.post_command_hold_cycles};
     localparam string COMMAND_PATH = {command_path};
     localparam string RESPONSE_PATH = {response_path};
 
@@ -362,6 +495,10 @@ module hdc_accelerator_rtl_tb;
     integer total_latency;
     integer max_latency;
     integer error_count;
+    integer command_hold_cycles;
+    integer top_cmd_kind_fires [0:4];
+    integer counter_index;
+{p2p_counter_logic["decls"]}
 
     always #5 clk = ~clk;
 
@@ -527,6 +664,11 @@ module hdc_accelerator_rtl_tb;
         total_latency = 0;
         max_latency = 0;
         error_count = 0;
+        command_hold_cycles = 0;
+        for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
+            top_cmd_kind_fires[counter_index] = 0;
+        end
+{p2p_counter_logic["inits"]}
 
         command_fd = $fopen(COMMAND_PATH, "r");
         if (command_fd == 0) begin
@@ -549,7 +691,7 @@ module hdc_accelerator_rtl_tb;
                 $fatal(1, "RTL simulation timeout after %0d cycles", cycle_count);
             end
 
-            if (!cmd_valid && can_drive_next_command()) begin
+            if (!cmd_valid && command_hold_cycles == 0 && can_drive_next_command()) begin
                 drive_next_command();
             end
             rsp_ready = (outstanding > 0);
@@ -563,8 +705,16 @@ module hdc_accelerator_rtl_tb;
                 print_dut_debug();
             end
 
+            if (!cmd_valid && command_hold_cycles > 0) begin
+                command_hold_cycles = command_hold_cycles - 1;
+            end
+{p2p_counter_logic["updates"]}
+
             if (cmd_valid && cmd_ready) begin
                 commands_sent = commands_sent + 1;
+                if (cmd_kind >= 0 && cmd_kind <= 4) begin
+                    top_cmd_kind_fires[cmd_kind] = top_cmd_kind_fires[cmd_kind] + 1;
+                end
                 if (cmd_kind == 4) begin
                     inference_sent = inference_sent + 1;
                     outstanding = outstanding + 1;
@@ -572,6 +722,7 @@ module hdc_accelerator_rtl_tb;
                     issue_tail = issue_tail + 1;
                 end
                 cmd_valid = 1'b0;
+                command_hold_cycles = POST_COMMAND_HOLD_CYCLES;
                 read_next_command(has_command);
             end else if (cmd_valid && !cmd_ready) begin
                 command_stall_cycles = command_stall_cycles + 1;
@@ -605,6 +756,7 @@ def main() -> None:
     parser.add_argument("--timeout-cycles", type=int, default=50000000)
     parser.add_argument("--progress-cycles", type=int, default=100000)
     parser.add_argument("--reset-cycles", type=int, default=32)
+    parser.add_argument("--post-command-hold-cycles", type=int, default=8)
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
