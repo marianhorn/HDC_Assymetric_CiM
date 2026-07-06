@@ -38,9 +38,29 @@ make Makefile.prj
 make hls_P2PPipeline_HLS_BASIC | tee output_p2p_experiment_hls.txt
 ```
 
+## RTL Simulation
+
+After HLS succeeds:
+
+```sh
+cd systemc/synthesis/p2p_experiments/hls
+bash run_p2p_rtl_sim.sh | tee output_p2p_experiment_rtl.txt
+```
+
+Expected success summary:
+
+```text
+P2P RTL simulation complete
+sent=16
+received=16
+source_count=16
+stage_count=16
+sink_count=16
+errors=0
+```
+
 For the nonblocking variant, add the define in `hls/project.tcl`:
 
 ```tcl
 set_attr D P2P_EXPERIMENT_NB
 ```
-
