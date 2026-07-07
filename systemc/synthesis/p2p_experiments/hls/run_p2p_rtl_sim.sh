@@ -47,6 +47,13 @@ if [[ ! -f "$GLBL_V" ]]; then
     exit 1
 fi
 
+TB_DEFINES=()
+for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL; do
+    if grep -Eq "^[[:space:]]*set_attr[[:space:]]+D[[:space:]]+${define}([[:space:]]|$)" project.tcl; then
+        TB_DEFINES+=("+define+${define}")
+    fi
+done
+
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"
 cp "$TB_SRC" "$TB_DST"
@@ -73,6 +80,7 @@ done
 pushd "$OUT_DIR" >/dev/null
 
 xvlog -sv -work work -log xvlog.log \
+    "${TB_DEFINES[@]}" \
     "${SIM_RTL[@]}" \
     "$TB_DST" \
     "$GLBL_V"
@@ -91,4 +99,3 @@ xsim p2p_pipeline_rtl_tb_snapshot -R -log xsim.log
 popd >/dev/null
 
 echo "P2P RTL simulation logs: $OUT_DIR"
-

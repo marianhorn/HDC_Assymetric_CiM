@@ -16,6 +16,8 @@ module p2p_pipeline_rtl_tb;
     logic out_ready;
     wire [2:0] out_kind;
     wire [7:0] out_value;
+    wire [15:0] out_sample_checksum;
+    wire [15:0] out_encoded_checksum;
 
     wire [15:0] source_count;
     wire [15:0] stage_count;
@@ -27,6 +29,61 @@ module p2p_pipeline_rtl_tb;
     integer errors;
     integer expected_kind;
     integer expected_value;
+    integer input_value;
+    integer expected_sample_checksum_value;
+    integer expected_encoded_checksum_value;
+
+    function integer expected_sample_checksum;
+        input integer kind;
+        input integer value;
+        integer index;
+        integer checksum;
+        begin
+            checksum = 0;
+`ifdef P2P_PAYLOAD_SAMPLE
+            for (index = 0; index < 32; index = index + 1) begin
+                checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
+            end
+`elsif P2P_PAYLOAD_FULL
+            for (index = 0; index < 32; index = index + 1) begin
+                checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
+            end
+`endif
+            expected_sample_checksum = checksum;
+        end
+    endfunction
+
+    function integer expected_encoded_checksum;
+        input integer kind;
+        input integer value;
+        integer index;
+        integer checksum;
+        integer low;
+        integer high;
+        begin
+            checksum = 0;
+`ifdef P2P_PAYLOAD_ENCODED
+            for (index = 0; index < 16; index = index + 1) begin
+                low = value | (index << 8) | (kind << 16) | ((13'h123 + index) << 19);
+                high = 32'habc00000 + (index << 4);
+                checksum = checksum ^ (low & 16'hffff);
+                checksum = checksum ^ ((low >> 16) & 16'hffff);
+                checksum = checksum ^ (high & 16'hffff);
+                checksum = checksum ^ ((high >> 16) & 16'hffff);
+            end
+`elsif P2P_PAYLOAD_FULL
+            for (index = 0; index < 16; index = index + 1) begin
+                low = value | (index << 8) | (kind << 16) | ((13'h123 + index) << 19);
+                high = 32'habc00000 + (index << 4);
+                checksum = checksum ^ (low & 16'hffff);
+                checksum = checksum ^ ((low >> 16) & 16'hffff);
+                checksum = checksum ^ (high & 16'hffff);
+                checksum = checksum ^ ((high >> 16) & 16'hffff);
+            end
+`endif
+            expected_encoded_checksum = checksum & 16'hffff;
+        end
+    endfunction
 
     P2PPipeline dut (
         .clk(clk),
@@ -39,6 +96,8 @@ module p2p_pipeline_rtl_tb;
         .out_ready(out_ready),
         .out_kind(out_kind),
         .out_value(out_value),
+        .out_sample_checksum(out_sample_checksum),
+        .out_encoded_checksum(out_encoded_checksum),
         .source_count(source_count),
         .stage_count(stage_count),
         .sink_count(sink_count)
@@ -95,12 +154,23 @@ module p2p_pipeline_rtl_tb;
 
             if (out_valid && out_ready) begin
                 expected_kind = received % 5;
-                expected_value = 10 + received + 1;
+                input_value = 10 + received;
+                expected_value = input_value + 1;
+                expected_sample_checksum_value =
+                    expected_sample_checksum(expected_kind, input_value);
+                expected_encoded_checksum_value =
+                    expected_encoded_checksum(expected_kind, input_value);
 
                 if (out_kind !== expected_kind[2:0] ||
-                    out_value !== expected_value[7:0]) begin
-                    $error("Mismatch token=%0d got kind=%0d value=%0d expected kind=%0d value=%0d",
-                           received, out_kind, out_value, expected_kind, expected_value);
+                    out_value !== expected_value[7:0] ||
+                    out_sample_checksum !== expected_sample_checksum_value[15:0] ||
+                    out_encoded_checksum !== expected_encoded_checksum_value[15:0]) begin
+                    $error("Mismatch token=%0d got kind=%0d value=%0d sample=%0d encoded=%0d expected kind=%0d value=%0d sample=%0d encoded=%0d",
+                           received, out_kind, out_value,
+                           out_sample_checksum, out_encoded_checksum,
+                           expected_kind, expected_value,
+                           expected_sample_checksum_value,
+                           expected_encoded_checksum_value);
                     errors = errors + 1;
                 end
 
@@ -132,4 +202,3 @@ module p2p_pipeline_rtl_tb;
         end
     end
 endmodule
-

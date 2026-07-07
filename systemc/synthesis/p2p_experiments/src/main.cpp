@@ -3,6 +3,42 @@
 #include <cstdlib>
 #include <iostream>
 
+namespace {
+
+unsigned expected_sample_checksum(unsigned kind, unsigned value) {
+    unsigned checksum = 0;
+#if P2P_HAS_SAMPLE_PAYLOAD
+    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+        checksum = (checksum + ((value + kind + 3u * index) & 0xffu)) & 0xffffu;
+    }
+#else
+    (void)kind;
+    (void)value;
+#endif
+    return checksum;
+}
+
+unsigned expected_encoded_checksum(unsigned kind, unsigned value) {
+    unsigned checksum = 0;
+#if P2P_HAS_ENCODED_PAYLOAD
+    for (unsigned index = 0; index < P2P_HV_WORDS; ++index) {
+        const unsigned low = value | (index << 8) | (kind << 16) |
+                             ((0x123u + index) << 19);
+        const unsigned high = 0xabc00000u + (index << 4);
+        checksum ^= low & 0xffffu;
+        checksum ^= (low >> 16) & 0xffffu;
+        checksum ^= high & 0xffffu;
+        checksum ^= (high >> 16) & 0xffffu;
+    }
+#else
+    (void)kind;
+    (void)value;
+#endif
+    return checksum & 0xffffu;
+}
+
+}  // namespace
+
 int sc_main(int, char **) {
     static const unsigned NUM_TOKENS = 16;
     static const unsigned TIMEOUT_CYCLES = 1000;
@@ -17,6 +53,8 @@ int sc_main(int, char **) {
     sc_core::sc_signal<bool> out_ready;
     sc_core::sc_signal<sc_dt::sc_uint<3> > out_kind;
     sc_core::sc_signal<sc_dt::sc_uint<8> > out_value;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > out_sample_checksum;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > out_encoded_checksum;
     sc_core::sc_signal<sc_dt::sc_uint<16> > source_count;
     sc_core::sc_signal<sc_dt::sc_uint<16> > stage_count;
     sc_core::sc_signal<sc_dt::sc_uint<16> > sink_count;
@@ -32,6 +70,8 @@ int sc_main(int, char **) {
     dut.out_ready(out_ready);
     dut.out_kind(out_kind);
     dut.out_value(out_value);
+    dut.out_sample_checksum(out_sample_checksum);
+    dut.out_encoded_checksum(out_encoded_checksum);
     dut.source_count(source_count);
     dut.stage_count(stage_count);
     dut.sink_count(sink_count);
@@ -70,15 +110,25 @@ int sc_main(int, char **) {
         if (out_valid.read() && out_ready.read()) {
             const unsigned expected_index = received;
             const unsigned expected_kind = expected_index % 5u;
-            const unsigned expected_value = 10u + expected_index + 1u;
+            const unsigned input_value = 10u + expected_index;
+            const unsigned expected_value = input_value + 1u;
+            const unsigned expected_sample = expected_sample_checksum(expected_kind, input_value);
+            const unsigned expected_encoded = expected_encoded_checksum(expected_kind, input_value);
             const unsigned got_kind = out_kind.read().to_uint();
             const unsigned got_value = out_value.read().to_uint();
+            const unsigned got_sample = out_sample_checksum.read().to_uint();
+            const unsigned got_encoded = out_encoded_checksum.read().to_uint();
 
-            if (got_kind != expected_kind || got_value != expected_value) {
+            if (got_kind != expected_kind || got_value != expected_value ||
+                got_sample != expected_sample || got_encoded != expected_encoded) {
                 std::cerr << "Mismatch at token " << received
                           << ": got kind=" << got_kind << " value=" << got_value
+                          << " sample_checksum=" << got_sample
+                          << " encoded_checksum=" << got_encoded
                           << ", expected kind=" << expected_kind
-                          << " value=" << expected_value << '\n';
+                          << " value=" << expected_value
+                          << " sample_checksum=" << expected_sample
+                          << " encoded_checksum=" << expected_encoded << '\n';
                 ++errors;
             }
             ++received;
@@ -98,4 +148,3 @@ int sc_main(int, char **) {
     }
     return EXIT_SUCCESS;
 }
-

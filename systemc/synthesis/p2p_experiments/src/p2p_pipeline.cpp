@@ -2,9 +2,71 @@
 
 namespace {
 
+sc_dt::sc_uint<8> sample_level_value(const sc_dt::sc_uint<3> &kind,
+                                     const sc_dt::sc_uint<8> &value,
+                                     unsigned index) {
+    return (value + kind + static_cast<unsigned>(3u * index)) & 0xffu;
+}
+
+sc_dt::sc_uint<64> encoded_word_value(const sc_dt::sc_uint<3> &kind,
+                                      const sc_dt::sc_uint<8> &value,
+                                      unsigned index) {
+    sc_dt::sc_uint<64> word = 0;
+    word.range(7, 0) = value;
+    word.range(15, 8) = static_cast<unsigned>(index);
+    word.range(18, 16) = kind;
+    word.range(31, 19) = static_cast<unsigned>(0x123u + index);
+    word.range(63, 32) = static_cast<unsigned>(0xabc00000u + (index << 4));
+    return word;
+}
+
+void fill_token(P2PToken &token,
+                const sc_dt::sc_uint<3> &kind,
+                const sc_dt::sc_uint<8> &value) {
+    token.kind = kind;
+    token.class_id = kind;
+    token.value = value;
+#if P2P_HAS_SAMPLE_PAYLOAD
+    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+        token.sample_levels[index] = sample_level_value(kind, value, index);
+    }
+#endif
+#if P2P_HAS_ENCODED_PAYLOAD
+    for (unsigned index = 0; index < P2P_HV_WORDS; ++index) {
+        token.encoded_words[index] = encoded_word_value(kind, value, index);
+    }
+#endif
+}
+
+sc_dt::sc_uint<16> sample_checksum(const P2PToken &token) {
+    sc_dt::sc_uint<16> checksum = 0;
+#if P2P_HAS_SAMPLE_PAYLOAD
+    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+        checksum = checksum + token.sample_levels[index];
+    }
+#else
+    (void)token;
+#endif
+    return checksum;
+}
+
+sc_dt::sc_uint<16> encoded_checksum(const P2PToken &token) {
+    sc_dt::sc_uint<16> checksum = 0;
+#if P2P_HAS_ENCODED_PAYLOAD
+    for (unsigned index = 0; index < P2P_HV_WORDS; ++index) {
+        checksum = checksum ^ token.encoded_words[index].range(15, 0);
+        checksum = checksum ^ token.encoded_words[index].range(31, 16);
+        checksum = checksum ^ token.encoded_words[index].range(47, 32);
+        checksum = checksum ^ token.encoded_words[index].range(63, 48);
+    }
+#else
+    (void)token;
+#endif
+    return checksum;
+}
+
 P2PToken transform_token(const P2PToken &input) {
-    P2PToken output;
-    output.kind = input.kind;
+    P2PToken output = input;
     output.value = input.value + 1u;
     return output;
 }
@@ -37,8 +99,7 @@ void P2PPipeline::source_thread() {
             if (state == SOURCE_WAIT_INPUT) {
                 in_ready.write(true);
                 if (in_valid.read()) {
-                    pending.kind = in_kind.read();
-                    pending.value = in_value.read();
+                    fill_token(pending, in_kind.read(), in_value.read());
                     state = SOURCE_PUT;
                 }
             } else {
@@ -132,6 +193,8 @@ void P2PPipeline::sink_thread() {
         out_valid.write(false);
         out_kind.write(0);
         out_value.write(0);
+        out_sample_checksum.write(0);
+        out_encoded_checksum.write(0);
         sink_count.write(0);
         m_stage_to_sink.output.reset();
         wait();
@@ -158,6 +221,8 @@ void P2PPipeline::sink_thread() {
                 out_valid.write(true);
                 out_kind.write(work.kind);
                 out_value.write(work.value);
+                out_sample_checksum.write(sample_checksum(work));
+                out_encoded_checksum.write(encoded_checksum(work));
 
                 if (out_ready.read()) {
                     count = count + 1u;
