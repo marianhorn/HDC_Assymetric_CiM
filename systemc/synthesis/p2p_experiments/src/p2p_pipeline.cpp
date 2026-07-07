@@ -128,7 +128,105 @@ P2PToken transform_token(const P2PToken &input) {
 
 }  // namespace
 
+#ifdef P2P_ACCEL_CMD_MIMIC
+void P2PPipeline::command_frontend_thread() {
+    bool token_valid = false;
+    sc_dt::sc_uint<3> token_kind = 0;
+    sc_dt::sc_uint<3> token_class_id = 0;
+    sc_dt::sc_uint<8> token_value = 0;
+    sc_dt::sc_uint<16> token_sample_checksum = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("command_frontend_reset");
+        in_ready.write(false);
+        m_cmd_token_valid.write(false);
+        m_cmd_token_kind.write(0);
+        m_cmd_token_class_id.write(0);
+        m_cmd_token_value.write(0);
+        m_cmd_token_sample_checksum.write(0);
+        wait();
+    }
+
+    while (true) {
+        {
+            const bool token_ready = m_cmd_token_ready.read();
+            if (token_valid && token_ready) {
+                token_valid = false;
+            }
+
+            const bool can_accept = !token_valid;
+            in_ready.write(can_accept);
+
+            if (can_accept && in_valid.read()) {
+                token_kind = in_kind.read();
+                token_class_id = in_kind.read();
+                token_value = in_value.read();
+                token_sample_checksum = 0;
+                for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+                    HLS_UNROLL_LOOP(OFF, "p2p-frontend-sample-read-loop");
+                    token_sample_checksum =
+                        token_sample_checksum + in_sample_levels[index].read();
+                }
+                token_valid = true;
+            }
+
+            m_cmd_token_valid.write(token_valid);
+            m_cmd_token_kind.write(token_kind);
+            m_cmd_token_class_id.write(token_class_id);
+            m_cmd_token_value.write(token_value);
+            m_cmd_token_sample_checksum.write(token_sample_checksum);
+            wait();
+        }
+    }
+}
+#else
+void P2PPipeline::command_frontend_thread() {}
+#endif
+
 void P2PPipeline::source_thread() {
+#ifdef P2P_ACCEL_CMD_MIMIC
+    enum SourceState {
+        SOURCE_WAIT_TOKEN,
+        SOURCE_PUT
+    };
+
+    SourceState state = SOURCE_WAIT_TOKEN;
+    P2PToken pending;
+    sc_dt::sc_uint<16> count = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("source_reset");
+        source_count.write(0);
+        m_cmd_token_ready.write(false);
+        m_source_to_stage.input.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            if (state == SOURCE_WAIT_TOKEN) {
+                m_cmd_token_ready.write(true);
+                if (m_cmd_token_valid.read()) {
+                    pending.kind = m_cmd_token_kind.read();
+                    pending.class_id = m_cmd_token_class_id.read();
+                    pending.value = m_cmd_token_value.read();
+                    pending.sample_checksum = m_cmd_token_sample_checksum.read();
+                    pending.encoded_checksum = 0;
+                    m_cmd_token_ready.write(false);
+                    state = SOURCE_PUT;
+                }
+            } else {
+                m_cmd_token_ready.write(false);
+                m_source_to_stage.input.put(pending);
+                count = count + 1u;
+                state = SOURCE_WAIT_TOKEN;
+            }
+
+            source_count.write(count);
+            wait();
+        }
+    }
+#else
     enum SourceState {
 #ifdef P2P_INTERNAL_SOURCE
         SOURCE_GENERATE,
@@ -251,6 +349,7 @@ void P2PPipeline::source_thread() {
             wait();
         }
     }
+#endif
 }
 
 void P2PPipeline::stage_thread() {

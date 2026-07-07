@@ -147,6 +147,11 @@ SC_MODULE(P2PPipeline) {
         m_source_to_stage.clk_rst(clk, rst, true);
         m_stage_to_sink.clk_rst(clk, rst, true);
 
+#ifdef P2P_ACCEL_CMD_MIMIC
+        SC_CTHREAD(command_frontend_thread, clk.pos());
+        reset_signal_is(rst, true);
+#endif
+
         SC_CTHREAD(source_thread, clk.pos());
         reset_signal_is(rst, true);
 
@@ -157,11 +162,20 @@ SC_MODULE(P2PPipeline) {
         reset_signal_is(rst, true);
     }
 
+    void command_frontend_thread();
     void source_thread();
     void stage_thread();
     void sink_thread();
 
   private:
+#ifdef P2P_ACCEL_CMD_MIMIC
+    sc_core::sc_signal<bool> m_cmd_token_valid;
+    sc_core::sc_signal<bool> m_cmd_token_ready;
+    sc_core::sc_signal<sc_dt::sc_uint<3> > m_cmd_token_kind;
+    sc_core::sc_signal<sc_dt::sc_uint<3> > m_cmd_token_class_id;
+    sc_core::sc_signal<sc_dt::sc_uint<8> > m_cmd_token_value;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > m_cmd_token_sample_checksum;
+#endif
     cynw_p2p_direct<P2PToken, CYN::PIN> m_source_to_stage;
     cynw_p2p_direct<P2PToken, CYN::PIN> m_stage_to_sink;
 };
