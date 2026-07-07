@@ -25,6 +25,10 @@ Define `P2P_ENCODER_MIMIC_NB` to run the same encoder-like test with split
 nonblocking P2P handshakes. It implies `P2P_ENCODER_MIMIC` and
 `P2P_EXPERIMENT_NB`.
 
+Define `P2P_ENCODER_SCALAR_MIMIC` to run the same multi-cycle encoder-like
+test with scalar-only P2P payload fields. This isolates whether array members
+inside the P2P token are the RTL failure source.
+
 In encoder-mimic mode the broad `*_cycle` protocol markers are disabled because
 they force Stratus to schedule local array copies/checksum work as fixed-latency
 protocols. The experiment is meant to validate P2P behavior around a multi-cycle
@@ -46,7 +50,7 @@ make clean && make EXTRA_CXXFLAGS=-DP2P_EXPERIMENT_NB && ./p2p_experiment
 Encoder-mimic variant:
 
 ```sh
-make clean && make EXTRA_CXXFLAGS=-DP2P_ENCODER_MIMIC_NB && ./p2p_experiment
+make clean && make EXTRA_CXXFLAGS=-DP2P_ENCODER_SCALAR_MIMIC && ./p2p_experiment
 ```
 
 ## Stratus
@@ -61,10 +65,10 @@ make hls_P2PPipeline_HLS_BASIC | tee output_p2p_experiment_hls.txt
 The checked-in HLS project currently enables:
 
 ```tcl
-set_attr D P2P_ENCODER_MIMIC_NB
+set_attr D P2P_ENCODER_SCALAR_MIMIC
 ```
 
-so the default Stratus run tests the split-nonblocking encoder-mimic variant.
+so the default Stratus run tests the scalar-payload encoder-mimic variant.
 
 ## RTL Simulation
 

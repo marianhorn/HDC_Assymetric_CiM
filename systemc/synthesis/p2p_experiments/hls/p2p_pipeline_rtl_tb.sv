@@ -67,17 +67,23 @@ module p2p_pipeline_rtl_tb;
         integer acc1;
         integer acc2;
         integer acc3;
+        integer scalar_sample_checksum;
         begin
             checksum = 0;
 `ifdef P2P_ENCODER_MIMIC
             if (kind == 2 || kind == 4) begin
+                scalar_sample_checksum = expected_sample_checksum(kind, value);
                 for (index = 0; index < 16; index = index + 1) begin
                     acc0 = 0;
                     acc1 = 0;
                     acc2 = 0;
                     acc3 = 0;
                     for (feature = 0; feature < 32; feature = feature + 1) begin
+`ifdef P2P_ENCODER_SCALAR_MIMIC
+                        level = (scalar_sample_checksum + 3 * feature + index) & 8'hff;
+`else
                         level = (value + kind + 3 * feature) & 8'hff;
+`endif
                         term = level + kind + kind + feature + index;
                         acc0 = (acc0 + term) & 16'hffff;
                         acc1 = (acc1 ^ ((term << (feature & 3)) & 16'hffff)) & 16'hffff;

@@ -8,6 +8,16 @@ void fill_token(P2PToken &token,
     token.kind = kind;
     token.class_id = kind;
     token.value = value;
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+    sc_dt::sc_uint<16> checksum = 0;
+    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+        HLS_UNROLL_LOOP(OFF, "p2p-scalar-sample-checksum-loop");
+        checksum = checksum +
+                   static_cast<unsigned>((value + kind + static_cast<unsigned>(3u * index)) & 0xffu);
+    }
+    token.sample_checksum = checksum;
+    token.encoded_checksum = 0;
+#endif
 #if P2P_HAS_SAMPLE_PAYLOAD
     for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
         token.sample_levels[index] =
@@ -28,6 +38,9 @@ void fill_token(P2PToken &token,
 }
 
 sc_dt::sc_uint<16> sample_checksum(const P2PToken &token) {
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+    return token.sample_checksum;
+#else
     sc_dt::sc_uint<16> checksum = 0;
 #if P2P_HAS_SAMPLE_PAYLOAD
     for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
@@ -37,9 +50,13 @@ sc_dt::sc_uint<16> sample_checksum(const P2PToken &token) {
     (void)token;
 #endif
     return checksum;
+#endif
 }
 
 sc_dt::sc_uint<16> encoded_checksum(const P2PToken &token) {
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+    return token.encoded_checksum;
+#else
     sc_dt::sc_uint<16> checksum = 0;
 #if P2P_HAS_ENCODED_PAYLOAD
     for (unsigned index = 0; index < P2P_HV_WORDS; ++index) {
@@ -52,14 +69,19 @@ sc_dt::sc_uint<16> encoded_checksum(const P2PToken &token) {
     (void)token;
 #endif
     return checksum;
+#endif
 }
 
 #if defined(P2P_ENCODER_MIMIC)
 void clear_encoded_payload(P2PToken &token) {
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+    token.encoded_checksum = 0;
+#else
     for (unsigned word = 0; word < P2P_HV_WORDS; ++word) {
         HLS_UNROLL_LOOP(OFF, "p2p-encoder-mimic-clear-loop");
         token.encoded_words[word] = 0;
     }
+#endif
 }
 
 sc_dt::sc_uint<64> encoder_mimic_word(const P2PToken &token, unsigned word_index) {
@@ -70,7 +92,13 @@ sc_dt::sc_uint<64> encoder_mimic_word(const P2PToken &token, unsigned word_index
 
     for (unsigned feature = 0; feature < P2P_SAMPLE_LEVELS; ++feature) {
         HLS_UNROLL_LOOP(OFF, "p2p-encoder-mimic-feature-loop");
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+        const sc_dt::sc_uint<8> level =
+            (token.sample_checksum + static_cast<unsigned>(3u * feature) +
+             static_cast<unsigned>(word_index)) & 0xffu;
+#else
         const sc_dt::sc_uint<8> level = token.sample_levels[feature];
+#endif
         const sc_dt::sc_uint<16> term =
             level + token.kind + token.class_id + static_cast<unsigned>(feature) +
             static_cast<unsigned>(word_index);
@@ -255,7 +283,15 @@ void P2PPipeline::stage_thread() {
 #endif
 #if defined(P2P_ENCODER_MIMIC)
             } else if (state == STAGE_ENCODE) {
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+                const sc_dt::sc_uint<64> encoded_word = encoder_mimic_word(work, word_index);
+                work.encoded_checksum =
+                    work.encoded_checksum ^ encoded_word.range(15, 0) ^
+                    encoded_word.range(31, 16) ^ encoded_word.range(47, 32) ^
+                    encoded_word.range(63, 48);
+#else
                 work.encoded_words[word_index] = encoder_mimic_word(work, word_index);
+#endif
                 if (word_index + 1u == P2P_HV_WORDS) {
                     word_index = 0;
 #ifdef P2P_EXPERIMENT_NB

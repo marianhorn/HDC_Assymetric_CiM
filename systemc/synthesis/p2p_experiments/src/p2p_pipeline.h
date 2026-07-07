@@ -12,6 +12,12 @@
 #define HLS_UNROLL_LOOP(mode, name) ((void)0)
 #endif
 
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+#if !defined(P2P_ENCODER_MIMIC)
+#define P2P_ENCODER_MIMIC
+#endif
+#endif
+
 #if defined(P2P_ENCODER_MIMIC_NB)
 #if !defined(P2P_ENCODER_MIMIC)
 #define P2P_ENCODER_MIMIC
@@ -24,7 +30,10 @@
 static const unsigned P2P_SAMPLE_LEVELS = 32;
 static const unsigned P2P_HV_WORDS = 16;
 
-#if defined(P2P_ENCODER_MIMIC)
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+#define P2P_HAS_SAMPLE_PAYLOAD 0
+#define P2P_HAS_ENCODED_PAYLOAD 0
+#elif defined(P2P_ENCODER_MIMIC)
 #define P2P_HAS_SAMPLE_PAYLOAD 1
 #define P2P_HAS_ENCODED_PAYLOAD 1
 #elif defined(P2P_PAYLOAD_FULL)
@@ -45,6 +54,10 @@ struct P2PToken {
     sc_dt::sc_uint<3> kind;
     sc_dt::sc_uint<3> class_id;
     sc_dt::sc_uint<8> value;
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+    sc_dt::sc_uint<16> sample_checksum;
+    sc_dt::sc_uint<16> encoded_checksum;
+#endif
 #if P2P_HAS_SAMPLE_PAYLOAD
     sc_dt::sc_uint<8> sample_levels[P2P_SAMPLE_LEVELS];
 #endif
@@ -52,7 +65,13 @@ struct P2PToken {
     sc_dt::sc_uint<64> encoded_words[P2P_HV_WORDS];
 #endif
 
-    P2PToken() : kind(0), class_id(0), value(0) {}
+    P2PToken() : kind(0), class_id(0), value(0)
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+                 ,
+                 sample_checksum(0),
+                 encoded_checksum(0)
+#endif
+    {}
 };
 
 inline bool operator==(const P2PToken &lhs, const P2PToken &rhs) {

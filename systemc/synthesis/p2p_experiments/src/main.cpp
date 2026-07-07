@@ -25,6 +25,7 @@ unsigned expected_encoded_checksum(unsigned kind, unsigned value) {
         return 0;
     }
 
+    const unsigned scalar_sample_checksum = expected_sample_checksum(kind, value);
     for (unsigned word_index = 0; word_index < P2P_HV_WORDS; ++word_index) {
         unsigned acc0 = 0;
         unsigned acc1 = 0;
@@ -32,7 +33,11 @@ unsigned expected_encoded_checksum(unsigned kind, unsigned value) {
         unsigned acc3 = 0;
 
         for (unsigned feature = 0; feature < P2P_SAMPLE_LEVELS; ++feature) {
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+            const unsigned level = (scalar_sample_checksum + 3u * feature + word_index) & 0xffu;
+#else
             const unsigned level = (value + kind + 3u * feature) & 0xffu;
+#endif
             const unsigned term = level + kind + kind + feature + word_index;
 
             acc0 = (acc0 + term) & 0xffffu;

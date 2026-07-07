@@ -11,9 +11,9 @@ set_attr parts_effort low
 set_attr relax_timing on
 set_attr sched_asap on
 
-# Encoder-style P2P experiment with split nonblocking P2P handshakes:
-# can_get/can_put checks and get/put actions happen in separate FSM states.
-set_attr D P2P_ENCODER_MIMIC_NB
+# Encoder-style P2P experiment with scalar-only P2P payload. This keeps the
+# multi-cycle middle FSM but removes array members from the P2P token.
+set_attr D P2P_ENCODER_SCALAR_MIMIC
 
 define_system_module ../src/main.cpp
 define_hls_module P2PPipeline ../src/p2p_pipeline.cpp
