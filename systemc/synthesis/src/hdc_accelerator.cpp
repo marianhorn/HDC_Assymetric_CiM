@@ -26,6 +26,7 @@ bool is_ngram_control_command(AccelCommandKind kind) {
     return kind == AccelCommandKind::ResetInference;
 }
 
+#ifdef STRATUS_HLS
 AccelCommandKind decode_kind(command_kind_t kind) {
     return static_cast<AccelCommandKind>(kind.to_uint());
 }
@@ -111,7 +112,6 @@ void unpack_distances(DistancePacket &packet, const DistanceChannelPacket &chann
     }
 }
 
-#ifdef STRATUS_HLS
 distance_counter_t popcount_word(hv_word_t value) {
     distance_counter_t count = 0;
     for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {

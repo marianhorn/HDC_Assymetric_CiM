@@ -1,5 +1,6 @@
-SYSTEMC_HOME ?= $(firstword $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
+SYSTEMC_PREFIX ?= $(firstword $(SYSTEMC_HOME) $(SYSTEMC_ROOT) $(SYSTEMC) $(wildcard /tools.remote/systemc-2.3.2) $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
 CXX ?= g++
+CXXSTD ?= c++14
 TARGET ?= main
 GOLDEN_TARGET ?= systemc_hdc_golden_regression
 RTL_TRACE_TARGET ?= systemc_hdc_rtl_trace_export
@@ -8,14 +9,20 @@ LEGACY_TARGETS := systemc_hdc_tb
 SRC_DIR := src
 BUILD_DIR := build
 
-SYSTEMC_INCLUDE := $(SYSTEMC_HOME)/include
-SYSTEMC_LIB_DIR ?= $(firstword $(wildcard $(SYSTEMC_HOME)/lib-linux64) $(wildcard $(SYSTEMC_HOME)/lib64) $(wildcard $(SYSTEMC_HOME)/lib))
+SYSTEMC_INCLUDE ?= $(firstword $(wildcard $(SYSTEMC_PREFIX)/include) $(subst :, ,$(CPLUS_INCLUDE_PATH)) $(subst :, ,$(C_INCLUDE_PATH)))
+SYSTEMC_LIB_DIR ?= $(firstword $(wildcard $(SYSTEMC_PREFIX)/lib-linux64) $(wildcard $(SYSTEMC_PREFIX)/lib64) $(wildcard $(SYSTEMC_PREFIX)/lib) $(subst :, ,$(LIBRARY_PATH)) $(subst :, ,$(LD_LIBRARY_PATH)))
 
-ifeq ($(strip $(SYSTEMC_LIB_DIR)),)
-$(error Could not find a SystemC library directory under $(SYSTEMC_HOME). Set SYSTEMC_LIB_DIR explicitly.)
+ifeq ($(strip $(SYSTEMC_PREFIX)),)
+ifeq ($(strip $(SYSTEMC_INCLUDE)),)
+$(error Could not determine SystemC include path. Load a SystemC module or set SYSTEMC_HOME/SYSTEMC_ROOT/SYSTEMC/SYSTEMC_INCLUDE explicitly.)
+endif
 endif
 
-CXXFLAGS ?= -std=c++17 -Wall -Wextra -pedantic -I$(SRC_DIR) -I. -I$(SYSTEMC_INCLUDE)
+ifeq ($(strip $(SYSTEMC_LIB_DIR)),)
+$(error Could not determine SystemC library path. Load a SystemC module or set SYSTEMC_HOME/SYSTEMC_ROOT/SYSTEMC/SYSTEMC_LIB_DIR explicitly.)
+endif
+
+CXXFLAGS ?= -std=$(CXXSTD) -Wall -Wextra -pedantic -I$(SRC_DIR) -I. -I$(SYSTEMC_INCLUDE)
 LDFLAGS ?= -L$(SYSTEMC_LIB_DIR) -Wl,-rpath,$(SYSTEMC_LIB_DIR) -lsystemc -lm
 
 COMMON_SOURCES := $(SRC_DIR)/hdc_memory.cpp $(SRC_DIR)/hdc_accelerator.cpp $(SRC_DIR)/controller.cpp $(SRC_DIR)/foot_dataset_loader.cpp
