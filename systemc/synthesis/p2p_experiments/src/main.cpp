@@ -235,7 +235,7 @@ int sc_main(int, char **) {
         sc_core::sc_start(10, sc_core::SC_NS);
     }
     rst.write(false);
-    sc_core::sc_start(TIMEOUT_CYCLES * 10, sc_core::SC_NS);
+    sc_core::sc_start(static_cast<int>(TIMEOUT_CYCLES * 10u), sc_core::SC_NS);
 
     std::cout << "p2p experiment complete\n"
               << "sent=" << sent_count.read() << '\n'
