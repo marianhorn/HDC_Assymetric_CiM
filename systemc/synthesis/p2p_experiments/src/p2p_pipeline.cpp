@@ -154,7 +154,7 @@ void P2PPipeline::command_frontend_thread() {
                 token_valid = false;
             }
 
-            const bool can_accept = !token_valid;
+            const bool can_accept = !token_valid && token_ready;
             in_ready.write(can_accept);
 
             if (can_accept && in_valid.read()) {
@@ -187,6 +187,7 @@ void P2PPipeline::source_thread() {
 #ifdef P2P_ACCEL_CMD_MIMIC
     enum SourceState {
         SOURCE_WAIT_TOKEN,
+        SOURCE_WAIT_VALID_DROP,
         SOURCE_PUT
     };
 
@@ -213,6 +214,11 @@ void P2PPipeline::source_thread() {
                     pending.sample_checksum = m_cmd_token_sample_checksum.read();
                     pending.encoded_checksum = 0;
                     m_cmd_token_ready.write(false);
+                    state = SOURCE_WAIT_VALID_DROP;
+                }
+            } else if (state == SOURCE_WAIT_VALID_DROP) {
+                m_cmd_token_ready.write(false);
+                if (!m_cmd_token_valid.read()) {
                     state = SOURCE_PUT;
                 }
             } else {
