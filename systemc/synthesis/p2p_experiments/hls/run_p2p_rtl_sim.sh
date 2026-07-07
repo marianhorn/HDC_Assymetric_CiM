@@ -12,6 +12,7 @@ TB_DST="$OUT_DIR/p2p_pipeline_rtl_tb.sv"
 EXTERNAL_P2P=0
 
 VIVADO_BIN="$(command -v vivado || true)"
+PYTHON_BIN="$(command -v python3 || command -v python || true)"
 if [[ -n "$VIVADO_BIN" ]]; then
     VIVADO_ROOT="$(cd "$(dirname "$VIVADO_BIN")/.." && pwd)"
 else
@@ -47,6 +48,10 @@ if [[ ! -f "$GLBL_V" ]]; then
     echo "ERROR: missing Vivado glbl.v. Expected: $GLBL_V" >&2
     exit 1
 fi
+if [[ -z "$PYTHON_BIN" ]]; then
+    echo "ERROR: missing python3/python for generated external-P2P RTL testbench" >&2
+    exit 1
+fi
 
 TB_DEFINES=()
 for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE P2P_ACCEL_CMD_MIMIC P2P_EXTERNAL_P2P; do
@@ -68,7 +73,7 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"
 
 if [[ "$EXTERNAL_P2P" -eq 1 ]]; then
-    python "$SCRIPT_DIR/generate_external_p2p_tb.py" "${TOP_CANDIDATES[0]}" "$TB_DST"
+    "$PYTHON_BIN" "$SCRIPT_DIR/generate_external_p2p_tb.py" "${TOP_CANDIDATES[0]}" "$TB_DST"
 else
     cp "$TB_SRC" "$TB_DST"
     if grep -q '\\in_sample_levels\[0\]' "${TOP_CANDIDATES[0]}"; then
