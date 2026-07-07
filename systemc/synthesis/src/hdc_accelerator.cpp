@@ -333,9 +333,7 @@ void HDC_Accelerator::command_thread() {
                     HLS_DEFINE_PROTOCOL("command_not_ready_wait_ngram");
                     cmd_ready.write(false);
                 }
-                bool done_token = false;
-                done_token = m_ngram_control_done.output.get();
-                (void)done_token;
+                (void)m_ngram_control_done.output.get();
                 pending_ngram_control = false;
                 state = CMD_IDLE;
             } else if (state == CMD_WAIT_TRAIN_DONE) {
@@ -343,9 +341,7 @@ void HDC_Accelerator::command_thread() {
                     HLS_DEFINE_PROTOCOL("command_not_ready_wait_train");
                     cmd_ready.write(false);
                 }
-                bool done_token = false;
-                done_token = m_train_control_done.output.get();
-                (void)done_token;
+                (void)m_train_control_done.output.get();
                 pending_train_control = false;
                 state = CMD_IDLE;
             } else {
@@ -366,12 +362,102 @@ void HDC_Accelerator::command_thread() {
                     packet.kind = encode_kind(command_kind);
                     packet.class_id = cmd_class_id.read();
 
-                    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-                        HLS_UNROLL_LOOP(OFF, "command-pack-sample-loop");
-                        set_sample_level(packet.sample,
-                                         feature,
-                                         cmd_sample_levels[feature].read());
-                    }
+#if NUM_FEATURES > 0
+                    set_sample_level(packet.sample, 0, cmd_sample_levels[0].read());
+#endif
+#if NUM_FEATURES > 1
+                    set_sample_level(packet.sample, 1, cmd_sample_levels[1].read());
+#endif
+#if NUM_FEATURES > 2
+                    set_sample_level(packet.sample, 2, cmd_sample_levels[2].read());
+#endif
+#if NUM_FEATURES > 3
+                    set_sample_level(packet.sample, 3, cmd_sample_levels[3].read());
+#endif
+#if NUM_FEATURES > 4
+                    set_sample_level(packet.sample, 4, cmd_sample_levels[4].read());
+#endif
+#if NUM_FEATURES > 5
+                    set_sample_level(packet.sample, 5, cmd_sample_levels[5].read());
+#endif
+#if NUM_FEATURES > 6
+                    set_sample_level(packet.sample, 6, cmd_sample_levels[6].read());
+#endif
+#if NUM_FEATURES > 7
+                    set_sample_level(packet.sample, 7, cmd_sample_levels[7].read());
+#endif
+#if NUM_FEATURES > 8
+                    set_sample_level(packet.sample, 8, cmd_sample_levels[8].read());
+#endif
+#if NUM_FEATURES > 9
+                    set_sample_level(packet.sample, 9, cmd_sample_levels[9].read());
+#endif
+#if NUM_FEATURES > 10
+                    set_sample_level(packet.sample, 10, cmd_sample_levels[10].read());
+#endif
+#if NUM_FEATURES > 11
+                    set_sample_level(packet.sample, 11, cmd_sample_levels[11].read());
+#endif
+#if NUM_FEATURES > 12
+                    set_sample_level(packet.sample, 12, cmd_sample_levels[12].read());
+#endif
+#if NUM_FEATURES > 13
+                    set_sample_level(packet.sample, 13, cmd_sample_levels[13].read());
+#endif
+#if NUM_FEATURES > 14
+                    set_sample_level(packet.sample, 14, cmd_sample_levels[14].read());
+#endif
+#if NUM_FEATURES > 15
+                    set_sample_level(packet.sample, 15, cmd_sample_levels[15].read());
+#endif
+#if NUM_FEATURES > 16
+                    set_sample_level(packet.sample, 16, cmd_sample_levels[16].read());
+#endif
+#if NUM_FEATURES > 17
+                    set_sample_level(packet.sample, 17, cmd_sample_levels[17].read());
+#endif
+#if NUM_FEATURES > 18
+                    set_sample_level(packet.sample, 18, cmd_sample_levels[18].read());
+#endif
+#if NUM_FEATURES > 19
+                    set_sample_level(packet.sample, 19, cmd_sample_levels[19].read());
+#endif
+#if NUM_FEATURES > 20
+                    set_sample_level(packet.sample, 20, cmd_sample_levels[20].read());
+#endif
+#if NUM_FEATURES > 21
+                    set_sample_level(packet.sample, 21, cmd_sample_levels[21].read());
+#endif
+#if NUM_FEATURES > 22
+                    set_sample_level(packet.sample, 22, cmd_sample_levels[22].read());
+#endif
+#if NUM_FEATURES > 23
+                    set_sample_level(packet.sample, 23, cmd_sample_levels[23].read());
+#endif
+#if NUM_FEATURES > 24
+                    set_sample_level(packet.sample, 24, cmd_sample_levels[24].read());
+#endif
+#if NUM_FEATURES > 25
+                    set_sample_level(packet.sample, 25, cmd_sample_levels[25].read());
+#endif
+#if NUM_FEATURES > 26
+                    set_sample_level(packet.sample, 26, cmd_sample_levels[26].read());
+#endif
+#if NUM_FEATURES > 27
+                    set_sample_level(packet.sample, 27, cmd_sample_levels[27].read());
+#endif
+#if NUM_FEATURES > 28
+                    set_sample_level(packet.sample, 28, cmd_sample_levels[28].read());
+#endif
+#if NUM_FEATURES > 29
+                    set_sample_level(packet.sample, 29, cmd_sample_levels[29].read());
+#endif
+#if NUM_FEATURES > 30
+                    set_sample_level(packet.sample, 30, cmd_sample_levels[30].read());
+#endif
+#if NUM_FEATURES > 31
+                    set_sample_level(packet.sample, 31, cmd_sample_levels[31].read());
+#endif
                 }
 
                 if (cmd_valid_snapshot) {
