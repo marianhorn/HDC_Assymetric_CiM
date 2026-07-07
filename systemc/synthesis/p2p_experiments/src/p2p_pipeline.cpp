@@ -132,25 +132,17 @@ P2PToken transform_token(const P2PToken &input) {
 void P2PPipeline::command_frontend_thread() {
     enum FrontendState {
         FRONTEND_EMPTY,
-        FRONTEND_HOLD,
-        FRONTEND_WAIT_READY_DROP
+        FRONTEND_DEASSERT_READY,
+        FRONTEND_PUT
     };
 
     FrontendState state = FRONTEND_EMPTY;
-    bool token_valid = false;
-    sc_dt::sc_uint<3> token_kind = 0;
-    sc_dt::sc_uint<3> token_class_id = 0;
-    sc_dt::sc_uint<8> token_value = 0;
-    sc_dt::sc_uint<16> token_sample_checksum = 0;
+    P2PToken pending;
 
     {
         HLS_DEFINE_PROTOCOL("command_frontend_reset");
         in_ready.write(false);
-        m_cmd_token_valid.write(false);
-        m_cmd_token_kind.write(0);
-        m_cmd_token_class_id.write(0);
-        m_cmd_token_value.write(0);
-        m_cmd_token_sample_checksum.write(0);
+        m_cmd_to_source.input.reset();
         state = FRONTEND_EMPTY;
         wait();
     }
@@ -159,41 +151,29 @@ void P2PPipeline::command_frontend_thread() {
         {
             if (state == FRONTEND_EMPTY) {
                 in_ready.write(true);
-                token_valid = false;
 
                 if (in_valid.read()) {
-                    token_kind = in_kind.read();
-                    token_class_id = in_kind.read();
-                    token_value = in_value.read();
-                    token_sample_checksum = 0;
+                    pending.kind = in_kind.read();
+                    pending.class_id = in_kind.read();
+                    pending.value = in_value.read();
+                    pending.sample_checksum = 0;
+                    pending.encoded_checksum = 0;
                     for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
                         HLS_UNROLL_LOOP(OFF, "p2p-frontend-sample-read-loop");
-                        token_sample_checksum =
-                            token_sample_checksum + in_sample_levels[index].read();
+                        pending.sample_checksum =
+                            pending.sample_checksum + in_sample_levels[index].read();
                     }
-                    token_valid = true;
-                    state = FRONTEND_HOLD;
+                    state = FRONTEND_DEASSERT_READY;
                 }
-            } else if (state == FRONTEND_HOLD) {
+            } else if (state == FRONTEND_DEASSERT_READY) {
                 in_ready.write(false);
-                token_valid = true;
-                if (m_cmd_token_ready.read()) {
-                    token_valid = false;
-                    state = FRONTEND_WAIT_READY_DROP;
-                }
+                state = FRONTEND_PUT;
             } else {
                 in_ready.write(false);
-                token_valid = false;
-                if (!m_cmd_token_ready.read()) {
-                    state = FRONTEND_EMPTY;
-                }
+                m_cmd_to_source.input.put(pending);
+                state = FRONTEND_EMPTY;
             }
 
-            m_cmd_token_valid.write(token_valid);
-            m_cmd_token_kind.write(token_kind);
-            m_cmd_token_class_id.write(token_class_id);
-            m_cmd_token_value.write(token_value);
-            m_cmd_token_sample_checksum.write(token_sample_checksum);
             wait();
         }
     }
@@ -205,50 +185,31 @@ void P2PPipeline::command_frontend_thread() {}
 void P2PPipeline::source_thread() {
 #ifdef P2P_ACCEL_CMD_MIMIC
     enum SourceState {
-        SOURCE_WAIT_TOKEN,
-        SOURCE_WAIT_VALID_DROP,
-        SOURCE_DROP_READY,
+        SOURCE_GET,
         SOURCE_PUT
     };
 
-    SourceState state = SOURCE_WAIT_TOKEN;
+    SourceState state = SOURCE_GET;
     P2PToken pending;
     sc_dt::sc_uint<16> count = 0;
 
     {
         HLS_DEFINE_PROTOCOL("source_reset");
         source_count.write(0);
-        m_cmd_token_ready.write(false);
+        m_cmd_to_source.output.reset();
         m_source_to_stage.input.reset();
         wait();
     }
 
     while (true) {
         {
-            if (state == SOURCE_WAIT_TOKEN) {
-                m_cmd_token_ready.write(false);
-                if (m_cmd_token_valid.read()) {
-                    pending.kind = m_cmd_token_kind.read();
-                    pending.class_id = m_cmd_token_class_id.read();
-                    pending.value = m_cmd_token_value.read();
-                    pending.sample_checksum = m_cmd_token_sample_checksum.read();
-                    pending.encoded_checksum = 0;
-                    m_cmd_token_ready.write(true);
-                    state = SOURCE_WAIT_VALID_DROP;
-                }
-            } else if (state == SOURCE_WAIT_VALID_DROP) {
-                m_cmd_token_ready.write(true);
-                if (!m_cmd_token_valid.read()) {
-                    state = SOURCE_DROP_READY;
-                }
-            } else if (state == SOURCE_DROP_READY) {
-                m_cmd_token_ready.write(false);
+            if (state == SOURCE_GET) {
+                pending = m_cmd_to_source.output.get();
                 state = SOURCE_PUT;
             } else {
-                m_cmd_token_ready.write(false);
                 m_source_to_stage.input.put(pending);
                 count = count + 1u;
-                state = SOURCE_WAIT_TOKEN;
+                state = SOURCE_GET;
             }
 
             source_count.write(count);

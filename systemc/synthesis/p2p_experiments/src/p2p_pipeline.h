@@ -142,8 +142,14 @@ SC_MODULE(P2PPipeline) {
           source_count("source_count"),
           stage_count("stage_count"),
           sink_count("sink_count"),
+#ifdef P2P_ACCEL_CMD_MIMIC
+          m_cmd_to_source("m_cmd_to_source"),
+#endif
           m_source_to_stage("m_source_to_stage"),
           m_stage_to_sink("m_stage_to_sink") {
+#ifdef P2P_ACCEL_CMD_MIMIC
+        m_cmd_to_source.clk_rst(clk, rst, true);
+#endif
         m_source_to_stage.clk_rst(clk, rst, true);
         m_stage_to_sink.clk_rst(clk, rst, true);
 
@@ -169,12 +175,7 @@ SC_MODULE(P2PPipeline) {
 
   private:
 #ifdef P2P_ACCEL_CMD_MIMIC
-    sc_core::sc_signal<bool> m_cmd_token_valid;
-    sc_core::sc_signal<bool> m_cmd_token_ready;
-    sc_core::sc_signal<sc_dt::sc_uint<3> > m_cmd_token_kind;
-    sc_core::sc_signal<sc_dt::sc_uint<3> > m_cmd_token_class_id;
-    sc_core::sc_signal<sc_dt::sc_uint<8> > m_cmd_token_value;
-    sc_core::sc_signal<sc_dt::sc_uint<16> > m_cmd_token_sample_checksum;
+    cynw_p2p_direct<P2PToken, CYN::PIN> m_cmd_to_source;
 #endif
     cynw_p2p_direct<P2PToken, CYN::PIN> m_source_to_stage;
     cynw_p2p_direct<P2PToken, CYN::PIN> m_stage_to_sink;
