@@ -9,6 +9,7 @@ OUT_DIR="$SCRIPT_DIR/vivado_p2p_rtl_sim"
 SIM_RTL_DIR="$OUT_DIR/rtl_with_timescale"
 TB_SRC="$SCRIPT_DIR/p2p_pipeline_rtl_tb.sv"
 TB_DST="$OUT_DIR/p2p_pipeline_rtl_tb.sv"
+EXTERNAL_P2P=0
 
 VIVADO_BIN="$(command -v vivado || true)"
 if [[ -n "$VIVADO_BIN" ]]; then
@@ -48,13 +49,16 @@ if [[ ! -f "$GLBL_V" ]]; then
 fi
 
 TB_DEFINES=()
-for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE P2P_ACCEL_CMD_MIMIC; do
+for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE P2P_ACCEL_CMD_MIMIC P2P_EXTERNAL_P2P; do
     if grep -Eq "^[[:space:]]*set_attr[[:space:]]+D[[:space:]]+${define}([[:space:]]|$)" project.tcl; then
+        if [[ "$define" == "P2P_EXTERNAL_P2P" ]]; then
+            EXTERNAL_P2P=1
+        fi
         TB_DEFINES+=("-d" "${define}")
-        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" ]]; then
+        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" || "$define" == "P2P_EXTERNAL_P2P" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_MIMIC")
         fi
-        if [[ "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" ]]; then
+        if [[ "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" || "$define" == "P2P_EXTERNAL_P2P" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_SCALAR_MIMIC")
         fi
     fi
@@ -62,12 +66,16 @@ done
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"
-cp "$TB_SRC" "$TB_DST"
 
-if grep -q '\\in_sample_levels\[0\]' "${TOP_CANDIDATES[0]}"; then
-    for index in $(seq 0 31); do
-        sed -i "s/\\.in_sample_levels_${index}(/.\\\\in_sample_levels[${index}] (/g" "$TB_DST"
-    done
+if [[ "$EXTERNAL_P2P" -eq 1 ]]; then
+    python "$SCRIPT_DIR/generate_external_p2p_tb.py" "${TOP_CANDIDATES[0]}" "$TB_DST"
+else
+    cp "$TB_SRC" "$TB_DST"
+    if grep -q '\\in_sample_levels\[0\]' "${TOP_CANDIDATES[0]}"; then
+        for index in $(seq 0 31); do
+            sed -i "s/\\.in_sample_levels_${index}(/.\\\\in_sample_levels[${index}] (/g" "$TB_DST"
+        done
+    fi
 fi
 
 SIM_RTL=()

@@ -72,6 +72,28 @@ sc_dt::sc_uint<16> encoded_checksum(const P2PToken &token) {
 #endif
 }
 
+P2PExternalWord pack_external_word(const P2PToken &token) {
+    P2PExternalWord word = 0;
+    word.range(2, 0) = token.kind;
+    word.range(5, 3) = token.class_id;
+    word.range(13, 6) = token.value;
+    word.range(29, 14) = sample_checksum(token);
+    word.range(45, 30) = encoded_checksum(token);
+    return word;
+}
+
+P2PToken unpack_external_word(const P2PExternalWord &word) {
+    P2PToken token;
+    token.kind = word.range(2, 0);
+    token.class_id = word.range(5, 3);
+    token.value = word.range(13, 6);
+#if defined(P2P_ENCODER_SCALAR_MIMIC)
+    token.sample_checksum = word.range(29, 14);
+    token.encoded_checksum = word.range(45, 30);
+#endif
+    return token;
+}
+
 #if defined(P2P_ENCODER_MIMIC)
 void clear_encoded_payload(P2PToken &token) {
 #if defined(P2P_ENCODER_SCALAR_MIMIC)
@@ -183,7 +205,41 @@ void P2PPipeline::command_frontend_thread() {}
 #endif
 
 void P2PPipeline::source_thread() {
-#ifdef P2P_ACCEL_CMD_MIMIC
+#if defined(P2P_EXTERNAL_P2P)
+    enum SourceState {
+        SOURCE_GET_EXTERNAL,
+        SOURCE_PUT_INTERNAL
+    };
+
+    SourceState state = SOURCE_GET_EXTERNAL;
+    P2PToken pending;
+    sc_dt::sc_uint<16> count = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("source_reset");
+        source_count.write(0);
+        in_p2p.reset();
+        m_source_to_stage.input.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            if (state == SOURCE_GET_EXTERNAL) {
+                const P2PExternalWord word = in_p2p.get();
+                pending = unpack_external_word(word);
+                state = SOURCE_PUT_INTERNAL;
+            } else {
+                m_source_to_stage.input.put(pending);
+                count = count + 1u;
+                state = SOURCE_GET_EXTERNAL;
+            }
+
+            source_count.write(count);
+            wait();
+        }
+    }
+#elif defined(P2P_ACCEL_CMD_MIMIC)
     enum SourceState {
         SOURCE_GET,
         SOURCE_PUT
@@ -474,6 +530,40 @@ void P2PPipeline::stage_thread() {
 }
 
 void P2PPipeline::sink_thread() {
+#if defined(P2P_EXTERNAL_P2P)
+    enum SinkState {
+        SINK_GET_INTERNAL,
+        SINK_PUT_EXTERNAL
+    };
+
+    SinkState state = SINK_GET_INTERNAL;
+    P2PToken work;
+    sc_dt::sc_uint<16> count = 0;
+
+    {
+        HLS_DEFINE_PROTOCOL("sink_reset");
+        sink_count.write(0);
+        m_stage_to_sink.output.reset();
+        out_p2p.reset();
+        wait();
+    }
+
+    while (true) {
+        {
+            if (state == SINK_GET_INTERNAL) {
+                work = m_stage_to_sink.output.get();
+                state = SINK_PUT_EXTERNAL;
+            } else {
+                out_p2p.put(pack_external_word(work));
+                count = count + 1u;
+                state = SINK_GET_INTERNAL;
+            }
+
+            sink_count.write(count);
+            wait();
+        }
+    }
+#else
     enum SinkState {
 #ifdef P2P_EXPERIMENT_NB
         SINK_WAIT_CAN_GET,
@@ -553,4 +643,5 @@ void P2PPipeline::sink_thread() {
             wait();
         }
     }
+#endif
 }

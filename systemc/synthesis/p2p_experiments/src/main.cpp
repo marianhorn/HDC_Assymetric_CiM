@@ -5,6 +5,8 @@
 
 namespace {
 
+static const unsigned NUM_TOKENS = 16;
+
 unsigned expected_sample_checksum(unsigned kind, unsigned value) {
     unsigned checksum = 0;
 #if defined(P2P_ENCODER_SCALAR_MIMIC) || P2P_HAS_SAMPLE_PAYLOAD
@@ -68,8 +70,188 @@ unsigned expected_encoded_checksum(unsigned kind, unsigned value) {
     return checksum & 0xffffu;
 }
 
+P2PExternalWord make_external_word(unsigned kind, unsigned value) {
+    P2PExternalWord word = 0;
+    word.range(2, 0) = kind & 0x7u;
+    word.range(5, 3) = kind & 0x7u;
+    word.range(13, 6) = value & 0xffu;
+    word.range(29, 14) = expected_sample_checksum(kind, value) & 0xffffu;
+    word.range(45, 30) = 0;
+    return word;
+}
+
+unsigned external_kind(const P2PExternalWord &word) {
+    return word.range(2, 0).to_uint();
+}
+
+unsigned external_value(const P2PExternalWord &word) {
+    return word.range(13, 6).to_uint();
+}
+
+unsigned external_sample_checksum(const P2PExternalWord &word) {
+    return word.range(29, 14).to_uint();
+}
+
+unsigned external_encoded_checksum(const P2PExternalWord &word) {
+    return word.range(45, 30).to_uint();
+}
+
 }  // namespace
 
+#if defined(P2P_EXTERNAL_P2P)
+SC_MODULE(P2PExternalTestbench) {
+    sc_core::sc_in<bool> clk;
+    sc_core::sc_in<bool> rst;
+    P2PExternalChannel::base_out command_out;
+    P2PExternalChannel::base_in response_in;
+    sc_core::sc_out<sc_dt::sc_uint<16> > sent_count;
+    sc_core::sc_out<sc_dt::sc_uint<16> > received_count;
+    sc_core::sc_out<sc_dt::sc_uint<16> > error_count;
+
+    SC_CTOR(P2PExternalTestbench)
+        : clk("clk"),
+          rst("rst"),
+          command_out("command_out"),
+          response_in("response_in"),
+          sent_count("sent_count"),
+          received_count("received_count"),
+          error_count("error_count") {
+        command_out.clk_rst(clk, rst, true);
+        response_in.clk_rst(clk, rst, true);
+
+        SC_CTHREAD(source_thread, clk.pos());
+        reset_signal_is(rst, true);
+
+        SC_CTHREAD(sink_thread, clk.pos());
+        reset_signal_is(rst, true);
+    }
+
+    void source_thread() {
+        sc_dt::sc_uint<16> sent = 0;
+        {
+            command_out.reset();
+            sent_count.write(0);
+            wait();
+        }
+
+        while (true) {
+            if (sent < NUM_TOKENS) {
+                const unsigned index = sent.to_uint();
+                command_out.put(make_external_word(index % 5u, 10u + index));
+                sent = sent + 1u;
+                sent_count.write(sent);
+            }
+            wait();
+        }
+    }
+
+    void sink_thread() {
+        sc_dt::sc_uint<16> received = 0;
+        sc_dt::sc_uint<16> errors = 0;
+        {
+            response_in.reset();
+            received_count.write(0);
+            error_count.write(0);
+            wait();
+        }
+
+        while (true) {
+            if (received < NUM_TOKENS) {
+                const P2PExternalWord word = response_in.get();
+                const unsigned expected_index = received.to_uint();
+                const unsigned expected_kind = expected_index % 5u;
+                const unsigned input_value = 10u + expected_index;
+#if defined(P2P_ENCODER_MIMIC)
+                const unsigned expected_value = input_value;
+#else
+                const unsigned expected_value = input_value + 1u;
+#endif
+                const unsigned expected_sample =
+                    expected_sample_checksum(expected_kind, input_value);
+                const unsigned expected_encoded =
+                    expected_encoded_checksum(expected_kind, input_value);
+                const unsigned got_kind = external_kind(word);
+                const unsigned got_value = external_value(word);
+                const unsigned got_sample = external_sample_checksum(word);
+                const unsigned got_encoded = external_encoded_checksum(word);
+
+                if (got_kind != expected_kind || got_value != expected_value ||
+                    got_sample != expected_sample || got_encoded != expected_encoded) {
+                    std::cerr << "Mismatch at token " << expected_index
+                              << ": got kind=" << got_kind << " value=" << got_value
+                              << " sample_checksum=" << got_sample
+                              << " encoded_checksum=" << got_encoded
+                              << ", expected kind=" << expected_kind
+                              << " value=" << expected_value
+                              << " sample_checksum=" << expected_sample
+                              << " encoded_checksum=" << expected_encoded << '\n';
+                    errors = errors + 1u;
+                    error_count.write(errors);
+                }
+
+                received = received + 1u;
+                received_count.write(received);
+            }
+            wait();
+        }
+    }
+};
+
+int sc_main(int, char **) {
+    static const unsigned TIMEOUT_CYCLES = 1000;
+
+    sc_core::sc_clock clk("clk", 10, sc_core::SC_NS);
+    sc_core::sc_signal<bool> rst;
+    P2PExternalChannel command_channel("command_channel");
+    P2PExternalChannel response_channel("response_channel");
+    sc_core::sc_signal<sc_dt::sc_uint<16> > source_count;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > stage_count;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > sink_count;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > sent_count;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > received_count;
+    sc_core::sc_signal<sc_dt::sc_uint<16> > error_count;
+
+    P2PPipeline dut("dut");
+    dut.clk(clk);
+    dut.rst(rst);
+    dut.in_p2p(command_channel);
+    dut.out_p2p(response_channel);
+    dut.source_count(source_count);
+    dut.stage_count(stage_count);
+    dut.sink_count(sink_count);
+
+    P2PExternalTestbench tb("tb");
+    tb.clk(clk);
+    tb.rst(rst);
+    tb.command_out(command_channel);
+    tb.response_in(response_channel);
+    tb.sent_count(sent_count);
+    tb.received_count(received_count);
+    tb.error_count(error_count);
+
+    rst.write(true);
+    sc_core::sc_start(5, sc_core::SC_NS);
+    for (unsigned i = 0; i < 5; ++i) {
+        sc_core::sc_start(10, sc_core::SC_NS);
+    }
+    rst.write(false);
+    sc_core::sc_start(TIMEOUT_CYCLES * 10, sc_core::SC_NS);
+
+    std::cout << "p2p experiment complete\n"
+              << "sent=" << sent_count.read() << '\n'
+              << "received=" << received_count.read() << '\n'
+              << "source_count=" << source_count.read() << '\n'
+              << "stage_count=" << stage_count.read() << '\n'
+              << "sink_count=" << sink_count.read() << '\n'
+              << "errors=" << error_count.read() << '\n';
+
+    if (sent_count.read() != NUM_TOKENS || received_count.read() != NUM_TOKENS ||
+        error_count.read() != 0) {
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+#else
 int sc_main(int, char **) {
     static const unsigned NUM_TOKENS = 16;
     static const unsigned TIMEOUT_CYCLES = 1000;
@@ -200,3 +382,4 @@ int sc_main(int, char **) {
     }
     return EXIT_SUCCESS;
 }
+#endif

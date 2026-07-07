@@ -24,6 +24,12 @@
 #endif
 #endif
 
+#if defined(P2P_EXTERNAL_P2P)
+#if !defined(P2P_ENCODER_SCALAR_MIMIC)
+#define P2P_ENCODER_SCALAR_MIMIC
+#endif
+#endif
+
 #if defined(P2P_ENCODER_SCALAR_MIMIC)
 #if !defined(P2P_ENCODER_MIMIC)
 #define P2P_ENCODER_MIMIC
@@ -88,6 +94,9 @@ struct P2PToken {
     {}
 };
 
+typedef sc_dt::sc_uint<64> P2PExternalWord;
+typedef cynw_p2p<P2PExternalWord, CYN::PIN> P2PExternalChannel;
+
 inline bool operator==(const P2PToken &lhs, const P2PToken &rhs) {
     return lhs.kind == rhs.kind && lhs.class_id == rhs.class_id && lhs.value == rhs.value;
 }
@@ -109,6 +118,10 @@ SC_MODULE(P2PPipeline) {
     sc_core::sc_in<bool> clk;
     sc_core::sc_in<bool> rst;
 
+#ifdef P2P_EXTERNAL_P2P
+    P2PExternalChannel::in in_p2p;
+    P2PExternalChannel::out out_p2p;
+#else
     sc_core::sc_in<bool> in_valid;
     sc_core::sc_out<bool> in_ready;
     sc_core::sc_in<sc_dt::sc_uint<3> > in_kind;
@@ -121,6 +134,7 @@ SC_MODULE(P2PPipeline) {
     sc_core::sc_out<sc_dt::sc_uint<8> > out_value;
     sc_core::sc_out<sc_dt::sc_uint<16> > out_sample_checksum;
     sc_core::sc_out<sc_dt::sc_uint<16> > out_encoded_checksum;
+#endif
 
     sc_core::sc_out<sc_dt::sc_uint<16> > source_count;
     sc_core::sc_out<sc_dt::sc_uint<16> > stage_count;
@@ -129,6 +143,10 @@ SC_MODULE(P2PPipeline) {
     SC_CTOR(P2PPipeline)
         : clk("clk"),
           rst("rst"),
+#ifdef P2P_EXTERNAL_P2P
+          in_p2p("in_p2p"),
+          out_p2p("out_p2p"),
+#else
           in_valid("in_valid"),
           in_ready("in_ready"),
           in_kind("in_kind"),
@@ -139,6 +157,7 @@ SC_MODULE(P2PPipeline) {
           out_value("out_value"),
           out_sample_checksum("out_sample_checksum"),
           out_encoded_checksum("out_encoded_checksum"),
+#endif
           source_count("source_count"),
           stage_count("stage_count"),
           sink_count("sink_count"),
@@ -147,6 +166,10 @@ SC_MODULE(P2PPipeline) {
 #endif
           m_source_to_stage("m_source_to_stage"),
           m_stage_to_sink("m_stage_to_sink") {
+#ifdef P2P_EXTERNAL_P2P
+        in_p2p.clk_rst(clk, rst, true);
+        out_p2p.clk_rst(clk, rst, true);
+#endif
 #ifdef P2P_ACCEL_CMD_MIMIC
         m_cmd_to_source.clk_rst(clk, rst, true);
 #endif
