@@ -227,6 +227,14 @@ module p2p_pipeline_rtl_tb;
             end
 
             if (sent == NUM_TOKENS && received == NUM_TOKENS && !in_valid) begin
+                // The DUT counters are registered outputs and can lag the
+                // testbench handshake counters by one cycle at completion.
+                repeat (2) begin
+                    @(posedge clk);
+                    #1;
+                    cycle_count = cycle_count + 1;
+                end
+
                 $display("P2P RTL simulation complete");
                 $display("cycles=%0d", cycle_count);
                 $display("sent=%0d", sent);
