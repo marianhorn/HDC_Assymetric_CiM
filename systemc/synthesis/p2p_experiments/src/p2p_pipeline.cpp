@@ -103,7 +103,12 @@ P2PToken transform_token(const P2PToken &input) {
 void P2PPipeline::source_thread() {
     enum SourceState {
         SOURCE_WAIT_INPUT,
+#ifdef P2P_EXPERIMENT_NB
+        SOURCE_WAIT_CAN_PUT,
+        SOURCE_DO_PUT
+#else
         SOURCE_PUT
+#endif
     };
 
     SourceState state = SOURCE_WAIT_INPUT;
@@ -129,22 +134,33 @@ void P2PPipeline::source_thread() {
                 in_ready.write(true);
                 if (in_valid.read()) {
                     fill_token(pending, in_kind.read(), in_value.read());
+#ifdef P2P_EXPERIMENT_NB
+                    state = SOURCE_WAIT_CAN_PUT;
+#else
                     state = SOURCE_PUT;
+#endif
+                }
+            }
+#ifdef P2P_EXPERIMENT_NB
+            else if (state == SOURCE_WAIT_CAN_PUT) {
+                in_ready.write(false);
+                if (m_source_to_stage.input.nb_can_put()) {
+                    state = SOURCE_DO_PUT;
                 }
             } else {
                 in_ready.write(false);
-#ifdef P2P_EXPERIMENT_NB
-                if (m_source_to_stage.input.nb_can_put()) {
-                    m_source_to_stage.input.nb_put(pending);
-                    state = SOURCE_WAIT_INPUT;
-                    count = count + 1u;
-                }
+                m_source_to_stage.input.nb_put(pending);
+                state = SOURCE_WAIT_INPUT;
+                count = count + 1u;
+            }
 #else
+            else {
+                in_ready.write(false);
                 m_source_to_stage.input.put(pending);
                 state = SOURCE_WAIT_INPUT;
                 count = count + 1u;
-#endif
             }
+#endif
 
             source_count.write(count);
             wait();
@@ -154,14 +170,28 @@ void P2PPipeline::source_thread() {
 
 void P2PPipeline::stage_thread() {
     enum StageState {
+#ifdef P2P_EXPERIMENT_NB
+        STAGE_WAIT_CAN_GET,
+        STAGE_DO_GET,
+#else
         STAGE_GET,
+#endif
 #if defined(P2P_ENCODER_MIMIC)
         STAGE_ENCODE,
 #endif
+#ifdef P2P_EXPERIMENT_NB
+        STAGE_WAIT_CAN_PUT,
+        STAGE_DO_PUT
+#else
         STAGE_PUT
+#endif
     };
 
+#ifdef P2P_EXPERIMENT_NB
+    StageState state = STAGE_WAIT_CAN_GET;
+#else
     StageState state = STAGE_GET;
+#endif
     P2PToken work;
     sc_dt::sc_uint<16> count = 0;
 #if defined(P2P_ENCODER_MIMIC)
@@ -185,26 +215,29 @@ void P2PPipeline::stage_thread() {
             HLS_DEFINE_PROTOCOL("stage_cycle");
 #endif
 
-            if (state == STAGE_GET) {
 #ifdef P2P_EXPERIMENT_NB
-                P2PToken input;
+            if (state == STAGE_WAIT_CAN_GET) {
                 if (m_source_to_stage.output.nb_can_get()) {
-                    m_source_to_stage.output.nb_get(input);
+                    state = STAGE_DO_GET;
+                }
+            } else if (state == STAGE_DO_GET) {
+                P2PToken input;
+                m_source_to_stage.output.nb_get(input);
 #if defined(P2P_ENCODER_MIMIC)
-                    work = input;
-                    clear_encoded_payload(work);
-                    word_index = 0;
-                    if (work.kind == 2u || work.kind == 4u) {
-                        state = STAGE_ENCODE;
-                    } else {
-                        state = STAGE_PUT;
-                    }
-#else
-                    work = transform_token(input);
-                    state = STAGE_PUT;
-#endif
+                work = input;
+                clear_encoded_payload(work);
+                word_index = 0;
+                if (work.kind == 2u || work.kind == 4u) {
+                    state = STAGE_ENCODE;
+                } else {
+                    state = STAGE_WAIT_CAN_PUT;
                 }
 #else
+                work = transform_token(input);
+                state = STAGE_WAIT_CAN_PUT;
+#endif
+#else
+            if (state == STAGE_GET) {
                 const P2PToken input = m_source_to_stage.output.get();
 #if defined(P2P_ENCODER_MIMIC)
                 work = input;
@@ -225,17 +258,25 @@ void P2PPipeline::stage_thread() {
                 work.encoded_words[word_index] = encoder_mimic_word(work, word_index);
                 if (word_index + 1u == P2P_HV_WORDS) {
                     word_index = 0;
+#ifdef P2P_EXPERIMENT_NB
+                    state = STAGE_WAIT_CAN_PUT;
+#else
                     state = STAGE_PUT;
+#endif
                 } else {
                     word_index = word_index + 1u;
                 }
 #endif
             } else {
 #ifdef P2P_EXPERIMENT_NB
-                if (m_stage_to_sink.input.nb_can_put()) {
+                if (state == STAGE_WAIT_CAN_PUT) {
+                    if (m_stage_to_sink.input.nb_can_put()) {
+                        state = STAGE_DO_PUT;
+                    }
+                } else {
                     m_stage_to_sink.input.nb_put(work);
                     count = count + 1u;
-                    state = STAGE_GET;
+                    state = STAGE_WAIT_CAN_GET;
                 }
 #else
                 m_stage_to_sink.input.put(work);
@@ -252,11 +293,20 @@ void P2PPipeline::stage_thread() {
 
 void P2PPipeline::sink_thread() {
     enum SinkState {
+#ifdef P2P_EXPERIMENT_NB
+        SINK_WAIT_CAN_GET,
+        SINK_DO_GET,
+#else
         SINK_GET,
+#endif
         SINK_HOLD
     };
 
+#ifdef P2P_EXPERIMENT_NB
+    SinkState state = SINK_WAIT_CAN_GET;
+#else
     SinkState state = SINK_GET;
+#endif
     P2PToken work;
     sc_dt::sc_uint<16> count = 0;
 
@@ -278,15 +328,24 @@ void P2PPipeline::sink_thread() {
             HLS_DEFINE_PROTOCOL("sink_cycle");
 #endif
 
-            if (state == SINK_GET) {
+            if (
+#ifdef P2P_EXPERIMENT_NB
+                state == SINK_WAIT_CAN_GET
+#else
+                state == SINK_GET
+#endif
+            ) {
                 out_valid.write(false);
 #ifdef P2P_EXPERIMENT_NB
-                P2PToken input;
                 if (m_stage_to_sink.output.nb_can_get()) {
-                    m_stage_to_sink.output.nb_get(input);
-                    work = input;
-                    state = SINK_HOLD;
+                    state = SINK_DO_GET;
                 }
+            } else if (state == SINK_DO_GET) {
+                out_valid.write(false);
+                P2PToken input;
+                m_stage_to_sink.output.nb_get(input);
+                work = input;
+                state = SINK_HOLD;
 #else
                 work = m_stage_to_sink.output.get();
                 state = SINK_HOLD;
@@ -300,7 +359,11 @@ void P2PPipeline::sink_thread() {
 
                 if (out_ready.read()) {
                     count = count + 1u;
+#ifdef P2P_EXPERIMENT_NB
+                    state = SINK_WAIT_CAN_GET;
+#else
                     state = SINK_GET;
+#endif
                 }
             }
 

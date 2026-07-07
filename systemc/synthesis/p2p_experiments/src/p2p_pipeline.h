@@ -12,6 +12,15 @@
 #define HLS_UNROLL_LOOP(mode, name) ((void)0)
 #endif
 
+#if defined(P2P_ENCODER_MIMIC_NB)
+#if !defined(P2P_ENCODER_MIMIC)
+#define P2P_ENCODER_MIMIC
+#endif
+#if !defined(P2P_EXPERIMENT_NB)
+#define P2P_EXPERIMENT_NB
+#endif
+#endif
+
 static const unsigned P2P_SAMPLE_LEVELS = 32;
 static const unsigned P2P_HV_WORDS = 16;
 
