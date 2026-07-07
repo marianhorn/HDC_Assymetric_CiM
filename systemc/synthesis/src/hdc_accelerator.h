@@ -18,6 +18,8 @@
 #include "hdc_transactions.h"
 
 using hdc_systemc::AccelCommandKind;
+using hdc_systemc::DISTANCE_BITS;
+using hdc_systemc::LEVEL_BITS;
 using hdc_systemc::QuantizedSample;
 using hdc_systemc::class_t;
 using hdc_systemc::clear_quantized_sample;
@@ -87,6 +89,60 @@ struct DistancePacket {
     }
 };
 
+typedef sc_dt::sc_biguint<NUM_FEATURES * LEVEL_BITS> sample_bits_t;
+typedef sc_dt::sc_biguint<VECTOR_DIMENSION> hv_bits_t;
+typedef sc_dt::sc_biguint<NUM_CLASSES * DISTANCE_BITS> distance_bits_t;
+
+struct EncoderChannelPacket {
+    command_kind_t kind = 0;
+    class_t class_id = 0;
+    sample_bits_t sample = 0;
+    hv_bits_t encoded = 0;
+
+    bool operator==(const EncoderChannelPacket &other) const {
+        return kind == other.kind &&
+               class_id == other.class_id &&
+               sample == other.sample &&
+               encoded == other.encoded;
+    }
+
+    bool operator!=(const EncoderChannelPacket &other) const {
+        return !(*this == other);
+    }
+};
+
+struct NGramChannelPacket {
+    command_kind_t kind = 0;
+    class_t class_id = 0;
+    hv_bits_t ngram = 0;
+    bool valid_ngram = false;
+
+    bool operator==(const NGramChannelPacket &other) const {
+        return kind == other.kind &&
+               class_id == other.class_id &&
+               ngram == other.ngram &&
+               valid_ngram == other.valid_ngram;
+    }
+
+    bool operator!=(const NGramChannelPacket &other) const {
+        return !(*this == other);
+    }
+};
+
+struct DistanceChannelPacket {
+    bool valid_prediction = false;
+    distance_bits_t distances = 0;
+
+    bool operator==(const DistanceChannelPacket &other) const {
+        return valid_prediction == other.valid_prediction &&
+               distances == other.distances;
+    }
+
+    bool operator!=(const DistanceChannelPacket &other) const {
+        return !(*this == other);
+    }
+};
+
 inline void clear_encoder_packet(EncoderPacket &packet) {
     packet.kind = AccelCommandKind::ResetTraining;
     packet.class_id = 0;
@@ -128,6 +184,28 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const DistancePacket &packet, c
     }
 }
 
+inline void sc_trace(sc_core::sc_trace_file *tf, const EncoderChannelPacket &packet,
+                     const std::string &name) {
+    sc_core::sc_trace(tf, packet.kind, name + ".kind");
+    sc_core::sc_trace(tf, packet.class_id, name + ".class_id");
+    sc_core::sc_trace(tf, packet.sample, name + ".sample");
+    sc_core::sc_trace(tf, packet.encoded, name + ".encoded");
+}
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const NGramChannelPacket &packet,
+                     const std::string &name) {
+    sc_core::sc_trace(tf, packet.kind, name + ".kind");
+    sc_core::sc_trace(tf, packet.class_id, name + ".class_id");
+    sc_core::sc_trace(tf, packet.ngram, name + ".ngram");
+    sc_core::sc_trace(tf, packet.valid_ngram, name + ".valid_ngram");
+}
+
+inline void sc_trace(sc_core::sc_trace_file *tf, const DistanceChannelPacket &packet,
+                     const std::string &name) {
+    sc_core::sc_trace(tf, packet.valid_prediction, name + ".valid_prediction");
+    sc_core::sc_trace(tf, packet.distances, name + ".distances");
+}
+
 inline std::ostream &operator<<(std::ostream &os, const EncoderPacket &) {
     return os << "EncoderPacket";
 }
@@ -138,6 +216,18 @@ inline std::ostream &operator<<(std::ostream &os, const NGramPacket &packet) {
 
 inline std::ostream &operator<<(std::ostream &os, const DistancePacket &packet) {
     return os << "DistancePacket{valid=" << packet.valid_prediction << '}';
+}
+
+inline std::ostream &operator<<(std::ostream &os, const EncoderChannelPacket &) {
+    return os << "EncoderChannelPacket";
+}
+
+inline std::ostream &operator<<(std::ostream &os, const NGramChannelPacket &packet) {
+    return os << "NGramChannelPacket{valid=" << packet.valid_ngram << '}';
+}
+
+inline std::ostream &operator<<(std::ostream &os, const DistanceChannelPacket &packet) {
+    return os << "DistanceChannelPacket{valid=" << packet.valid_prediction << '}';
 }
 
 SC_MODULE(HDC_Accelerator) {
@@ -190,15 +280,15 @@ private:
     void reset_ngram_buffer();
 
 #ifdef STRATUS_HLS
-    cynw_p2p_direct<EncoderPacket, CYN::PIN> m_encoder_in;
+    cynw_p2p_direct<EncoderChannelPacket, CYN::PIN> m_encoder_in;
 
-    cynw_p2p_direct<EncoderPacket, CYN::PIN> m_encoder_out;
+    cynw_p2p_direct<EncoderChannelPacket, CYN::PIN> m_encoder_out;
 
-    cynw_p2p_direct<NGramPacket, CYN::PIN> m_bundler_in;
+    cynw_p2p_direct<NGramChannelPacket, CYN::PIN> m_bundler_in;
 
-    cynw_p2p_direct<NGramPacket, CYN::PIN> m_distance_in;
+    cynw_p2p_direct<NGramChannelPacket, CYN::PIN> m_distance_in;
 
-    cynw_p2p_direct<DistancePacket, CYN::PIN> m_distance_done;
+    cynw_p2p_direct<DistanceChannelPacket, CYN::PIN> m_distance_done;
 
     cynw_p2p_direct<bool, CYN::PIN> m_ngram_control_done;
 
