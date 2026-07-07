@@ -11,9 +11,9 @@ set_attr parts_effort low
 set_attr relax_timing on
 set_attr sched_asap on
 
-# Encoder-style P2P experiment with scalar-only P2P payload. This keeps the
-# multi-cycle middle FSM but removes array members from the P2P token.
-set_attr D P2P_ENCODER_SCALAR_MIMIC
+# Encoder-style P2P experiment with internal token generation. This removes
+# the external in_valid/in_ready source wrapper from the tested path.
+set_attr D P2P_INTERNAL_SOURCE
 
 define_system_module ../src/main.cpp
 define_hls_module P2PPipeline ../src/p2p_pipeline.cpp

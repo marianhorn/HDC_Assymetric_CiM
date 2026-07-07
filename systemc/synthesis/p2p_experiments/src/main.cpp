@@ -123,20 +123,27 @@ int sc_main(int, char **) {
     unsigned sent = 0;
     unsigned received = 0;
     unsigned errors = 0;
+#if defined(P2P_INTERNAL_SOURCE)
+    sent = NUM_TOKENS;
+#endif
 
     for (unsigned cycle = 0; cycle < TIMEOUT_CYCLES && received < NUM_TOKENS; ++cycle) {
+#if !defined(P2P_INTERNAL_SOURCE)
         if (!in_valid.read() && sent < NUM_TOKENS) {
             in_kind.write(sent % 5u);
             in_value.write(10u + sent);
             in_valid.write(true);
         }
+#endif
 
         sc_core::sc_start(10, sc_core::SC_NS);
 
+#if !defined(P2P_INTERNAL_SOURCE)
         if (in_valid.read() && in_ready.read()) {
             ++sent;
             in_valid.write(false);
         }
+#endif
 
         if (out_valid.read() && out_ready.read()) {
             const unsigned expected_index = received;

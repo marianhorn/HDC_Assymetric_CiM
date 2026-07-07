@@ -154,6 +154,9 @@ module p2p_pipeline_rtl_tb;
         sent = 0;
         received = 0;
         errors = 0;
+`ifdef P2P_INTERNAL_SOURCE
+        sent = NUM_TOKENS;
+`endif
 
         repeat (5) @(posedge clk);
         #1;
@@ -169,11 +172,13 @@ module p2p_pipeline_rtl_tb;
                        cycle_count, sent, received, source_count, stage_count, sink_count);
             end
 
+`ifndef P2P_INTERNAL_SOURCE
             if (!in_valid && sent < NUM_TOKENS) begin
                 in_kind = sent % 5;
                 in_value = 10 + sent;
                 in_valid = 1'b1;
             end
+`endif
 
             @(posedge clk);
             #1;
@@ -185,10 +190,12 @@ module p2p_pipeline_rtl_tb;
                          out_valid, out_ready, source_count, stage_count, sink_count);
             end
 
+`ifndef P2P_INTERNAL_SOURCE
             if (in_valid && in_ready) begin
                 sent = sent + 1;
                 in_valid = 1'b0;
             end
+`endif
 
             if (out_valid && out_ready) begin
                 expected_kind = received % 5;

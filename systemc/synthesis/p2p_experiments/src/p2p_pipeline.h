@@ -12,11 +12,19 @@
 #define HLS_UNROLL_LOOP(mode, name) ((void)0)
 #endif
 
+#if defined(P2P_INTERNAL_SOURCE)
+#if !defined(P2P_ENCODER_SCALAR_MIMIC)
+#define P2P_ENCODER_SCALAR_MIMIC
+#endif
+#endif
+
 #if defined(P2P_ENCODER_SCALAR_MIMIC)
 #if !defined(P2P_ENCODER_MIMIC)
 #define P2P_ENCODER_MIMIC
 #endif
 #endif
+
+static const unsigned P2P_INTERNAL_SOURCE_TOKENS = 16;
 
 #if defined(P2P_ENCODER_MIMIC_NB)
 #if !defined(P2P_ENCODER_MIMIC)

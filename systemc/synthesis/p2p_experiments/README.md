@@ -29,6 +29,10 @@ Define `P2P_ENCODER_SCALAR_MIMIC` to run the same multi-cycle encoder-like
 test with scalar-only P2P payload fields. This isolates whether array members
 inside the P2P token are the RTL failure source.
 
+Define `P2P_INTERNAL_SOURCE` to generate the deterministic 16-token stream
+inside `source_thread`. It implies the scalar encoder mimic and removes the
+external `in_valid/in_ready` source wrapper from the tested path.
+
 In encoder-mimic mode the broad `*_cycle` protocol markers are disabled because
 they force Stratus to schedule local array copies/checksum work as fixed-latency
 protocols. The experiment is meant to validate P2P behavior around a multi-cycle
@@ -50,7 +54,7 @@ make clean && make EXTRA_CXXFLAGS=-DP2P_EXPERIMENT_NB && ./p2p_experiment
 Encoder-mimic variant:
 
 ```sh
-make clean && make EXTRA_CXXFLAGS=-DP2P_ENCODER_SCALAR_MIMIC && ./p2p_experiment
+make clean && make EXTRA_CXXFLAGS=-DP2P_INTERNAL_SOURCE && ./p2p_experiment
 ```
 
 ## Stratus
@@ -65,10 +69,10 @@ make hls_P2PPipeline_HLS_BASIC | tee output_p2p_experiment_hls.txt
 The checked-in HLS project currently enables:
 
 ```tcl
-set_attr D P2P_ENCODER_SCALAR_MIMIC
+set_attr D P2P_INTERNAL_SOURCE
 ```
 
-so the default Stratus run tests the scalar-payload encoder-mimic variant.
+so the default Stratus run tests the internal-source scalar encoder-mimic variant.
 
 ## RTL Simulation
 

@@ -130,6 +130,11 @@ P2PToken transform_token(const P2PToken &input) {
 
 void P2PPipeline::source_thread() {
     enum SourceState {
+#ifdef P2P_INTERNAL_SOURCE
+        SOURCE_GENERATE,
+        SOURCE_PUT,
+        SOURCE_DONE
+#else
         SOURCE_WAIT_INPUT,
 #ifdef P2P_EXPERIMENT_NB
         SOURCE_WAIT_CAN_PUT,
@@ -137,9 +142,14 @@ void P2PPipeline::source_thread() {
 #else
         SOURCE_PUT
 #endif
+#endif
     };
 
+#ifdef P2P_INTERNAL_SOURCE
+    SourceState state = SOURCE_GENERATE;
+#else
     SourceState state = SOURCE_WAIT_INPUT;
+#endif
     P2PToken pending;
     sc_dt::sc_uint<16> count = 0;
 
@@ -147,7 +157,11 @@ void P2PPipeline::source_thread() {
         HLS_DEFINE_PROTOCOL("source_reset");
         in_ready.write(false);
         source_count.write(0);
+#ifdef P2P_INTERNAL_SOURCE
+        state = SOURCE_GENERATE;
+#else
         state = SOURCE_WAIT_INPUT;
+#endif
         m_source_to_stage.input.reset();
         wait();
     }
@@ -158,6 +172,25 @@ void P2PPipeline::source_thread() {
             HLS_DEFINE_PROTOCOL("source_cycle");
 #endif
 
+#ifdef P2P_INTERNAL_SOURCE
+            in_ready.write(false);
+            if (state == SOURCE_GENERATE) {
+                if (count < P2P_INTERNAL_SOURCE_TOKENS) {
+                    fill_token(pending,
+                               static_cast<unsigned>(count % 5u),
+                               static_cast<unsigned>(10u + count));
+                    state = SOURCE_PUT;
+                } else {
+                    state = SOURCE_DONE;
+                }
+            } else if (state == SOURCE_PUT) {
+                m_source_to_stage.input.put(pending);
+                count = count + 1u;
+                state = SOURCE_GENERATE;
+            } else {
+                state = SOURCE_DONE;
+            }
+#else
             if (state == SOURCE_WAIT_INPUT) {
                 in_ready.write(true);
                 if (in_valid.read()) {
@@ -188,6 +221,7 @@ void P2PPipeline::source_thread() {
                 state = SOURCE_WAIT_INPUT;
                 count = count + 1u;
             }
+#endif
 #endif
 
             source_count.write(count);

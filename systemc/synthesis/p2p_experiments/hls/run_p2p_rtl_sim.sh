@@ -48,11 +48,14 @@ if [[ ! -f "$GLBL_V" ]]; then
 fi
 
 TB_DEFINES=()
-for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC; do
+for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE; do
     if grep -Eq "^[[:space:]]*set_attr[[:space:]]+D[[:space:]]+${define}([[:space:]]|$)" project.tcl; then
         TB_DEFINES+=("-d" "${define}")
-        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" ]]; then
+        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_MIMIC")
+        fi
+        if [[ "$define" == "P2P_INTERNAL_SOURCE" ]]; then
+            TB_DEFINES+=("-d" "P2P_ENCODER_SCALAR_MIMIC")
         fi
     fi
 done
