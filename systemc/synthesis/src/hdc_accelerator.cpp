@@ -199,6 +199,7 @@ void HDC_Accelerator::command_thread() {
 #ifdef STRATUS_HLS
     enum CommandState {
         CMD_IDLE,
+        CMD_SEND_ARM,
         CMD_SEND_PENDING
     };
 
@@ -225,23 +226,13 @@ void HDC_Accelerator::command_thread() {
 
     while (true) {
         {
-            bool cmd_valid_snapshot = false;
-            AccelCommandKind cmd_kind_snapshot = AccelCommandKind::ResetTraining;
-            class_t cmd_class_id_snapshot = 0;
-            QuantizedSample cmd_sample_snapshot;
-
-            {
-                HLS_DEFINE_PROTOCOL("command_input");
-                cmd_valid_snapshot = cmd_valid.read();
-                cmd_kind_snapshot =
-                    static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
-                cmd_class_id_snapshot = cmd_class_id.read();
-                for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-                    cmd_sample_snapshot.levels[feature] = cmd_sample_levels[feature].read();
+            if (state == CMD_SEND_ARM) {
+                {
+                    HLS_DEFINE_PROTOCOL("command_ready_low");
+                    cmd_ready.write(false);
                 }
-            }
-
-            if (state == CMD_SEND_PENDING) {
+                state = CMD_SEND_PENDING;
+            } else if (state == CMD_SEND_PENDING) {
                 {
                     HLS_DEFINE_PROTOCOL("command_ready_low");
                     cmd_ready.write(false);
@@ -249,6 +240,11 @@ void HDC_Accelerator::command_thread() {
                 m_encoder_in.input.put(send_packet);
                 state = CMD_IDLE;
             } else {
+                bool cmd_valid_snapshot = false;
+                AccelCommandKind cmd_kind_snapshot = AccelCommandKind::ResetTraining;
+                class_t cmd_class_id_snapshot = 0;
+                QuantizedSample cmd_sample_snapshot;
+
                 if (release_ngram_control) {
                     wait_ngram_control = false;
                     release_ngram_control = false;
@@ -271,8 +267,17 @@ void HDC_Accelerator::command_thread() {
 
                 const bool can_accept_command = !wait_ngram_control && !wait_train_control;
                 {
-                    HLS_DEFINE_PROTOCOL("command_ready");
+                    HLS_DEFINE_PROTOCOL("command_input");
                     cmd_ready.write(can_accept_command);
+                    cmd_valid_snapshot = cmd_valid.read();
+                    if (can_accept_command) {
+                        cmd_kind_snapshot =
+                            static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
+                        cmd_class_id_snapshot = cmd_class_id.read();
+                        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+                            cmd_sample_snapshot.levels[feature] = cmd_sample_levels[feature].read();
+                        }
+                    }
                 }
 
                 if (cmd_valid_snapshot && can_accept_command) {
@@ -299,7 +304,7 @@ void HDC_Accelerator::command_thread() {
                     }
 
                     send_packet = packet;
-                    state = CMD_SEND_PENDING;
+                    state = CMD_SEND_ARM;
                 }
             }
 

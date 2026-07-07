@@ -2,24 +2,6 @@
 
 namespace {
 
-sc_dt::sc_uint<8> sample_level_value(const sc_dt::sc_uint<3> &kind,
-                                     const sc_dt::sc_uint<8> &value,
-                                     unsigned index) {
-    return (value + kind + static_cast<unsigned>(3u * index)) & 0xffu;
-}
-
-sc_dt::sc_uint<64> encoded_word_value(const sc_dt::sc_uint<3> &kind,
-                                      const sc_dt::sc_uint<8> &value,
-                                      unsigned index) {
-    sc_dt::sc_uint<64> word = 0;
-    word.range(7, 0) = value;
-    word.range(15, 8) = static_cast<unsigned>(index);
-    word.range(18, 16) = kind;
-    word.range(31, 19) = static_cast<unsigned>(0x123u + index);
-    word.range(63, 32) = static_cast<unsigned>(0xabc00000u + (index << 4));
-    return word;
-}
-
 void fill_token(P2PToken &token,
                 const sc_dt::sc_uint<3> &kind,
                 const sc_dt::sc_uint<8> &value) {
@@ -28,12 +10,19 @@ void fill_token(P2PToken &token,
     token.value = value;
 #if P2P_HAS_SAMPLE_PAYLOAD
     for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
-        token.sample_levels[index] = sample_level_value(kind, value, index);
+        token.sample_levels[index] =
+            (value + kind + static_cast<unsigned>(3u * index)) & 0xffu;
     }
 #endif
 #if P2P_HAS_ENCODED_PAYLOAD
     for (unsigned index = 0; index < P2P_HV_WORDS; ++index) {
-        token.encoded_words[index] = encoded_word_value(kind, value, index);
+        sc_dt::sc_uint<64> word = 0;
+        word.range(7, 0) = value;
+        word.range(15, 8) = static_cast<unsigned>(index);
+        word.range(18, 16) = kind;
+        word.range(31, 19) = static_cast<unsigned>(0x123u + index);
+        word.range(63, 32) = static_cast<unsigned>(0xabc00000u + (index << 4));
+        token.encoded_words[index] = word;
     }
 #endif
 }
