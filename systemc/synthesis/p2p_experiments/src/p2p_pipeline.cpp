@@ -130,6 +130,13 @@ P2PToken transform_token(const P2PToken &input) {
 
 #ifdef P2P_ACCEL_CMD_MIMIC
 void P2PPipeline::command_frontend_thread() {
+    enum FrontendState {
+        FRONTEND_EMPTY,
+        FRONTEND_HOLD,
+        FRONTEND_WAIT_READY_DROP
+    };
+
+    FrontendState state = FRONTEND_EMPTY;
     bool token_valid = false;
     sc_dt::sc_uint<3> token_kind = 0;
     sc_dt::sc_uint<3> token_class_id = 0;
@@ -144,30 +151,42 @@ void P2PPipeline::command_frontend_thread() {
         m_cmd_token_class_id.write(0);
         m_cmd_token_value.write(0);
         m_cmd_token_sample_checksum.write(0);
+        state = FRONTEND_EMPTY;
         wait();
     }
 
     while (true) {
         {
-            const bool token_ready = m_cmd_token_ready.read();
-            if (token_valid && token_ready) {
+            if (state == FRONTEND_EMPTY) {
+                in_ready.write(true);
                 token_valid = false;
-            }
 
-            const bool can_accept = !token_valid && token_ready;
-            in_ready.write(can_accept);
-
-            if (can_accept && in_valid.read()) {
-                token_kind = in_kind.read();
-                token_class_id = in_kind.read();
-                token_value = in_value.read();
-                token_sample_checksum = 0;
-                for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
-                    HLS_UNROLL_LOOP(OFF, "p2p-frontend-sample-read-loop");
-                    token_sample_checksum =
-                        token_sample_checksum + in_sample_levels[index].read();
+                if (in_valid.read()) {
+                    token_kind = in_kind.read();
+                    token_class_id = in_kind.read();
+                    token_value = in_value.read();
+                    token_sample_checksum = 0;
+                    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+                        HLS_UNROLL_LOOP(OFF, "p2p-frontend-sample-read-loop");
+                        token_sample_checksum =
+                            token_sample_checksum + in_sample_levels[index].read();
+                    }
+                    token_valid = true;
+                    state = FRONTEND_HOLD;
                 }
+            } else if (state == FRONTEND_HOLD) {
+                in_ready.write(false);
                 token_valid = true;
+                if (m_cmd_token_ready.read()) {
+                    token_valid = false;
+                    state = FRONTEND_WAIT_READY_DROP;
+                }
+            } else {
+                in_ready.write(false);
+                token_valid = false;
+                if (!m_cmd_token_ready.read()) {
+                    state = FRONTEND_EMPTY;
+                }
             }
 
             m_cmd_token_valid.write(token_valid);
@@ -188,6 +207,7 @@ void P2PPipeline::source_thread() {
     enum SourceState {
         SOURCE_WAIT_TOKEN,
         SOURCE_WAIT_VALID_DROP,
+        SOURCE_DROP_READY,
         SOURCE_PUT
     };
 
@@ -206,21 +226,24 @@ void P2PPipeline::source_thread() {
     while (true) {
         {
             if (state == SOURCE_WAIT_TOKEN) {
-                m_cmd_token_ready.write(true);
+                m_cmd_token_ready.write(false);
                 if (m_cmd_token_valid.read()) {
                     pending.kind = m_cmd_token_kind.read();
                     pending.class_id = m_cmd_token_class_id.read();
                     pending.value = m_cmd_token_value.read();
                     pending.sample_checksum = m_cmd_token_sample_checksum.read();
                     pending.encoded_checksum = 0;
-                    m_cmd_token_ready.write(false);
+                    m_cmd_token_ready.write(true);
                     state = SOURCE_WAIT_VALID_DROP;
                 }
             } else if (state == SOURCE_WAIT_VALID_DROP) {
-                m_cmd_token_ready.write(false);
+                m_cmd_token_ready.write(true);
                 if (!m_cmd_token_valid.read()) {
-                    state = SOURCE_PUT;
+                    state = SOURCE_DROP_READY;
                 }
+            } else if (state == SOURCE_DROP_READY) {
+                m_cmd_token_ready.write(false);
+                state = SOURCE_PUT;
             } else {
                 m_cmd_token_ready.write(false);
                 m_source_to_stage.input.put(pending);
