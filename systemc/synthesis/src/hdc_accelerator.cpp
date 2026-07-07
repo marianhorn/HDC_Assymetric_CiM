@@ -285,24 +285,22 @@ void HDC_Accelerator::command_thread() {
     enum CommandState {
         CMD_IDLE,
         CMD_DEASSERT_READY,
-        CMD_SEND_PENDING
+        CMD_SEND_PENDING,
+        CMD_WAIT_NGRAM_DONE,
+        CMD_WAIT_TRAIN_DONE
     };
 
     EncoderChannelPacket send_packet;
     CommandState state = CMD_IDLE;
-    bool wait_ngram_control = false;
-    bool wait_train_control = false;
-    bool release_ngram_control = false;
-    bool release_train_control = false;
+    bool pending_ngram_control = false;
+    bool pending_train_control = false;
 
     {
         HLS_DEFINE_PROTOCOL("command_reset");
         cmd_ready.write(false);
         state = CMD_IDLE;
-        wait_ngram_control = false;
-        wait_train_control = false;
-        release_ngram_control = false;
-        release_train_control = false;
+        pending_ngram_control = false;
+        pending_train_control = false;
         m_encoder_in.input.reset();
         m_ngram_control_done.output.reset();
         m_train_control_done.output.reset();
@@ -312,45 +310,61 @@ void HDC_Accelerator::command_thread() {
     while (true) {
         {
             if (state == CMD_SEND_PENDING) {
-                cmd_ready.write(false);
+                {
+                    HLS_DEFINE_PROTOCOL("command_not_ready_send");
+                    cmd_ready.write(false);
+                }
                 m_encoder_in.input.put(send_packet);
-                state = CMD_IDLE;
+                if (pending_ngram_control) {
+                    state = CMD_WAIT_NGRAM_DONE;
+                } else if (pending_train_control) {
+                    state = CMD_WAIT_TRAIN_DONE;
+                } else {
+                    state = CMD_IDLE;
+                }
             } else if (state == CMD_DEASSERT_READY) {
-                cmd_ready.write(false);
+                {
+                    HLS_DEFINE_PROTOCOL("command_not_ready_arm");
+                    cmd_ready.write(false);
+                }
                 state = CMD_SEND_PENDING;
+            } else if (state == CMD_WAIT_NGRAM_DONE) {
+                {
+                    HLS_DEFINE_PROTOCOL("command_not_ready_wait_ngram");
+                    cmd_ready.write(false);
+                }
+                bool done_token = false;
+                done_token = m_ngram_control_done.output.get();
+                (void)done_token;
+                pending_ngram_control = false;
+                state = CMD_IDLE;
+            } else if (state == CMD_WAIT_TRAIN_DONE) {
+                {
+                    HLS_DEFINE_PROTOCOL("command_not_ready_wait_train");
+                    cmd_ready.write(false);
+                }
+                bool done_token = false;
+                done_token = m_train_control_done.output.get();
+                (void)done_token;
+                pending_train_control = false;
+                state = CMD_IDLE;
             } else {
-                if (release_ngram_control) {
-                    wait_ngram_control = false;
-                    release_ngram_control = false;
-                } else if (wait_ngram_control) {
-                    bool done_token = false;
-                    if (m_ngram_control_done.output.nb_get(done_token)) {
-                        release_ngram_control = true;
-                    }
-                }
+                bool cmd_valid_snapshot = false;
+                AccelCommandKind command_kind = AccelCommandKind::ResetTraining;
+                EncoderChannelPacket packet;
+                packet.kind = encode_kind(AccelCommandKind::ResetTraining);
+                packet.class_id = 0;
+                packet.sample = 0;
+                packet.encoded = 0;
 
-                if (release_train_control) {
-                    wait_train_control = false;
-                    release_train_control = false;
-                } else if (wait_train_control) {
-                    bool done_token = false;
-                    if (m_train_control_done.output.nb_get(done_token)) {
-                        release_train_control = true;
-                    }
-                }
-
-                const bool can_accept_command = !wait_ngram_control && !wait_train_control;
-                cmd_ready.write(can_accept_command);
-
-                if (cmd_valid.read() && can_accept_command) {
-                    const AccelCommandKind command_kind =
+                {
+                    HLS_DEFINE_PROTOCOL("command_ready_and_inputs");
+                    cmd_ready.write(true);
+                    cmd_valid_snapshot = cmd_valid.read();
+                    command_kind =
                         static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
-
-                    EncoderChannelPacket packet;
                     packet.kind = encode_kind(command_kind);
                     packet.class_id = cmd_class_id.read();
-                    packet.sample = 0;
-                    packet.encoded = 0;
 
                     for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
                         HLS_UNROLL_LOOP(OFF, "command-pack-sample-loop");
@@ -358,18 +372,15 @@ void HDC_Accelerator::command_thread() {
                                          feature,
                                          cmd_sample_levels[feature].read());
                     }
+                }
 
+                if (cmd_valid_snapshot) {
                     if (command_kind == AccelCommandKind::InferSample) {
                         packet.class_id = 0;
                     }
 
-                    if (is_ngram_control_command(command_kind)) {
-                        wait_ngram_control = true;
-                    }
-                    if (is_train_control_command(command_kind)) {
-                        wait_train_control = true;
-                    }
-
+                    pending_ngram_control = is_ngram_control_command(command_kind);
+                    pending_train_control = is_train_control_command(command_kind);
                     send_packet = packet;
                     state = CMD_DEASSERT_READY;
                 }
