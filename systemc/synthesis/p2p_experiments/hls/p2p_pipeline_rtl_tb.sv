@@ -44,6 +44,10 @@ module p2p_pipeline_rtl_tb;
             for (index = 0; index < 32; index = index + 1) begin
                 checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
             end
+`elsif P2P_ENCODER_SCALAR_MIMIC
+            for (index = 0; index < 32; index = index + 1) begin
+                checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
+            end
 `elsif P2P_PAYLOAD_FULL
             for (index = 0; index < 32; index = index + 1) begin
                 checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;

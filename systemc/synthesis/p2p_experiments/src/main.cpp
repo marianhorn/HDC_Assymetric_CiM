@@ -7,7 +7,7 @@ namespace {
 
 unsigned expected_sample_checksum(unsigned kind, unsigned value) {
     unsigned checksum = 0;
-#if P2P_HAS_SAMPLE_PAYLOAD
+#if defined(P2P_ENCODER_SCALAR_MIMIC) || P2P_HAS_SAMPLE_PAYLOAD
     for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
         checksum = (checksum + ((value + kind + 3u * index) & 0xffu)) & 0xffffu;
     }
