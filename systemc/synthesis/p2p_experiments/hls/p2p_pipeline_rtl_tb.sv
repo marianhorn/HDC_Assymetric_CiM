@@ -11,6 +11,7 @@ module p2p_pipeline_rtl_tb;
     wire in_ready;
     logic [2:0] in_kind;
     logic [7:0] in_value;
+    logic [7:0] in_sample_levels [0:31];
 
     wire out_valid;
     logic out_ready;
@@ -130,6 +131,38 @@ module p2p_pipeline_rtl_tb;
         .in_ready(in_ready),
         .in_kind(in_kind),
         .in_value(in_value),
+        .in_sample_levels_0(in_sample_levels[0]),
+        .in_sample_levels_1(in_sample_levels[1]),
+        .in_sample_levels_2(in_sample_levels[2]),
+        .in_sample_levels_3(in_sample_levels[3]),
+        .in_sample_levels_4(in_sample_levels[4]),
+        .in_sample_levels_5(in_sample_levels[5]),
+        .in_sample_levels_6(in_sample_levels[6]),
+        .in_sample_levels_7(in_sample_levels[7]),
+        .in_sample_levels_8(in_sample_levels[8]),
+        .in_sample_levels_9(in_sample_levels[9]),
+        .in_sample_levels_10(in_sample_levels[10]),
+        .in_sample_levels_11(in_sample_levels[11]),
+        .in_sample_levels_12(in_sample_levels[12]),
+        .in_sample_levels_13(in_sample_levels[13]),
+        .in_sample_levels_14(in_sample_levels[14]),
+        .in_sample_levels_15(in_sample_levels[15]),
+        .in_sample_levels_16(in_sample_levels[16]),
+        .in_sample_levels_17(in_sample_levels[17]),
+        .in_sample_levels_18(in_sample_levels[18]),
+        .in_sample_levels_19(in_sample_levels[19]),
+        .in_sample_levels_20(in_sample_levels[20]),
+        .in_sample_levels_21(in_sample_levels[21]),
+        .in_sample_levels_22(in_sample_levels[22]),
+        .in_sample_levels_23(in_sample_levels[23]),
+        .in_sample_levels_24(in_sample_levels[24]),
+        .in_sample_levels_25(in_sample_levels[25]),
+        .in_sample_levels_26(in_sample_levels[26]),
+        .in_sample_levels_27(in_sample_levels[27]),
+        .in_sample_levels_28(in_sample_levels[28]),
+        .in_sample_levels_29(in_sample_levels[29]),
+        .in_sample_levels_30(in_sample_levels[30]),
+        .in_sample_levels_31(in_sample_levels[31]),
         .out_valid(out_valid),
         .out_ready(out_ready),
         .out_kind(out_kind),
@@ -149,6 +182,9 @@ module p2p_pipeline_rtl_tb;
         in_valid = 1'b0;
         in_kind = '0;
         in_value = '0;
+        for (integer init_feature = 0; init_feature < 32; init_feature = init_feature + 1) begin
+            in_sample_levels[init_feature] = '0;
+        end
         out_ready = 1'b0;
         cycle_count = 0;
         sent = 0;
@@ -176,6 +212,9 @@ module p2p_pipeline_rtl_tb;
             if (!in_valid && sent < NUM_TOKENS) begin
                 in_kind = sent % 5;
                 in_value = 10 + sent;
+                for (integer drive_feature = 0; drive_feature < 32; drive_feature = drive_feature + 1) begin
+                    in_sample_levels[drive_feature] = (10 + sent + (sent % 5) + 3 * drive_feature) & 8'hff;
+                end
                 in_valid = 1'b1;
             end
 `endif

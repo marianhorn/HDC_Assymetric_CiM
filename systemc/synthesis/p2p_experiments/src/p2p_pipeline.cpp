@@ -136,6 +136,9 @@ void P2PPipeline::source_thread() {
         SOURCE_DONE
 #else
         SOURCE_WAIT_INPUT,
+#ifdef P2P_ACCEL_CMD_MIMIC
+        SOURCE_DEASSERT_READY,
+#endif
 #ifdef P2P_EXPERIMENT_NB
         SOURCE_WAIT_CAN_PUT,
         SOURCE_DO_PUT
@@ -194,14 +197,34 @@ void P2PPipeline::source_thread() {
             if (state == SOURCE_WAIT_INPUT) {
                 in_ready.write(true);
                 if (in_valid.read()) {
+#ifdef P2P_ACCEL_CMD_MIMIC
+                    pending.kind = in_kind.read();
+                    pending.class_id = in_kind.read();
+                    pending.value = in_value.read();
+                    pending.sample_checksum = 0;
+                    pending.encoded_checksum = 0;
+                    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+                        HLS_UNROLL_LOOP(OFF, "p2p-accel-cmd-sample-read-loop");
+                        pending.sample_checksum =
+                            pending.sample_checksum + in_sample_levels[index].read();
+                    }
+                    state = SOURCE_DEASSERT_READY;
+#else
                     fill_token(pending, in_kind.read(), in_value.read());
 #ifdef P2P_EXPERIMENT_NB
                     state = SOURCE_WAIT_CAN_PUT;
 #else
                     state = SOURCE_PUT;
 #endif
+#endif
                 }
             }
+#ifdef P2P_ACCEL_CMD_MIMIC
+            else if (state == SOURCE_DEASSERT_READY) {
+                in_ready.write(false);
+                state = SOURCE_PUT;
+            }
+#endif
 #ifdef P2P_EXPERIMENT_NB
             else if (state == SOURCE_WAIT_CAN_PUT) {
                 in_ready.write(false);

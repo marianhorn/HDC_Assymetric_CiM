@@ -80,6 +80,7 @@ int sc_main(int, char **) {
     sc_core::sc_signal<bool> in_ready;
     sc_core::sc_signal<sc_dt::sc_uint<3> > in_kind;
     sc_core::sc_signal<sc_dt::sc_uint<8> > in_value;
+    sc_core::sc_signal<sc_dt::sc_uint<8> > in_sample_levels[P2P_SAMPLE_LEVELS];
     sc_core::sc_signal<bool> out_valid;
     sc_core::sc_signal<bool> out_ready;
     sc_core::sc_signal<sc_dt::sc_uint<3> > out_kind;
@@ -97,6 +98,9 @@ int sc_main(int, char **) {
     dut.in_ready(in_ready);
     dut.in_kind(in_kind);
     dut.in_value(in_value);
+    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+        dut.in_sample_levels[index](in_sample_levels[index]);
+    }
     dut.out_valid(out_valid);
     dut.out_ready(out_ready);
     dut.out_kind(out_kind);
@@ -111,6 +115,9 @@ int sc_main(int, char **) {
     in_valid.write(false);
     in_kind.write(0);
     in_value.write(0);
+    for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+        in_sample_levels[index].write(0);
+    }
     out_ready.write(false);
 
     sc_core::sc_start(5, sc_core::SC_NS);
@@ -132,6 +139,9 @@ int sc_main(int, char **) {
         if (!in_valid.read() && sent < NUM_TOKENS) {
             in_kind.write(sent % 5u);
             in_value.write(10u + sent);
+            for (unsigned index = 0; index < P2P_SAMPLE_LEVELS; ++index) {
+                in_sample_levels[index].write((10u + sent + (sent % 5u) + 3u * index) & 0xffu);
+            }
             in_valid.write(true);
         }
 #endif

@@ -18,6 +18,12 @@
 #endif
 #endif
 
+#if defined(P2P_ACCEL_CMD_MIMIC)
+#if !defined(P2P_ENCODER_SCALAR_MIMIC)
+#define P2P_ENCODER_SCALAR_MIMIC
+#endif
+#endif
+
 #if defined(P2P_ENCODER_SCALAR_MIMIC)
 #if !defined(P2P_ENCODER_MIMIC)
 #define P2P_ENCODER_MIMIC
@@ -107,6 +113,7 @@ SC_MODULE(P2PPipeline) {
     sc_core::sc_out<bool> in_ready;
     sc_core::sc_in<sc_dt::sc_uint<3> > in_kind;
     sc_core::sc_in<sc_dt::sc_uint<8> > in_value;
+    sc_core::sc_in<sc_dt::sc_uint<8> > in_sample_levels[P2P_SAMPLE_LEVELS];
 
     sc_core::sc_out<bool> out_valid;
     sc_core::sc_in<bool> out_ready;

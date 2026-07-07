@@ -48,13 +48,13 @@ if [[ ! -f "$GLBL_V" ]]; then
 fi
 
 TB_DEFINES=()
-for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE; do
+for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE P2P_ACCEL_CMD_MIMIC; do
     if grep -Eq "^[[:space:]]*set_attr[[:space:]]+D[[:space:]]+${define}([[:space:]]|$)" project.tcl; then
         TB_DEFINES+=("-d" "${define}")
-        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" ]]; then
+        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_MIMIC")
         fi
-        if [[ "$define" == "P2P_INTERNAL_SOURCE" ]]; then
+        if [[ "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_SCALAR_MIMIC")
         fi
     fi
@@ -63,6 +63,12 @@ done
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"
 cp "$TB_SRC" "$TB_DST"
+
+if grep -q '\\in_sample_levels\[0\]' "${TOP_CANDIDATES[0]}"; then
+    for index in $(seq 0 31); do
+        sed -i "s/\\.in_sample_levels_${index}(/.\\\\in_sample_levels[${index}] (/g" "$TB_DST"
+    done
+fi
 
 SIM_RTL=()
 copy_with_timescale() {

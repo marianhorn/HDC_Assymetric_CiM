@@ -11,9 +11,10 @@ set_attr parts_effort low
 set_attr relax_timing on
 set_attr sched_asap on
 
-# Encoder-style P2P experiment with internal token generation. This removes
-# the external in_valid/in_ready source wrapper from the tested path.
-set_attr D P2P_INTERNAL_SOURCE
+# Accelerator command-source mimic: external valid/ready command input, 32
+# feature-level reads, deassert-ready arm cycle, then blocking P2P put into an
+# encoder-like multi-cycle stage.
+set_attr D P2P_ACCEL_CMD_MIMIC
 
 define_system_module ../src/main.cpp
 define_hls_module P2PPipeline ../src/p2p_pipeline.cpp
