@@ -57,12 +57,40 @@ module p2p_pipeline_rtl_tb;
         input integer kind;
         input integer value;
         integer index;
+        integer feature;
         integer checksum;
         integer low;
         integer high;
+        integer level;
+        integer term;
+        integer acc0;
+        integer acc1;
+        integer acc2;
+        integer acc3;
         begin
             checksum = 0;
-`ifdef P2P_PAYLOAD_ENCODED
+`ifdef P2P_ENCODER_MIMIC
+            if (kind == 2 || kind == 4) begin
+                for (index = 0; index < 16; index = index + 1) begin
+                    acc0 = 0;
+                    acc1 = 0;
+                    acc2 = 0;
+                    acc3 = 0;
+                    for (feature = 0; feature < 32; feature = feature + 1) begin
+                        level = (value + kind + 3 * feature) & 8'hff;
+                        term = level + kind + kind + feature + index;
+                        acc0 = (acc0 + term) & 16'hffff;
+                        acc1 = (acc1 ^ ((term << (feature & 3)) & 16'hffff)) & 16'hffff;
+                        acc2 = (acc2 + term * (feature + 1)) & 16'hffff;
+                        acc3 = (acc3 ^ ((term + index * 17) & 16'hffff)) & 16'hffff;
+                    end
+                    checksum = checksum ^ acc0;
+                    checksum = checksum ^ acc1;
+                    checksum = checksum ^ acc2;
+                    checksum = checksum ^ acc3;
+                end
+            end
+`elsif P2P_PAYLOAD_ENCODED
             for (index = 0; index < 16; index = index + 1) begin
                 low = value | (index << 8) | (kind << 16) | ((13'h123 + index) << 19);
                 high = 32'habc00000 + (index << 4);
@@ -155,7 +183,11 @@ module p2p_pipeline_rtl_tb;
             if (out_valid && out_ready) begin
                 expected_kind = received % 5;
                 input_value = 10 + received;
+`ifdef P2P_ENCODER_MIMIC
+                expected_value = input_value;
+`else
                 expected_value = input_value + 1;
+`endif
                 expected_sample_checksum_value =
                     expected_sample_checksum(expected_kind, input_value);
                 expected_encoded_checksum_value =

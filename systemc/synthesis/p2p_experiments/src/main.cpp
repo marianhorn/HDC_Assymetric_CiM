@@ -20,7 +20,33 @@ unsigned expected_sample_checksum(unsigned kind, unsigned value) {
 
 unsigned expected_encoded_checksum(unsigned kind, unsigned value) {
     unsigned checksum = 0;
-#if P2P_HAS_ENCODED_PAYLOAD
+#if defined(P2P_ENCODER_MIMIC)
+    if (kind != 2u && kind != 4u) {
+        return 0;
+    }
+
+    for (unsigned word_index = 0; word_index < P2P_HV_WORDS; ++word_index) {
+        unsigned acc0 = 0;
+        unsigned acc1 = 0;
+        unsigned acc2 = 0;
+        unsigned acc3 = 0;
+
+        for (unsigned feature = 0; feature < P2P_SAMPLE_LEVELS; ++feature) {
+            const unsigned level = (value + kind + 3u * feature) & 0xffu;
+            const unsigned term = level + kind + kind + feature + word_index;
+
+            acc0 = (acc0 + term) & 0xffffu;
+            acc1 = (acc1 ^ ((term << (feature & 3u)) & 0xffffu)) & 0xffffu;
+            acc2 = (acc2 + term * (feature + 1u)) & 0xffffu;
+            acc3 = (acc3 ^ ((term + word_index * 17u) & 0xffffu)) & 0xffffu;
+        }
+
+        checksum ^= acc0;
+        checksum ^= acc1;
+        checksum ^= acc2;
+        checksum ^= acc3;
+    }
+#elif P2P_HAS_ENCODED_PAYLOAD
     for (unsigned index = 0; index < P2P_HV_WORDS; ++index) {
         const unsigned low = value | (index << 8) | (kind << 16) |
                              ((0x123u + index) << 19);
@@ -111,7 +137,11 @@ int sc_main(int, char **) {
             const unsigned expected_index = received;
             const unsigned expected_kind = expected_index % 5u;
             const unsigned input_value = 10u + expected_index;
+#if defined(P2P_ENCODER_MIMIC)
+            const unsigned expected_value = input_value;
+#else
             const unsigned expected_value = input_value + 1u;
+#endif
             const unsigned expected_sample = expected_sample_checksum(expected_kind, input_value);
             const unsigned expected_encoded = expected_encoded_checksum(expected_kind, input_value);
             const unsigned got_kind = out_kind.read().to_uint();

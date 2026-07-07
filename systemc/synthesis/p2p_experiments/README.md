@@ -16,6 +16,11 @@ The default build uses blocking `input.put()` / `output.get()`.
 Define `P2P_EXPERIMENT_NB` to test explicit `nb_can_put` / `nb_put` and
 `nb_can_get` / `nb_get` state-machine handshakes.
 
+Define `P2P_ENCODER_MIMIC` to test the encoder-like case: the middle stage gets
+one token, performs 16 word-compute cycles using the 32-entry sample payload,
+then puts one output token. This mirrors the important scheduling shape of
+`HDC_Accelerator::encoder_thread`.
+
 ## Local SystemC
 
 ```sh
@@ -29,6 +34,12 @@ Nonblocking variant:
 make clean && make EXTRA_CXXFLAGS=-DP2P_EXPERIMENT_NB && ./p2p_experiment
 ```
 
+Encoder-mimic variant:
+
+```sh
+make clean && make EXTRA_CXXFLAGS=-DP2P_ENCODER_MIMIC && ./p2p_experiment
+```
+
 ## Stratus
 
 ```sh
@@ -37,6 +48,14 @@ rm -rf bdw_work Makefile.prj
 make Makefile.prj
 make hls_P2PPipeline_HLS_BASIC | tee output_p2p_experiment_hls.txt
 ```
+
+The checked-in HLS project currently enables:
+
+```tcl
+set_attr D P2P_ENCODER_MIMIC
+```
+
+so the default Stratus run tests the encoder-mimic variant.
 
 ## RTL Simulation
 
@@ -64,3 +83,6 @@ For the nonblocking variant, add the define in `hls/project.tcl`:
 ```tcl
 set_attr D P2P_EXPERIMENT_NB
 ```
+
+For the simple pass-through transform experiment, remove or comment out
+`set_attr D P2P_ENCODER_MIMIC` in `hls/project.tcl`.

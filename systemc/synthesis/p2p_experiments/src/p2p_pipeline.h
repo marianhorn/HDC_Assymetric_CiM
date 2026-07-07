@@ -8,10 +8,17 @@
 #define HLS_DEFINE_PROTOCOL(name) ((void)0)
 #endif
 
+#if !defined(STRATUS_HLS) && !defined(HLS_UNROLL_LOOP)
+#define HLS_UNROLL_LOOP(mode, name) ((void)0)
+#endif
+
 static const unsigned P2P_SAMPLE_LEVELS = 32;
 static const unsigned P2P_HV_WORDS = 16;
 
-#if defined(P2P_PAYLOAD_FULL)
+#if defined(P2P_ENCODER_MIMIC)
+#define P2P_HAS_SAMPLE_PAYLOAD 1
+#define P2P_HAS_ENCODED_PAYLOAD 1
+#elif defined(P2P_PAYLOAD_FULL)
 #define P2P_HAS_SAMPLE_PAYLOAD 1
 #define P2P_HAS_ENCODED_PAYLOAD 1
 #elif defined(P2P_PAYLOAD_SAMPLE)

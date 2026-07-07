@@ -54,11 +54,49 @@ sc_dt::sc_uint<16> encoded_checksum(const P2PToken &token) {
     return checksum;
 }
 
+#if defined(P2P_ENCODER_MIMIC)
+void clear_encoded_payload(P2PToken &token) {
+    for (unsigned word = 0; word < P2P_HV_WORDS; ++word) {
+        HLS_UNROLL_LOOP(OFF, "p2p-encoder-mimic-clear-loop");
+        token.encoded_words[word] = 0;
+    }
+}
+
+sc_dt::sc_uint<64> encoder_mimic_word(const P2PToken &token, unsigned word_index) {
+    sc_dt::sc_uint<16> acc0 = 0;
+    sc_dt::sc_uint<16> acc1 = 0;
+    sc_dt::sc_uint<16> acc2 = 0;
+    sc_dt::sc_uint<16> acc3 = 0;
+
+    for (unsigned feature = 0; feature < P2P_SAMPLE_LEVELS; ++feature) {
+        HLS_UNROLL_LOOP(OFF, "p2p-encoder-mimic-feature-loop");
+        const sc_dt::sc_uint<8> level = token.sample_levels[feature];
+        const sc_dt::sc_uint<16> term =
+            level + token.kind + token.class_id + static_cast<unsigned>(feature) +
+            static_cast<unsigned>(word_index);
+
+        acc0 = acc0 + term;
+        acc1 = acc1 ^ (term << (feature & 3u));
+        acc2 = acc2 + (term * static_cast<unsigned>(feature + 1u));
+        acc3 = acc3 ^ (term + static_cast<unsigned>(word_index * 17u));
+    }
+
+    sc_dt::sc_uint<64> word = 0;
+    word.range(15, 0) = acc0;
+    word.range(31, 16) = acc1;
+    word.range(47, 32) = acc2;
+    word.range(63, 48) = acc3;
+    return word;
+}
+#endif
+
+#if !defined(P2P_ENCODER_MIMIC)
 P2PToken transform_token(const P2PToken &input) {
     P2PToken output = input;
     output.value = input.value + 1u;
     return output;
 }
+#endif
 
 }  // namespace
 
@@ -115,16 +153,25 @@ void P2PPipeline::source_thread() {
 void P2PPipeline::stage_thread() {
     enum StageState {
         STAGE_GET,
+#if defined(P2P_ENCODER_MIMIC)
+        STAGE_ENCODE,
+#endif
         STAGE_PUT
     };
 
     StageState state = STAGE_GET;
     P2PToken work;
     sc_dt::sc_uint<16> count = 0;
+#if defined(P2P_ENCODER_MIMIC)
+    unsigned word_index = 0;
+#endif
 
     {
         HLS_DEFINE_PROTOCOL("stage_reset");
         stage_count.write(0);
+#if defined(P2P_ENCODER_MIMIC)
+        word_index = 0;
+#endif
         m_source_to_stage.output.reset();
         m_stage_to_sink.input.reset();
         wait();
@@ -139,13 +186,45 @@ void P2PPipeline::stage_thread() {
                 P2PToken input;
                 if (m_source_to_stage.output.nb_can_get()) {
                     m_source_to_stage.output.nb_get(input);
+#if defined(P2P_ENCODER_MIMIC)
+                    work = input;
+                    clear_encoded_payload(work);
+                    word_index = 0;
+                    if (work.kind == 2u || work.kind == 4u) {
+                        state = STAGE_ENCODE;
+                    } else {
+                        state = STAGE_PUT;
+                    }
+#else
                     work = transform_token(input);
                     state = STAGE_PUT;
+#endif
                 }
 #else
                 const P2PToken input = m_source_to_stage.output.get();
+#if defined(P2P_ENCODER_MIMIC)
+                work = input;
+                clear_encoded_payload(work);
+                word_index = 0;
+                if (work.kind == 2u || work.kind == 4u) {
+                    state = STAGE_ENCODE;
+                } else {
+                    state = STAGE_PUT;
+                }
+#else
                 work = transform_token(input);
                 state = STAGE_PUT;
+#endif
+#endif
+#if defined(P2P_ENCODER_MIMIC)
+            } else if (state == STAGE_ENCODE) {
+                work.encoded_words[word_index] = encoder_mimic_word(work, word_index);
+                if (word_index + 1u == P2P_HV_WORDS) {
+                    word_index = 0;
+                    state = STAGE_PUT;
+                } else {
+                    word_index = word_index + 1u;
+                }
 #endif
             } else {
 #ifdef P2P_EXPERIMENT_NB
