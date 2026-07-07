@@ -121,7 +121,9 @@ void P2PPipeline::source_thread() {
 
     while (true) {
         {
+#if !defined(P2P_ENCODER_MIMIC)
             HLS_DEFINE_PROTOCOL("source_cycle");
+#endif
 
             if (state == SOURCE_WAIT_INPUT) {
                 in_ready.write(true);
@@ -179,7 +181,9 @@ void P2PPipeline::stage_thread() {
 
     while (true) {
         {
+#if !defined(P2P_ENCODER_MIMIC)
             HLS_DEFINE_PROTOCOL("stage_cycle");
+#endif
 
             if (state == STAGE_GET) {
 #ifdef P2P_EXPERIMENT_NB
@@ -270,7 +274,9 @@ void P2PPipeline::sink_thread() {
 
     while (true) {
         {
+#if !defined(P2P_ENCODER_MIMIC)
             HLS_DEFINE_PROTOCOL("sink_cycle");
+#endif
 
             if (state == SINK_GET) {
                 out_valid.write(false);

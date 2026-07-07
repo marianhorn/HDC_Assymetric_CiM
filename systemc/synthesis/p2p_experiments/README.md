@@ -21,6 +21,11 @@ one token, performs 16 word-compute cycles using the 32-entry sample payload,
 then puts one output token. This mirrors the important scheduling shape of
 `HDC_Accelerator::encoder_thread`.
 
+In encoder-mimic mode the broad `*_cycle` protocol markers are disabled because
+they force Stratus to schedule local array copies/checksum work as fixed-latency
+protocols. The experiment is meant to validate P2P behavior around a multi-cycle
+FSM, not local array-loop protocol timing.
+
 ## Local SystemC
 
 ```sh
