@@ -11,9 +11,9 @@ set_attr parts_effort low
 set_attr relax_timing on
 set_attr sched_asap on
 
-# Scalar valid/ready command/response pins feeding an internal blocking P2P
-# pipeline through a single-entry adapter.
-set_attr D P2P_VALID_READY_ADAPTER
+# External P2P command/response pins without the encoder-like multi-cycle
+# stage. This isolates external P2P handshake overhead.
+set_attr D P2P_EXTERNAL_P2P_PASSTHROUGH
 
 define_system_module ../src/main.cpp
 define_hls_module P2PPipeline ../src/p2p_pipeline.cpp

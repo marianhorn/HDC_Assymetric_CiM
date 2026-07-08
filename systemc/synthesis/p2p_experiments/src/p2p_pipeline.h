@@ -12,6 +12,15 @@
 #define HLS_UNROLL_LOOP(mode, name) ((void)0)
 #endif
 
+#if defined(P2P_EXTERNAL_P2P_PASSTHROUGH)
+#if !defined(P2P_EXTERNAL_P2P)
+#define P2P_EXTERNAL_P2P
+#endif
+#if !defined(P2P_EXTERNAL_NO_ENCODER_MIMIC)
+#define P2P_EXTERNAL_NO_ENCODER_MIMIC
+#endif
+#endif
+
 #if defined(P2P_INTERNAL_SOURCE)
 #if !defined(P2P_ENCODER_SCALAR_MIMIC)
 #define P2P_ENCODER_SCALAR_MIMIC
@@ -30,7 +39,7 @@
 #endif
 #endif
 
-#if defined(P2P_EXTERNAL_P2P)
+#if defined(P2P_EXTERNAL_P2P) && !defined(P2P_EXTERNAL_NO_ENCODER_MIMIC)
 #if !defined(P2P_ENCODER_SCALAR_MIMIC)
 #define P2P_ENCODER_SCALAR_MIMIC
 #endif
