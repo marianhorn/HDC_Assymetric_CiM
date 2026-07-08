@@ -49,6 +49,44 @@ void set_sample_level(sample_bits_t &sample, unsigned feature, level_t level) {
     sample.range(high, low) = level;
 }
 
+EncoderChannelPacket unpack_command_channel(command_channel_bits_t word) {
+    EncoderChannelPacket packet;
+    unsigned low = 0;
+    unsigned high = COMMAND_KIND_BITS - 1u;
+    packet.kind = word.range(high, low);
+
+    low = high + 1u;
+    high = low + CLASS_BITS - 1u;
+    packet.class_id = word.range(high, low);
+
+    packet.sample = 0;
+    for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
+        HLS_UNROLL_LOOP(OFF, "unpack-command-sample-loop");
+        low = COMMAND_KIND_BITS + CLASS_BITS + (feature * LEVEL_BITS);
+        high = low + LEVEL_BITS - 1u;
+        level_t level = 0;
+        level = word.range(high, low);
+        set_sample_level(packet.sample, feature, level);
+    }
+
+    packet.encoded = 0;
+    return packet;
+}
+
+response_channel_bits_t pack_response_channel(const DistanceChannelPacket &packet) {
+    response_channel_bits_t word = 0;
+    word.range(0, 0) = packet.valid_prediction ? 1u : 0u;
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        HLS_UNROLL_LOOP(OFF, "pack-response-distance-loop");
+        const unsigned low = 1u + (class_id * DISTANCE_BITS);
+        const unsigned high = low + DISTANCE_BITS - 1u;
+        const unsigned distance_low = class_id * DISTANCE_BITS;
+        const unsigned distance_high = distance_low + DISTANCE_BITS - 1u;
+        word.range(high, low) = packet.distances.range(distance_high, distance_low);
+    }
+    return word;
+}
+
 hv_word_t get_hv_word(const hv_bits_t &hv, unsigned word) {
     const unsigned low = word * HV_WORD_BITS;
     const unsigned high = low + HV_WORD_BITS - 1u;
@@ -217,6 +255,10 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
     : sc_module(name),
       clk("clk"),
       rst("rst"),
+#ifdef STRATUS_HLS
+      cmd("cmd"),
+      rsp("rsp"),
+#else
       cmd_valid("cmd_valid"),
       cmd_ready("cmd_ready"),
       cmd_kind("cmd_kind"),
@@ -224,6 +266,7 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
       rsp_valid("rsp_valid"),
       rsp_ready("rsp_ready"),
       rsp_valid_prediction("rsp_valid_prediction"),
+#endif
 #ifdef STRATUS_HLS
       m_encoder_in("m_encoder_in"),
       m_encoder_out("m_encoder_out"),
@@ -235,6 +278,8 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
 #endif
       m_current_class_valid(false) {
 #ifdef STRATUS_HLS
+    cmd.clk_rst(clk, rst, true);
+    rsp.clk_rst(clk, rst, true);
     m_encoder_in.clk_rst(clk, rst, true);
     m_encoder_out.clk_rst(clk, rst, true);
     m_bundler_in.clk_rst(clk, rst, true);
@@ -283,24 +328,23 @@ void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
 void HDC_Accelerator::command_thread() {
 #ifdef STRATUS_HLS
     enum CommandState {
-        CMD_IDLE,
-        CMD_DEASSERT_READY,
+        CMD_GET_COMMAND,
         CMD_SEND_PENDING,
         CMD_WAIT_NGRAM_DONE,
         CMD_WAIT_TRAIN_DONE
     };
 
     EncoderChannelPacket send_packet;
-    CommandState state = CMD_IDLE;
+    CommandState state = CMD_GET_COMMAND;
     bool pending_ngram_control = false;
     bool pending_train_control = false;
 
     {
         HLS_DEFINE_PROTOCOL("command_reset");
-        cmd_ready.write(false);
-        state = CMD_IDLE;
+        state = CMD_GET_COMMAND;
         pending_ngram_control = false;
         pending_train_control = false;
+        cmd.reset();
         m_encoder_in.input.reset();
         m_ngram_control_done.output.reset();
         m_train_control_done.output.reset();
@@ -309,167 +353,36 @@ void HDC_Accelerator::command_thread() {
 
     while (true) {
         {
-            if (state == CMD_SEND_PENDING) {
-                {
-                    HLS_DEFINE_PROTOCOL("command_not_ready_send");
-                    cmd_ready.write(false);
+            if (state == CMD_GET_COMMAND) {
+                const command_channel_bits_t command_word = cmd.get();
+                EncoderChannelPacket packet = unpack_command_channel(command_word);
+                const AccelCommandKind command_kind = decode_kind(packet.kind);
+
+                if (command_kind == AccelCommandKind::InferSample) {
+                    packet.class_id = 0;
                 }
+
+                pending_ngram_control = is_ngram_control_command(command_kind);
+                pending_train_control = is_train_control_command(command_kind);
+                send_packet = packet;
+                state = CMD_SEND_PENDING;
+            } else if (state == CMD_SEND_PENDING) {
                 m_encoder_in.input.put(send_packet);
                 if (pending_ngram_control) {
                     state = CMD_WAIT_NGRAM_DONE;
                 } else if (pending_train_control) {
                     state = CMD_WAIT_TRAIN_DONE;
                 } else {
-                    state = CMD_IDLE;
+                    state = CMD_GET_COMMAND;
                 }
-            } else if (state == CMD_DEASSERT_READY) {
-                {
-                    HLS_DEFINE_PROTOCOL("command_not_ready_arm");
-                    cmd_ready.write(false);
-                }
-                state = CMD_SEND_PENDING;
             } else if (state == CMD_WAIT_NGRAM_DONE) {
-                {
-                    HLS_DEFINE_PROTOCOL("command_not_ready_wait_ngram");
-                    cmd_ready.write(false);
-                }
                 (void)m_ngram_control_done.output.get();
                 pending_ngram_control = false;
-                state = CMD_IDLE;
-            } else if (state == CMD_WAIT_TRAIN_DONE) {
-                {
-                    HLS_DEFINE_PROTOCOL("command_not_ready_wait_train");
-                    cmd_ready.write(false);
-                }
+                state = CMD_GET_COMMAND;
+            } else {
                 (void)m_train_control_done.output.get();
                 pending_train_control = false;
-                state = CMD_IDLE;
-            } else {
-                bool cmd_valid_snapshot = false;
-                AccelCommandKind command_kind = AccelCommandKind::ResetTraining;
-                EncoderChannelPacket packet;
-                packet.kind = encode_kind(AccelCommandKind::ResetTraining);
-                packet.class_id = 0;
-                packet.sample = 0;
-                packet.encoded = 0;
-
-                {
-                    HLS_DEFINE_PROTOCOL("command_ready_and_inputs");
-                    cmd_ready.write(true);
-                    cmd_valid_snapshot = cmd_valid.read();
-                    command_kind =
-                        static_cast<AccelCommandKind>(cmd_kind.read().to_uint());
-                    packet.kind = encode_kind(command_kind);
-                    packet.class_id = cmd_class_id.read();
-
-#if NUM_FEATURES > 0
-                    set_sample_level(packet.sample, 0, cmd_sample_levels[0].read());
-#endif
-#if NUM_FEATURES > 1
-                    set_sample_level(packet.sample, 1, cmd_sample_levels[1].read());
-#endif
-#if NUM_FEATURES > 2
-                    set_sample_level(packet.sample, 2, cmd_sample_levels[2].read());
-#endif
-#if NUM_FEATURES > 3
-                    set_sample_level(packet.sample, 3, cmd_sample_levels[3].read());
-#endif
-#if NUM_FEATURES > 4
-                    set_sample_level(packet.sample, 4, cmd_sample_levels[4].read());
-#endif
-#if NUM_FEATURES > 5
-                    set_sample_level(packet.sample, 5, cmd_sample_levels[5].read());
-#endif
-#if NUM_FEATURES > 6
-                    set_sample_level(packet.sample, 6, cmd_sample_levels[6].read());
-#endif
-#if NUM_FEATURES > 7
-                    set_sample_level(packet.sample, 7, cmd_sample_levels[7].read());
-#endif
-#if NUM_FEATURES > 8
-                    set_sample_level(packet.sample, 8, cmd_sample_levels[8].read());
-#endif
-#if NUM_FEATURES > 9
-                    set_sample_level(packet.sample, 9, cmd_sample_levels[9].read());
-#endif
-#if NUM_FEATURES > 10
-                    set_sample_level(packet.sample, 10, cmd_sample_levels[10].read());
-#endif
-#if NUM_FEATURES > 11
-                    set_sample_level(packet.sample, 11, cmd_sample_levels[11].read());
-#endif
-#if NUM_FEATURES > 12
-                    set_sample_level(packet.sample, 12, cmd_sample_levels[12].read());
-#endif
-#if NUM_FEATURES > 13
-                    set_sample_level(packet.sample, 13, cmd_sample_levels[13].read());
-#endif
-#if NUM_FEATURES > 14
-                    set_sample_level(packet.sample, 14, cmd_sample_levels[14].read());
-#endif
-#if NUM_FEATURES > 15
-                    set_sample_level(packet.sample, 15, cmd_sample_levels[15].read());
-#endif
-#if NUM_FEATURES > 16
-                    set_sample_level(packet.sample, 16, cmd_sample_levels[16].read());
-#endif
-#if NUM_FEATURES > 17
-                    set_sample_level(packet.sample, 17, cmd_sample_levels[17].read());
-#endif
-#if NUM_FEATURES > 18
-                    set_sample_level(packet.sample, 18, cmd_sample_levels[18].read());
-#endif
-#if NUM_FEATURES > 19
-                    set_sample_level(packet.sample, 19, cmd_sample_levels[19].read());
-#endif
-#if NUM_FEATURES > 20
-                    set_sample_level(packet.sample, 20, cmd_sample_levels[20].read());
-#endif
-#if NUM_FEATURES > 21
-                    set_sample_level(packet.sample, 21, cmd_sample_levels[21].read());
-#endif
-#if NUM_FEATURES > 22
-                    set_sample_level(packet.sample, 22, cmd_sample_levels[22].read());
-#endif
-#if NUM_FEATURES > 23
-                    set_sample_level(packet.sample, 23, cmd_sample_levels[23].read());
-#endif
-#if NUM_FEATURES > 24
-                    set_sample_level(packet.sample, 24, cmd_sample_levels[24].read());
-#endif
-#if NUM_FEATURES > 25
-                    set_sample_level(packet.sample, 25, cmd_sample_levels[25].read());
-#endif
-#if NUM_FEATURES > 26
-                    set_sample_level(packet.sample, 26, cmd_sample_levels[26].read());
-#endif
-#if NUM_FEATURES > 27
-                    set_sample_level(packet.sample, 27, cmd_sample_levels[27].read());
-#endif
-#if NUM_FEATURES > 28
-                    set_sample_level(packet.sample, 28, cmd_sample_levels[28].read());
-#endif
-#if NUM_FEATURES > 29
-                    set_sample_level(packet.sample, 29, cmd_sample_levels[29].read());
-#endif
-#if NUM_FEATURES > 30
-                    set_sample_level(packet.sample, 30, cmd_sample_levels[30].read());
-#endif
-#if NUM_FEATURES > 31
-                    set_sample_level(packet.sample, 31, cmd_sample_levels[31].read());
-#endif
-                }
-
-                if (cmd_valid_snapshot) {
-                    if (command_kind == AccelCommandKind::InferSample) {
-                        packet.class_id = 0;
-                    }
-
-                    pending_ngram_control = is_ngram_control_command(command_kind);
-                    pending_train_control = is_train_control_command(command_kind);
-                    send_packet = packet;
-                    state = CMD_DEASSERT_READY;
-                }
+                state = CMD_GET_COMMAND;
             }
 
             {
@@ -478,6 +391,7 @@ void HDC_Accelerator::command_thread() {
             }
         }
     }
+
 #else
     EncoderPacket output_packet = EncoderPacket();
     bool output_valid = false;
@@ -1524,109 +1438,33 @@ void HDC_Accelerator::distance_thread() {
 }
 
 void HDC_Accelerator::response_thread() {
-    DistancePacket work;
-
 #ifdef STRATUS_HLS
     enum ResponseState {
         RSP_WAIT_PACKET,
-        RSP_PRESENT
+        RSP_SEND_PACKET
     };
 
     ResponseState state = RSP_WAIT_PACKET;
-    bool response_valid_prediction = false;
-    distance_counter_t response_distance0 = 0;
-    distance_counter_t response_distance1 = 0;
-    distance_counter_t response_distance2 = 0;
-    distance_counter_t response_distance3 = 0;
-    distance_counter_t response_distance4 = 0;
+    response_channel_bits_t response_word = 0;
 
     {
         HLS_DEFINE_PROTOCOL("response_reset");
-        rsp_valid.write(false);
-        rsp_valid_prediction.write(false);
-#if NUM_CLASSES > 0
-        rsp_distances[0].write(0);
-#endif
-#if NUM_CLASSES > 1
-        rsp_distances[1].write(0);
-#endif
-#if NUM_CLASSES > 2
-        rsp_distances[2].write(0);
-#endif
-#if NUM_CLASSES > 3
-        rsp_distances[3].write(0);
-#endif
-#if NUM_CLASSES > 4
-        rsp_distances[4].write(0);
-#endif
         state = RSP_WAIT_PACKET;
-        response_valid_prediction = false;
-        response_distance0 = 0;
-        response_distance1 = 0;
-        response_distance2 = 0;
-        response_distance3 = 0;
-        response_distance4 = 0;
+        response_word = 0;
         m_distance_done.output.reset();
+        rsp.reset();
         wait();
     }
 
     while (true) {
         {
             if (state == RSP_WAIT_PACKET) {
-                {
-                    HLS_DEFINE_PROTOCOL("response_idle_outputs");
-                    rsp_valid.write(false);
-                    rsp_valid_prediction.write(false);
-                }
                 const DistanceChannelPacket channel_packet = m_distance_done.output.get();
-                unpack_distances(work, channel_packet);
-                response_valid_prediction = work.valid_prediction;
-#if NUM_CLASSES > 0
-                response_distance0 = work.distances[0];
-#endif
-#if NUM_CLASSES > 1
-                response_distance1 = work.distances[1];
-#endif
-#if NUM_CLASSES > 2
-                response_distance2 = work.distances[2];
-#endif
-#if NUM_CLASSES > 3
-                response_distance3 = work.distances[3];
-#endif
-#if NUM_CLASSES > 4
-                response_distance4 = work.distances[4];
-#endif
-                state = RSP_PRESENT;
+                response_word = pack_response_channel(channel_packet);
+                state = RSP_SEND_PACKET;
             } else {
-                {
-                    HLS_DEFINE_PROTOCOL("response_outputs");
-                    rsp_valid.write(true);
-                    rsp_valid_prediction.write(response_valid_prediction);
-#if NUM_CLASSES > 0
-                    rsp_distances[0].write(response_distance0);
-#endif
-#if NUM_CLASSES > 1
-                    rsp_distances[1].write(response_distance1);
-#endif
-#if NUM_CLASSES > 2
-                    rsp_distances[2].write(response_distance2);
-#endif
-#if NUM_CLASSES > 3
-                    rsp_distances[3].write(response_distance3);
-#endif
-#if NUM_CLASSES > 4
-                    rsp_distances[4].write(response_distance4);
-#endif
-                }
-
-                bool rsp_ready_snapshot = false;
-                {
-                    HLS_DEFINE_PROTOCOL("response_ready");
-                    rsp_ready_snapshot = rsp_ready.read();
-                }
-                if (rsp_ready_snapshot) {
-                    state = RSP_WAIT_PACKET;
-                }
+                rsp.put(response_word);
+                state = RSP_WAIT_PACKET;
             }
 
             {
@@ -1635,7 +1473,9 @@ void HDC_Accelerator::response_thread() {
             }
         }
     }
+
 #else
+    DistancePacket work;
     bool holding_response = false;
     bool distance_token_consumed = false;
 

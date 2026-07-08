@@ -78,6 +78,42 @@ def find_exact(ports: Dict[str, Port], expected: str) -> Port:
     raise SystemExit(f"missing required port {expected!r}; available ports: {available}")
 
 
+def find_optional_exact(ports: Dict[str, Port], expected: str) -> Optional[Port]:
+    for port in ports.values():
+        if canonical(port.name) == expected:
+            return port
+    return None
+
+
+def width_to_int(width: str) -> int:
+    if not width:
+        return 1
+    match = re.match(r"\[(\d+)\s*:\s*(\d+)\]", width)
+    if not match:
+        raise SystemExit(f"unsupported port width syntax: {width!r}")
+    return abs(int(match.group(1)) - int(match.group(2))) + 1
+
+
+def find_p2p_group(ports: Dict[str, Port], prefix: str) -> tuple:
+    group = [port for port in ports.values() if prefix in canonical(port.name).lower()]
+    if not group:
+        available = ", ".join(sorted(canonical(p.name) for p in ports.values()))
+        raise SystemExit(f"missing P2P group {prefix!r}; available ports: {available}")
+
+    valid = [port for port in group if "vld" in canonical(port.name).lower()
+             or "valid" in canonical(port.name).lower()]
+    busy = [port for port in group if "busy" in canonical(port.name).lower()]
+    data = [port for port in group
+            if port not in valid and port not in busy and width_to_int(port.width) > 1]
+    if len(valid) != 1 or len(busy) != 1 or not data:
+        found = ", ".join(f"{p.direction}:{canonical(p.name)}{p.width}" for p in group)
+        raise SystemExit(
+            f"could not identify P2P {prefix!r} data/valid/busy ports: {found}"
+        )
+    data.sort(key=lambda port: width_to_int(port.width), reverse=True)
+    return data[0], valid[0], busy[0]
+
+
 def extract_index(name: str, prefix: str) -> Optional[int]:
     name = canonical(name)
     if prefix not in name:
@@ -407,12 +443,353 @@ def generate_debug_task(module_body: str) -> str:
 """
 
 
+def generate_p2p_tb(args: argparse.Namespace,
+                    module_body: str,
+                    ports: Dict[str, Port]) -> str:
+    p2p_counter_logic = generate_p2p_counter_logic(module_body)
+    clk = find_exact(ports, "clk")
+    rst = find_exact(ports, "rst")
+    cmd_data, cmd_vld, cmd_busy = find_p2p_group(ports, "cmd")
+    rsp_data, rsp_vld, rsp_busy = find_p2p_group(ports, "rsp")
+
+    command_width = width_to_int(cmd_data.width)
+    response_width = width_to_int(rsp_data.width)
+    command_kind_bits = 3
+    class_bits = 3
+    level_bits = (command_width - command_kind_bits - class_bits) // args.num_features
+    distance_bits = (response_width - 1) // args.num_classes
+    if command_kind_bits + class_bits + (level_bits * args.num_features) != command_width:
+        raise SystemExit(f"cannot infer command P2P layout from width {command_width}")
+    if 1 + (distance_bits * args.num_classes) != response_width:
+        raise SystemExit(f"cannot infer response P2P layout from width {response_width}")
+
+    command_path = json.dumps(str(args.trace_dir / "commands.txt"))
+    response_path = json.dumps(str(args.trace_dir / "expected_responses.txt"))
+
+    signal_for_port = {
+        clk.name: "clk",
+        rst.name: "rst",
+        cmd_data.name: "cmd_data",
+        cmd_vld.name: "cmd_vld",
+        cmd_busy.name: "cmd_busy",
+        rsp_data.name: "rsp_data",
+        rsp_vld.name: "rsp_vld",
+        rsp_busy.name: "rsp_busy",
+    }
+    missing = [port for port in ports.values() if port.name not in signal_for_port]
+    if missing:
+        found = ", ".join(f"{p.direction}:{canonical(p.name)}{p.width}" for p in missing)
+        raise SystemExit(f"unconnected P2P top ports: {found}")
+
+    connections = [
+        port_connection(port, signal_for_port[port.name])
+        for port in ports.values()
+    ]
+
+    return f"""`timescale 1ns/1ps
+
+module hdc_accelerator_rtl_tb;
+    localparam integer NUM_FEATURES = {args.num_features};
+    localparam integer NUM_CLASSES = {args.num_classes};
+    localparam integer COMMAND_WIDTH = {command_width};
+    localparam integer RESPONSE_WIDTH = {response_width};
+    localparam integer COMMAND_KIND_BITS = {command_kind_bits};
+    localparam integer CLASS_BITS = {class_bits};
+    localparam integer LEVEL_BITS = {level_bits};
+    localparam integer DISTANCE_BITS = {distance_bits};
+    localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
+    localparam integer PROGRESS_CYCLES = {args.progress_cycles};
+    localparam integer RESET_CYCLES = {args.reset_cycles};
+    localparam string COMMAND_PATH = {command_path};
+    localparam string RESPONSE_PATH = {response_path};
+
+    logic clk;
+    logic rst;
+    logic{width_or_scalar(cmd_data.width)} cmd_data;
+    logic cmd_vld;
+    wire cmd_busy;
+    wire{width_or_scalar(rsp_data.width)} rsp_data;
+    wire rsp_vld;
+    logic rsp_busy;
+
+    HDC_Accelerator dut (
+        {join_connections(connections)}
+    );
+
+    integer command_fd;
+    integer response_fd;
+    integer cycle_count;
+    integer commands_sent;
+    integer inference_sent;
+    integer responses_received;
+    integer command_stall_cycles;
+    integer response_stall_cycles;
+    integer outstanding;
+    integer next_kind;
+    integer next_class_id;
+    integer next_levels [0:NUM_FEATURES-1];
+    integer has_command;
+    integer issue_cycles [0:1048575];
+    integer issue_head;
+    integer issue_tail;
+    integer total_latency;
+    integer max_latency;
+    integer error_count;
+    integer top_cmd_kind_fires [0:4];
+    integer counter_index;
+{p2p_counter_logic["decls"]}
+
+    always #5 clk = ~clk;
+
+    task read_next_command(output integer ok);
+        integer rc;
+        integer feature;
+        begin
+            rc = $fscanf(command_fd, "%d %d", next_kind, next_class_id);
+            if (rc == 2) begin
+                ok = 1;
+                for (feature = 0; feature < NUM_FEATURES; feature = feature + 1) begin
+                    rc = $fscanf(command_fd, "%d", next_levels[feature]);
+                    if (rc != 1) begin
+                        $fatal(1, "Malformed command file while reading feature %0d", feature);
+                    end
+                end
+            end else begin
+                ok = 0;
+            end
+        end
+    endtask
+
+    task pack_next_command;
+        integer feature;
+        integer low;
+        begin
+            cmd_data = '0;
+            cmd_data[0 +: COMMAND_KIND_BITS] = next_kind;
+            cmd_data[COMMAND_KIND_BITS +: CLASS_BITS] = next_class_id;
+            for (feature = 0; feature < NUM_FEATURES; feature = feature + 1) begin
+                low = COMMAND_KIND_BITS + CLASS_BITS + (feature * LEVEL_BITS);
+                cmd_data[low +: LEVEL_BITS] = next_levels[feature];
+            end
+        end
+    endtask
+
+    task drive_next_command;
+        begin
+            pack_next_command();
+            cmd_vld = 1'b1;
+        end
+    endtask
+
+    task check_response;
+        integer rc;
+        integer expected_valid;
+        integer expected_distance [0:NUM_CLASSES-1];
+        integer expected_predicted;
+        integer expected_actual;
+        integer class_id;
+        integer predicted;
+        integer best_distance;
+        integer actual_valid;
+        integer actual_distance [0:NUM_CLASSES-1];
+        integer low;
+        integer latency;
+        begin
+            rc = $fscanf(response_fd, "%d", expected_valid);
+            if (rc != 1) begin
+                $fatal(1, "Missing expected response for received response %0d", responses_received);
+            end
+
+            for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
+                rc = $fscanf(response_fd, "%d", expected_distance[class_id]);
+                if (rc != 1) begin
+                    $fatal(1, "Malformed expected response distance %0d", class_id);
+                end
+            end
+            rc = $fscanf(response_fd, "%d %d", expected_predicted, expected_actual);
+            if (rc != 2) begin
+                $fatal(1, "Malformed expected response predicted/actual fields");
+            end
+
+            actual_valid = rsp_data[0];
+            for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
+                low = 1 + (class_id * DISTANCE_BITS);
+                actual_distance[class_id] = rsp_data[low +: DISTANCE_BITS];
+            end
+
+            if ((actual_valid != 0) != (expected_valid != 0)) begin
+                $error("valid_prediction mismatch at response %0d: got %0d expected %0d",
+                       responses_received, actual_valid, expected_valid);
+                error_count = error_count + 1;
+            end
+
+            predicted = 0;
+            best_distance = actual_distance[0];
+            for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
+                if (actual_distance[class_id] != expected_distance[class_id]) begin
+                    $error("distance[%0d] mismatch at response %0d: got %0d expected %0d",
+                           class_id, responses_received,
+                           actual_distance[class_id], expected_distance[class_id]);
+                    error_count = error_count + 1;
+                end
+                if (class_id > 0 && actual_distance[class_id] < best_distance) begin
+                    best_distance = actual_distance[class_id];
+                    predicted = class_id;
+                end
+            end
+
+            if (expected_valid != 0 && predicted != expected_predicted) begin
+                $error("predicted mismatch at response %0d: got %0d expected %0d actual %0d",
+                       responses_received, predicted, expected_predicted, expected_actual);
+                error_count = error_count + 1;
+            end
+
+            latency = cycle_count - issue_cycles[issue_head];
+            issue_head = issue_head + 1;
+            total_latency = total_latency + latency;
+            if (latency > max_latency) begin
+                max_latency = latency;
+            end
+        end
+    endtask
+
+    task finish_if_complete;
+        integer extra;
+        integer rc;
+        real average_latency;
+        begin
+            if (!has_command && !cmd_vld && outstanding == 0) begin
+                rc = $fscanf(response_fd, "%d", extra);
+                if (rc == 1) begin
+                    $fatal(1, "Expected response file contains extra response data");
+                end
+
+                average_latency = (responses_received == 0)
+                    ? 0.0
+                    : (1.0 * total_latency) / responses_received;
+                $display("RTL P2P simulation complete");
+                $display("cycles=%0d", cycle_count);
+                $display("commands_sent=%0d", commands_sent);
+                $display("inference_sent=%0d", inference_sent);
+                $display("responses_received=%0d", responses_received);
+                $display("command_stall_cycles=%0d", command_stall_cycles);
+                $display("response_stall_cycles=%0d", response_stall_cycles);
+                $display("average_inference_latency=%0f", average_latency);
+                $display("max_inference_latency=%0d", max_latency);
+                $display("errors=%0d", error_count);
+
+                $fclose(command_fd);
+                $fclose(response_fd);
+                if (error_count != 0) begin
+                    $fatal(1, "RTL response comparison failed");
+                end
+                $finish;
+            end
+        end
+    endtask
+
+    initial begin
+        clk = 1'b0;
+        rst = 1'b1;
+        cmd_vld = 1'b0;
+        cmd_data = '0;
+        rsp_busy = 1'b0;
+        cycle_count = 0;
+        commands_sent = 0;
+        inference_sent = 0;
+        responses_received = 0;
+        command_stall_cycles = 0;
+        response_stall_cycles = 0;
+        outstanding = 0;
+        has_command = 0;
+        issue_head = 0;
+        issue_tail = 0;
+        total_latency = 0;
+        max_latency = 0;
+        error_count = 0;
+        for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
+            top_cmd_kind_fires[counter_index] = 0;
+        end
+{p2p_counter_logic["inits"]}
+
+        command_fd = $fopen(COMMAND_PATH, "r");
+        if (command_fd == 0) begin
+            $fatal(1, "Failed to open command file: %s", COMMAND_PATH);
+        end
+        response_fd = $fopen(RESPONSE_PATH, "r");
+        if (response_fd == 0) begin
+            $fatal(1, "Failed to open expected response file: %s", RESPONSE_PATH);
+        end
+        read_next_command(has_command);
+
+        repeat (RESET_CYCLES) @(posedge clk);
+        #1;
+        rst = 1'b0;
+        repeat (2) @(posedge clk);
+        #1;
+
+        forever begin
+            if (cycle_count > TIMEOUT_CYCLES) begin
+                $fatal(1, "RTL P2P simulation timeout after %0d cycles", cycle_count);
+            end
+
+            if (!cmd_vld && has_command) begin
+                drive_next_command();
+            end
+
+            @(posedge clk);
+            #1;
+            cycle_count = cycle_count + 1;
+            if (PROGRESS_CYCLES > 0 && (cycle_count % PROGRESS_CYCLES) == 0) begin
+                $display("progress cycles=%0d commands=%0d inference=%0d responses=%0d outstanding=%0d cmd_vld=%0b cmd_busy=%0b rsp_vld=%0b rsp_busy=%0b",
+                         cycle_count, commands_sent, inference_sent, responses_received, outstanding,
+                         cmd_vld, cmd_busy, rsp_vld, rsp_busy);
+            end
+{p2p_counter_logic["updates"]}
+
+            if (cmd_vld && !cmd_busy) begin
+                commands_sent = commands_sent + 1;
+                if (next_kind >= 0 && next_kind <= 4) begin
+                    top_cmd_kind_fires[next_kind] = top_cmd_kind_fires[next_kind] + 1;
+                end
+                if (next_kind == 4) begin
+                    inference_sent = inference_sent + 1;
+                    outstanding = outstanding + 1;
+                    issue_cycles[issue_tail] = cycle_count;
+                    issue_tail = issue_tail + 1;
+                end
+                cmd_vld = 1'b0;
+                read_next_command(has_command);
+            end else if (cmd_vld && cmd_busy) begin
+                command_stall_cycles = command_stall_cycles + 1;
+            end
+
+            if (rsp_vld && rsp_busy) begin
+                response_stall_cycles = response_stall_cycles + 1;
+            end
+
+            if (rsp_vld && !rsp_busy) begin
+                check_response();
+                responses_received = responses_received + 1;
+                outstanding = outstanding - 1;
+            end
+
+            finish_if_complete();
+        end
+    end
+endmodule
+"""
+
+
 def generate_tb(args: argparse.Namespace) -> str:
     module_body = read_module_body(args.top, "HDC_Accelerator")
     p2p_counter_logic = generate_p2p_counter_logic(module_body)
     ports = parse_ports(args.top, "HDC_Accelerator")
     clk = find_exact(ports, "clk")
     rst = find_exact(ports, "rst")
+    if find_optional_exact(ports, "cmd_valid") is None:
+        return generate_p2p_tb(args, module_body, ports)
+
     cmd_valid = find_exact(ports, "cmd_valid")
     cmd_ready = find_exact(ports, "cmd_ready")
     cmd_kind = find_exact(ports, "cmd_kind")

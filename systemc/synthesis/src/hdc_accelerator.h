@@ -92,6 +92,17 @@ struct DistancePacket {
 typedef sc_dt::sc_biguint<NUM_FEATURES * LEVEL_BITS> sample_bits_t;
 typedef sc_dt::sc_biguint<VECTOR_DIMENSION> hv_bits_t;
 typedef sc_dt::sc_biguint<NUM_CLASSES * DISTANCE_BITS> distance_bits_t;
+static constexpr unsigned COMMAND_CHANNEL_BITS =
+    COMMAND_KIND_BITS + CLASS_BITS + (NUM_FEATURES * LEVEL_BITS);
+static constexpr unsigned RESPONSE_CHANNEL_BITS =
+    1u + (NUM_CLASSES * DISTANCE_BITS);
+typedef sc_dt::sc_biguint<COMMAND_CHANNEL_BITS> command_channel_bits_t;
+typedef sc_dt::sc_biguint<RESPONSE_CHANNEL_BITS> response_channel_bits_t;
+
+#ifdef STRATUS_HLS
+typedef cynw_p2p<command_channel_bits_t, CYN::PIN> HdcCommandChannel;
+typedef cynw_p2p<response_channel_bits_t, CYN::PIN> HdcResponseChannel;
+#endif
 
 struct EncoderChannelPacket {
     command_kind_t kind = 0;
@@ -234,6 +245,10 @@ SC_MODULE(HDC_Accelerator) {
 public:
     sc_core::sc_in<bool> clk;
     sc_core::sc_in<bool> rst;
+#ifdef STRATUS_HLS
+    HdcCommandChannel::in cmd;
+    HdcResponseChannel::out rsp;
+#else
     sc_core::sc_in<bool> cmd_valid;
     sc_core::sc_out<bool> cmd_ready;
     sc_core::sc_in<command_kind_t> cmd_kind;
@@ -243,6 +258,7 @@ public:
     sc_core::sc_in<bool> rsp_ready;
     sc_core::sc_out<bool> rsp_valid_prediction;
     sc_core::sc_out<distance_counter_t> rsp_distances[NUM_CLASSES];
+#endif
 
     SC_CTOR(HDC_Accelerator);
 
