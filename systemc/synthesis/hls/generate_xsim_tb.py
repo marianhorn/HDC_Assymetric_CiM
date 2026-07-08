@@ -486,6 +486,13 @@ def generate_p2p_tb(args: argparse.Namespace,
         for port in ports.values()
     ]
 
+    response_scan_format = " ".join(["%d"] * (args.num_classes + 3))
+    response_scan_args = ", ".join(
+        ["expected_valid"]
+        + [f"expected_distance[{class_id}]" for class_id in range(args.num_classes)]
+        + ["expected_predicted", "expected_actual"]
+    )
+
     return f"""`timescale 1ns/1ps
 
 module hdc_accelerator_rtl_tb;
@@ -526,6 +533,7 @@ module hdc_accelerator_rtl_tb;
     integer response_stall_cycles;
     integer outstanding;
     integer next_kind;
+    integer accepted_kind;
     integer next_class_id;
     integer next_levels [0:NUM_FEATURES-1];
     integer has_command;
@@ -595,20 +603,10 @@ module hdc_accelerator_rtl_tb;
         integer low;
         integer latency;
         begin
-            rc = $fscanf(response_fd, "%d", expected_valid);
-            if (rc != 1) begin
-                $fatal(1, "Missing expected response for received response %0d", responses_received);
-            end
-
-            for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
-                rc = $fscanf(response_fd, "%d", expected_distance[class_id]);
-                if (rc != 1) begin
-                    $fatal(1, "Malformed expected response distance %0d", class_id);
-                end
-            end
-            rc = $fscanf(response_fd, "%d %d", expected_predicted, expected_actual);
-            if (rc != 2) begin
-                $fatal(1, "Malformed expected response predicted/actual fields");
+            rc = $fscanf(response_fd, "{response_scan_format}", {response_scan_args});
+            if (rc != (NUM_CLASSES + 3)) begin
+                $fatal(1, "Malformed expected response %0d: parsed %0d fields",
+                       responses_received, rc);
             end
 
             actual_valid = rsp_data[0];
@@ -701,6 +699,7 @@ module hdc_accelerator_rtl_tb;
         command_stall_cycles = 0;
         response_stall_cycles = 0;
         outstanding = 0;
+        accepted_kind = 0;
         has_command = 0;
         issue_head = 0;
         issue_tail = 0;
@@ -748,11 +747,17 @@ module hdc_accelerator_rtl_tb;
 {p2p_counter_logic["updates"]}
 
             if (cmd_vld && !cmd_busy) begin
+                accepted_kind = cmd_data[0 +: COMMAND_KIND_BITS];
                 commands_sent = commands_sent + 1;
-                if (next_kind >= 0 && next_kind <= 4) begin
-                    top_cmd_kind_fires[next_kind] = top_cmd_kind_fires[next_kind] + 1;
+                if (accepted_kind >= 0 && accepted_kind <= 4) begin
+                    top_cmd_kind_fires[accepted_kind] = top_cmd_kind_fires[accepted_kind] + 1;
                 end
-                if (next_kind == 4) begin
+                if (commands_sent < 64) begin
+                    $display("debug accepted_cmd idx=%0d trace_kind=%0d packed_kind=%0d class=%0d cycle=%0d",
+                             commands_sent, next_kind, accepted_kind,
+                             cmd_data[COMMAND_KIND_BITS +: CLASS_BITS], cycle_count);
+                end
+                if (accepted_kind == 4) begin
                     inference_sent = inference_sent + 1;
                     outstanding = outstanding + 1;
                     issue_cycles[issue_tail] = cycle_count;
@@ -769,6 +774,10 @@ module hdc_accelerator_rtl_tb;
             end
 
             if (rsp_vld && !rsp_busy) begin
+                if (outstanding <= 0) begin
+                    $fatal(1, "Unexpected response with no outstanding inference: cycle=%0d responses=%0d rsp_data=0x%0h",
+                           cycle_count, responses_received, rsp_data);
+                end
                 check_response();
                 responses_received = responses_received + 1;
                 outstanding = outstanding - 1;
