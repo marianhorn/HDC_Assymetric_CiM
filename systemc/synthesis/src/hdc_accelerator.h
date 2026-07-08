@@ -18,6 +18,8 @@
 #include "hdc_transactions.h"
 
 using hdc_systemc::AccelCommandKind;
+using hdc_systemc::CLASS_BITS;
+using hdc_systemc::COMMAND_KIND_BITS;
 using hdc_systemc::DISTANCE_BITS;
 using hdc_systemc::LEVEL_BITS;
 using hdc_systemc::QuantizedSample;
