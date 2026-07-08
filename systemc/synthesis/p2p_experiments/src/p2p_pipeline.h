@@ -24,6 +24,12 @@
 #endif
 #endif
 
+#if defined(P2P_VALID_READY_ADAPTER)
+#if !defined(P2P_ENCODER_SCALAR_MIMIC)
+#define P2P_ENCODER_SCALAR_MIMIC
+#endif
+#endif
+
 #if defined(P2P_EXTERNAL_P2P)
 #if !defined(P2P_ENCODER_SCALAR_MIMIC)
 #define P2P_ENCODER_SCALAR_MIMIC
@@ -161,7 +167,7 @@ SC_MODULE(P2PPipeline) {
           source_count("source_count"),
           stage_count("stage_count"),
           sink_count("sink_count"),
-#ifdef P2P_ACCEL_CMD_MIMIC
+#if defined(P2P_ACCEL_CMD_MIMIC) || defined(P2P_VALID_READY_ADAPTER)
           m_cmd_to_source("m_cmd_to_source"),
 #endif
           m_source_to_stage("m_source_to_stage"),
@@ -170,13 +176,13 @@ SC_MODULE(P2PPipeline) {
         in_p2p.clk_rst(clk, rst, true);
         out_p2p.clk_rst(clk, rst, true);
 #endif
-#ifdef P2P_ACCEL_CMD_MIMIC
+#if defined(P2P_ACCEL_CMD_MIMIC) || defined(P2P_VALID_READY_ADAPTER)
         m_cmd_to_source.clk_rst(clk, rst, true);
 #endif
         m_source_to_stage.clk_rst(clk, rst, true);
         m_stage_to_sink.clk_rst(clk, rst, true);
 
-#ifdef P2P_ACCEL_CMD_MIMIC
+#if defined(P2P_ACCEL_CMD_MIMIC) || defined(P2P_VALID_READY_ADAPTER)
         SC_CTHREAD(command_frontend_thread, clk.pos());
         reset_signal_is(rst, true);
 #endif
@@ -197,7 +203,7 @@ SC_MODULE(P2PPipeline) {
     void sink_thread();
 
   private:
-#ifdef P2P_ACCEL_CMD_MIMIC
+#if defined(P2P_ACCEL_CMD_MIMIC) || defined(P2P_VALID_READY_ADAPTER)
     cynw_p2p_direct<P2PToken, CYN::PIN> m_cmd_to_source;
 #endif
     cynw_p2p_direct<P2PToken, CYN::PIN> m_source_to_stage;

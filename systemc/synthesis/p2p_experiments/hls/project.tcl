@@ -11,9 +11,9 @@ set_attr parts_effort low
 set_attr relax_timing on
 set_attr sched_asap on
 
-# External P2P command/response pins with packed 64-bit command and response
-# words, plus the encoder-like multi-cycle internal stage.
-set_attr D P2P_EXTERNAL_P2P
+# Scalar valid/ready command/response pins feeding an internal blocking P2P
+# pipeline through a single-entry adapter.
+set_attr D P2P_VALID_READY_ADAPTER
 
 define_system_module ../src/main.cpp
 define_hls_module P2PPipeline ../src/p2p_pipeline.cpp

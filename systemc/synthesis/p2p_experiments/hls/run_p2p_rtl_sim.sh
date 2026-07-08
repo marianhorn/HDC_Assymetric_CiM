@@ -48,26 +48,26 @@ if [[ ! -f "$GLBL_V" ]]; then
     echo "ERROR: missing Vivado glbl.v. Expected: $GLBL_V" >&2
     exit 1
 fi
-if [[ -z "$PYTHON_BIN" ]]; then
-    echo "ERROR: missing python3/python for generated external-P2P RTL testbench" >&2
-    exit 1
-fi
-
 TB_DEFINES=()
-for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE P2P_ACCEL_CMD_MIMIC P2P_EXTERNAL_P2P; do
+for define in P2P_PAYLOAD_SAMPLE P2P_PAYLOAD_ENCODED P2P_PAYLOAD_FULL P2P_ENCODER_MIMIC P2P_ENCODER_MIMIC_NB P2P_ENCODER_SCALAR_MIMIC P2P_INTERNAL_SOURCE P2P_ACCEL_CMD_MIMIC P2P_VALID_READY_ADAPTER P2P_EXTERNAL_P2P; do
     if grep -Eq "^[[:space:]]*set_attr[[:space:]]+D[[:space:]]+${define}([[:space:]]|$)" project.tcl; then
         if [[ "$define" == "P2P_EXTERNAL_P2P" ]]; then
             EXTERNAL_P2P=1
         fi
         TB_DEFINES+=("-d" "${define}")
-        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" || "$define" == "P2P_EXTERNAL_P2P" ]]; then
+        if [[ "$define" == "P2P_ENCODER_MIMIC_NB" || "$define" == "P2P_ENCODER_SCALAR_MIMIC" || "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" || "$define" == "P2P_VALID_READY_ADAPTER" || "$define" == "P2P_EXTERNAL_P2P" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_MIMIC")
         fi
-        if [[ "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" || "$define" == "P2P_EXTERNAL_P2P" ]]; then
+        if [[ "$define" == "P2P_INTERNAL_SOURCE" || "$define" == "P2P_ACCEL_CMD_MIMIC" || "$define" == "P2P_VALID_READY_ADAPTER" || "$define" == "P2P_EXTERNAL_P2P" ]]; then
             TB_DEFINES+=("-d" "P2P_ENCODER_SCALAR_MIMIC")
         fi
     fi
 done
+
+if [[ "$EXTERNAL_P2P" -eq 1 && -z "$PYTHON_BIN" ]]; then
+    echo "ERROR: missing python3/python for generated external-P2P RTL testbench" >&2
+    exit 1
+fi
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR" "$SIM_RTL_DIR"

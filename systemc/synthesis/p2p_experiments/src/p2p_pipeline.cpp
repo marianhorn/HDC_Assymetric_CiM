@@ -150,7 +150,7 @@ P2PToken transform_token(const P2PToken &input) {
 
 }  // namespace
 
-#ifdef P2P_ACCEL_CMD_MIMIC
+#if defined(P2P_ACCEL_CMD_MIMIC) || defined(P2P_VALID_READY_ADAPTER)
 void P2PPipeline::command_frontend_thread() {
     enum FrontendState {
         FRONTEND_EMPTY,
@@ -239,7 +239,7 @@ void P2PPipeline::source_thread() {
             wait();
         }
     }
-#elif defined(P2P_ACCEL_CMD_MIMIC)
+#elif defined(P2P_ACCEL_CMD_MIMIC) || defined(P2P_VALID_READY_ADAPTER)
     enum SourceState {
         SOURCE_GET,
         SOURCE_PUT
