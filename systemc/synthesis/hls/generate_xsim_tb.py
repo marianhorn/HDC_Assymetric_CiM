@@ -486,11 +486,11 @@ def generate_p2p_tb(args: argparse.Namespace,
         for port in ports.values()
     ]
 
-    response_scan_format = " ".join(["%d"] * (args.num_classes + 3))
+    response_scan_format = " ".join(["%d"] * (args.num_classes + 1) + ["%s", "%s"])
     response_scan_args = ", ".join(
         ["expected_valid"]
         + [f"expected_distance[{class_id}]" for class_id in range(args.num_classes)]
-        + ["expected_predicted", "expected_actual"]
+        + ["expected_predicted_token", "expected_actual_token"]
     )
 
     return f"""`timescale 1ns/1ps
@@ -589,12 +589,31 @@ module hdc_accelerator_rtl_tb;
         end
     endtask
 
+    function integer parse_expected_signed_token;
+        input string token;
+        integer value;
+        integer rc;
+        begin
+            if (token == "-1") begin
+                parse_expected_signed_token = -1;
+            end else begin
+                rc = $sscanf(token, "%d", value);
+                if (rc != 1) begin
+                    $fatal(1, "Malformed signed expected-response token: %s", token);
+                end
+                parse_expected_signed_token = value;
+            end
+        end
+    endfunction
+
     task check_response;
         integer rc;
         integer expected_valid;
         integer expected_distance [0:NUM_CLASSES-1];
         integer expected_predicted;
         integer expected_actual;
+        string expected_predicted_token;
+        string expected_actual_token;
         integer class_id;
         integer predicted;
         integer best_distance;
@@ -608,6 +627,8 @@ module hdc_accelerator_rtl_tb;
                 $fatal(1, "Malformed expected response %0d: parsed %0d fields",
                        responses_received, rc);
             end
+            expected_predicted = parse_expected_signed_token(expected_predicted_token);
+            expected_actual = parse_expected_signed_token(expected_actual_token);
 
             actual_valid = rsp_data[0];
             for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
