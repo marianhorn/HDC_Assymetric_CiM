@@ -272,6 +272,10 @@ public:
     // This is not a hardware runtime load interface; real deployment needs ROM
     // initialization, generated constants, or a dedicated preload path later.
     void set_assoc_class(unsigned class_id, const hv_t &value);
+#ifndef STRATUS_HLS
+    void reset_training_debug_counters();
+    void print_training_debug_counters(std::ostream &out) const;
+#endif
 
 private:
     static constexpr unsigned ENCODER_WORDS_PER_CYCLE = 1;
@@ -336,6 +340,13 @@ private:
     sc_core::sc_signal<bool> m_ngram_control_done_ready;
     sc_core::sc_signal<bool> m_train_control_done_valid;
     sc_core::sc_signal<bool> m_train_control_done_ready;
+
+    unsigned long long m_debug_encoder_out_train_tokens;
+    unsigned long long m_debug_bundler_train_invalid_tokens;
+    unsigned long long m_debug_bundler_train_valid_tokens;
+    unsigned long long m_debug_bundler_invalid_training_step_tokens;
+    unsigned long long m_debug_train_valid_ngram_tokens;
+    unsigned long long m_debug_train_invalid_training_step_tokens;
 #endif
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];

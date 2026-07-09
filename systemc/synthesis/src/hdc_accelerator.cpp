@@ -306,6 +306,10 @@ HDC_Accelerator::HDC_Accelerator(sc_core::sc_module_name name)
 
     SC_CTHREAD(response_thread, clk.pos());
     reset_signal_is(rst, true);
+
+#ifndef STRATUS_HLS
+    reset_training_debug_counters();
+#endif
 }
 
 // Simulation/pre-synthesis preload helper only.
@@ -321,6 +325,28 @@ void HDC_Accelerator::set_cim(unsigned level, unsigned feature, const hv_t &valu
 void HDC_Accelerator::set_assoc_class(unsigned class_id, const hv_t &value) {
     m_assoc_mem[class_id] = value;
 }
+
+#ifndef STRATUS_HLS
+void HDC_Accelerator::reset_training_debug_counters() {
+    m_debug_encoder_out_train_tokens = 0;
+    m_debug_bundler_train_invalid_tokens = 0;
+    m_debug_bundler_train_valid_tokens = 0;
+    m_debug_bundler_invalid_training_step_tokens = 0;
+    m_debug_train_valid_ngram_tokens = 0;
+    m_debug_train_invalid_training_step_tokens = 0;
+}
+
+void HDC_Accelerator::print_training_debug_counters(std::ostream &out) const {
+    out << "debug training_path_counters"
+        << " encoder_out_train=" << m_debug_encoder_out_train_tokens
+        << " bundler_train_invalid=" << m_debug_bundler_train_invalid_tokens
+        << " bundler_train_valid=" << m_debug_bundler_train_valid_tokens
+        << " bundler_invalid_training_step=" << m_debug_bundler_invalid_training_step_tokens
+        << " train_valid_ngram=" << m_debug_train_valid_ngram_tokens
+        << " train_invalid_training_step=" << m_debug_train_invalid_training_step_tokens
+        << std::endl;
+}
+#endif
 
 // Data commands are pipelined: TrainSample and InferSample are dispatched
 // without waiting for completion. Control commands are blocking stream
@@ -403,6 +429,7 @@ void HDC_Accelerator::command_thread() {
 
     {
         HLS_DEFINE_PROTOCOL("command_reset");
+        reset_training_debug_counters();
         cmd_ready.write(false);
         m_encoder_in_data.write(EncoderPacket());
         m_encoder_in_valid.write(false);
@@ -608,6 +635,9 @@ void HDC_Accelerator::encoder_thread() {
                         output_packet = work;
                         output_packet.encoded = encoder_result;
                         output_packet.encoded.words[word_index] = encoded_word;
+                        if (output_packet.kind == AccelCommandKind::TrainSample) {
+                            ++m_debug_encoder_out_train_tokens;
+                        }
                         output_valid = true;
                         output_presented = false;
                         busy = false;
@@ -867,6 +897,9 @@ void HDC_Accelerator::ngram_thread() {
                         output_target = (work_packet.kind == AccelCommandKind::TrainSample)
                                             ? OUTPUT_BUNDLER
                                             : OUTPUT_DISTANCE;
+                        if (output_target == OUTPUT_BUNDLER) {
+                            ++m_debug_bundler_train_valid_tokens;
+                        }
                         output_pending = true;
                         output_presented = false;
                         bind_busy = false;
@@ -910,6 +943,7 @@ void HDC_Accelerator::ngram_thread() {
                     output_packet.valid_ngram = false;
                     clear_hv(output_packet.ngram);
                     output_target = OUTPUT_BUNDLER;
+                    ++m_debug_bundler_invalid_training_step_tokens;
                     output_pending = true;
                     output_presented = false;
                 } else if (item.kind == AccelCommandKind::TrainSample ||
@@ -926,6 +960,9 @@ void HDC_Accelerator::ngram_thread() {
                         output_target = (item.kind == AccelCommandKind::TrainSample)
                                             ? OUTPUT_BUNDLER
                                             : OUTPUT_DISTANCE;
+                        if (output_target == OUTPUT_BUNDLER) {
+                            ++m_debug_bundler_train_invalid_tokens;
+                        }
                         output_pending = true;
                         output_presented = false;
                     } else {
@@ -945,6 +982,9 @@ void HDC_Accelerator::ngram_thread() {
                             output_target = (item.kind == AccelCommandKind::TrainSample)
                                                 ? OUTPUT_BUNDLER
                                                 : OUTPUT_DISTANCE;
+                            if (output_target == OUTPUT_BUNDLER) {
+                                ++m_debug_bundler_train_valid_tokens;
+                            }
                             output_pending = true;
                             output_presented = false;
                         }
@@ -1250,6 +1290,7 @@ void HDC_Accelerator::train_thread() {
 
                 if (item.kind == AccelCommandKind::TrainSample) {
                     if (item.valid_ngram) {
+                        ++m_debug_train_valid_ngram_tokens;
                         work = item;
                         if (!m_current_class_valid) {
                             m_current_class_id = item.class_id;
@@ -1259,6 +1300,7 @@ void HDC_Accelerator::train_thread() {
                         state = TRAIN_ADD_NGRAM;
                     }
                 } else if (item.kind == AccelCommandKind::InvalidTrainingStep) {
+                    ++m_debug_train_invalid_training_step_tokens;
                     word_index = 0;
                     if (m_current_class_valid) {
                         state = TRAIN_FINALIZE_CLASS;

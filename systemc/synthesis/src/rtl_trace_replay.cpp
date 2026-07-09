@@ -277,6 +277,7 @@ public:
                           << " inference=" << m_stats.inference
                           << " responses=" << m_stats.responses
                           << " outstanding=" << outstanding << std::endl;
+                m_accelerator.print_training_debug_counters(std::cout);
             }
 
             if (command_pending && cmd_ready.read()) {
@@ -488,6 +489,7 @@ int sc_main(int argc, char **argv) {
             : static_cast<double>(stats.total_latency) / static_cast<double>(stats.responses);
 
     std::cout << "SystemC trace replay complete" << std::endl;
+    accelerator.print_training_debug_counters(std::cout);
     std::cout << "cycles=" << stats.cycles << std::endl;
     std::cout << "commands=" << stats.commands << std::endl;
     std::cout << "inference=" << stats.inference << std::endl;

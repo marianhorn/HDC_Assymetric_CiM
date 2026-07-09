@@ -292,6 +292,133 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                      enc_in_kind_vld_edges[4]);"""
         )
 
+    def p2p_fire_condition(prefix: str) -> str:
+        vld = f"{prefix}_m_chan_vld"
+        busy = f"{prefix}_m_chan_busy"
+        if has_internal_signal(module_body, busy):
+            return f"dut.{vld} && !dut.{busy}"
+        return f"dut.{vld}"
+
+    enc_out_kind = "m_encoder_out_m_chan_data_kind"
+    if (
+        has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
+        and has_internal_signal(module_body, enc_out_kind)
+    ):
+        decls.extend(
+            [
+                "    integer training_enc_out_train_vld_edges;",
+                "    integer training_enc_out_train_fire;",
+            ]
+        )
+        inits.extend(
+            [
+                "        training_enc_out_train_vld_edges = 0;",
+                "        training_enc_out_train_fire = 0;",
+            ]
+        )
+        updates.append(
+            f"""            if (dut.m_encoder_out_m_chan_vld && !enc_out_prev_vld &&
+                dut.{enc_out_kind} == 2) begin
+                training_enc_out_train_vld_edges = training_enc_out_train_vld_edges + 1;
+            end
+            if ({p2p_fire_condition("m_encoder_out")} && dut.{enc_out_kind} == 2) begin
+                training_enc_out_train_fire = training_enc_out_train_fire + 1;
+            end"""
+        )
+
+    bundler_kind = "m_bundler_in_m_chan_data_kind"
+    bundler_valid_ngram = "m_bundler_in_m_chan_data_valid_ngram"
+    if (
+        has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
+        and has_internal_signal(module_body, bundler_kind)
+        and has_internal_signal(module_body, bundler_valid_ngram)
+    ):
+        decls.extend(
+            [
+                "    integer training_bundler_train_invalid_vld_edges;",
+                "    integer training_bundler_train_valid_vld_edges;",
+                "    integer training_bundler_invalid_step_vld_edges;",
+                "    integer training_bundler_train_invalid_fire;",
+                "    integer training_bundler_train_valid_fire;",
+                "    integer training_bundler_invalid_step_fire;",
+            ]
+        )
+        inits.extend(
+            [
+                "        training_bundler_train_invalid_vld_edges = 0;",
+                "        training_bundler_train_valid_vld_edges = 0;",
+                "        training_bundler_invalid_step_vld_edges = 0;",
+                "        training_bundler_train_invalid_fire = 0;",
+                "        training_bundler_train_valid_fire = 0;",
+                "        training_bundler_invalid_step_fire = 0;",
+            ]
+        )
+        bundler_fire = p2p_fire_condition("m_bundler_in")
+        updates.append(
+            f"""            if (dut.m_bundler_in_m_chan_vld && !bundler_in_prev_vld) begin
+                if (dut.{bundler_kind} == 2 && !dut.{bundler_valid_ngram}) begin
+                    training_bundler_train_invalid_vld_edges =
+                        training_bundler_train_invalid_vld_edges + 1;
+                end
+                if (dut.{bundler_kind} == 2 && dut.{bundler_valid_ngram}) begin
+                    training_bundler_train_valid_vld_edges =
+                        training_bundler_train_valid_vld_edges + 1;
+                end
+                if (dut.{bundler_kind} == 3) begin
+                    training_bundler_invalid_step_vld_edges =
+                        training_bundler_invalid_step_vld_edges + 1;
+                end
+            end
+            if ({bundler_fire}) begin
+                if (dut.{bundler_kind} == 2 && !dut.{bundler_valid_ngram}) begin
+                    training_bundler_train_invalid_fire =
+                        training_bundler_train_invalid_fire + 1;
+                end
+                if (dut.{bundler_kind} == 2 && dut.{bundler_valid_ngram}) begin
+                    training_bundler_train_valid_fire =
+                        training_bundler_train_valid_fire + 1;
+                end
+                if (dut.{bundler_kind} == 3) begin
+                    training_bundler_invalid_step_fire =
+                        training_bundler_invalid_step_fire + 1;
+                end
+            end"""
+        )
+
+    training_display_fields = []
+    if (
+        has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
+        and has_internal_signal(module_body, enc_out_kind)
+    ):
+        training_display_fields.extend(
+            [
+                ("enc_out_train_edges", "training_enc_out_train_vld_edges"),
+                ("enc_out_train_fire", "training_enc_out_train_fire"),
+            ]
+        )
+    if (
+        has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
+        and has_internal_signal(module_body, bundler_kind)
+        and has_internal_signal(module_body, bundler_valid_ngram)
+    ):
+        training_display_fields.extend(
+            [
+                ("bundler_train_invalid_edges", "training_bundler_train_invalid_vld_edges"),
+                ("bundler_train_valid_edges", "training_bundler_train_valid_vld_edges"),
+                ("bundler_invalid_step_edges", "training_bundler_invalid_step_vld_edges"),
+                ("bundler_train_invalid_fire", "training_bundler_train_invalid_fire"),
+                ("bundler_train_valid_fire", "training_bundler_train_valid_fire"),
+                ("bundler_invalid_step_fire", "training_bundler_invalid_step_fire"),
+            ]
+        )
+    if training_display_fields:
+        training_format = " ".join(f"{name}=%0d" for name, _ in training_display_fields)
+        training_args = ", ".join(signal for _, signal in training_display_fields)
+        displays.append(
+            f'            $display("debug training_path_counters_rtl {training_format}",\n'
+            f"                     {training_args});"
+        )
+
     return {
         "decls": "\n".join(decls),
         "inits": "\n".join(inits),
@@ -725,6 +852,7 @@ module hdc_accelerator_rtl_tb;
                 $display("average_inference_latency=%0f", average_latency);
                 $display("max_inference_latency=%0d", max_latency);
                 $display("errors=%0d", error_count);
+                print_dut_debug();
 
                 $fclose(command_fd);
                 $fclose(response_fd);
@@ -1067,6 +1195,7 @@ module hdc_accelerator_rtl_tb;
                 $display("average_inference_latency=%0f", average_latency);
                 $display("max_inference_latency=%0d", max_latency);
                 $display("errors=%0d", error_count);
+                print_dut_debug();
 
                 $fclose(command_fd);
                 $fclose(response_fd);
