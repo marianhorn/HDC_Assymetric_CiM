@@ -619,6 +619,9 @@ module hdc_accelerator_rtl_tb;
         integer best_distance;
         integer actual_valid;
         integer actual_distance [0:NUM_CLASSES-1];
+        integer response_has_unknown;
+        logic [RESPONSE_WIDTH-1:0] response_snapshot;
+        logic [DISTANCE_BITS-1:0] actual_distance_bits [0:NUM_CLASSES-1];
         integer low;
         integer latency;
         begin
@@ -630,10 +633,36 @@ module hdc_accelerator_rtl_tb;
             expected_predicted = parse_expected_signed_token(expected_predicted_token);
             expected_actual = parse_expected_signed_token(expected_actual_token);
 
-            actual_valid = rsp_data[0];
+            response_snapshot = rsp_data;
+            response_has_unknown = 0;
+            if (^response_snapshot === 1'bx) begin
+                $error("response %0d contains X/Z bits: rsp_data=0x%0h",
+                       responses_received, response_snapshot);
+                error_count = error_count + 1;
+                response_has_unknown = 1;
+            end
+
+            actual_valid = response_snapshot[0];
             for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
                 low = 1 + (class_id * DISTANCE_BITS);
-                actual_distance[class_id] = rsp_data[low +: DISTANCE_BITS];
+                actual_distance_bits[class_id] = response_snapshot[low +: DISTANCE_BITS];
+                actual_distance[class_id] = actual_distance_bits[class_id];
+                if (^actual_distance_bits[class_id] === 1'bx) begin
+                    $error("distance[%0d] contains X/Z at response %0d: raw=0x%0h expected=%0d",
+                           class_id, responses_received, actual_distance_bits[class_id],
+                           expected_distance[class_id]);
+                    error_count = error_count + 1;
+                    response_has_unknown = 1;
+                end
+            end
+
+            if (responses_received < 8 || response_has_unknown) begin
+                $display("debug response idx=%0d raw=0x%0h valid got=%0d expected=%0d distances got=%0d,%0d,%0d,%0d,%0d expected=%0d,%0d,%0d,%0d,%0d expected_pred=%0d",
+                         responses_received, response_snapshot, actual_valid, expected_valid,
+                         actual_distance[0], actual_distance[1], actual_distance[2],
+                         actual_distance[3], actual_distance[4],
+                         expected_distance[0], expected_distance[1], expected_distance[2],
+                         expected_distance[3], expected_distance[4], expected_predicted);
             end
 
             if ((actual_valid != 0) != (expected_valid != 0)) begin
@@ -645,19 +674,19 @@ module hdc_accelerator_rtl_tb;
             predicted = 0;
             best_distance = actual_distance[0];
             for (class_id = 0; class_id < NUM_CLASSES; class_id = class_id + 1) begin
-                if (actual_distance[class_id] != expected_distance[class_id]) begin
+                if (!response_has_unknown && actual_distance[class_id] != expected_distance[class_id]) begin
                     $error("distance[%0d] mismatch at response %0d: got %0d expected %0d",
                            class_id, responses_received,
                            actual_distance[class_id], expected_distance[class_id]);
                     error_count = error_count + 1;
                 end
-                if (class_id > 0 && actual_distance[class_id] < best_distance) begin
+                if (!response_has_unknown && class_id > 0 && actual_distance[class_id] < best_distance) begin
                     best_distance = actual_distance[class_id];
                     predicted = class_id;
                 end
             end
 
-            if (expected_valid != 0 && predicted != expected_predicted) begin
+            if (!response_has_unknown && expected_valid != 0 && predicted != expected_predicted) begin
                 $error("predicted mismatch at response %0d: got %0d expected %0d actual %0d",
                        responses_received, predicted, expected_predicted, expected_actual);
                 error_count = error_count + 1;
