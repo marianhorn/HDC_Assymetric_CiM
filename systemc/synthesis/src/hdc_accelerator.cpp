@@ -1288,8 +1288,8 @@ void HDC_Accelerator::distance_thread() {
     };
 
     NGramChannelPacket work;
-    DistancePacket output_packet;
     DistanceChannelPacket send_packet;
+    distance_bits_t output_distances = 0;
     DistanceState state = DIST_WAIT_INPUT;
     unsigned class_id = 0;
     unsigned word_index = 0;
@@ -1301,6 +1301,9 @@ void HDC_Accelerator::distance_thread() {
         class_id = 0;
         word_index = 0;
         distance_acc = 0;
+        output_distances = 0;
+        send_packet.valid_prediction = false;
+        send_packet.distances = 0;
         m_distance_in.output.reset();
         m_distance_done.input.reset();
         wait();
@@ -1314,15 +1317,12 @@ void HDC_Accelerator::distance_thread() {
             } else if (state == DIST_WAIT_INPUT) {
                 const NGramChannelPacket item = m_distance_in.output.get();
                 if (!item.valid_ngram) {
-                    clear_distance_packet(output_packet);
-                    output_packet.valid_prediction = false;
                     send_packet.valid_prediction = false;
-                    send_packet.distances = pack_distances(output_packet);
+                    send_packet.distances = 0;
                     state = DIST_SEND;
                 } else {
                     work = item;
-                    clear_distance_packet(output_packet);
-                    output_packet.valid_prediction = true;
+                    output_distances = 0;
                     class_id = 0;
                     word_index = 0;
                     distance_acc = 0;
@@ -1340,14 +1340,14 @@ void HDC_Accelerator::distance_thread() {
                     distance_acc + popcount_word(diff);
 
                 if (word_index == (HV_WORDS - 1u)) {
-                    output_packet.distances[class_id] = next_distance;
+                    set_distance_word(output_distances, class_id, next_distance);
                     word_index = 0;
                     distance_acc = 0;
 
                     if (class_id == (NUM_CLASSES - 1u)) {
                         class_id = 0;
-                        send_packet.valid_prediction = output_packet.valid_prediction;
-                        send_packet.distances = pack_distances(output_packet);
+                        send_packet.valid_prediction = true;
+                        send_packet.distances = output_distances;
                         state = DIST_SEND;
                     } else {
                         class_id = class_id + 1u;
