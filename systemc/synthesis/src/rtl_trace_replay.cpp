@@ -21,6 +21,7 @@ struct ReplayConfig {
     unsigned long long timeout_cycles = 50000000ULL;
     unsigned long long progress_cycles = 100000ULL;
     unsigned reset_cycles = 32;
+    unsigned post_command_hold_cycles = 5;
 };
 
 struct ReplayStats {
@@ -253,6 +254,8 @@ public:
         reset();
         bool has_command = read_next_command(m_commands, m_current_command);
         bool command_pending = false;
+        bool advance_command_after_hold = false;
+        unsigned command_hold_cycles = 0;
         int outstanding = 0;
         std::vector<unsigned long long> issue_cycles;
         std::size_t issue_head = 0;
@@ -262,7 +265,7 @@ public:
                 SC_REPORT_FATAL("rtl_trace_replay", "SystemC replay timed out");
             }
 
-            if (!command_pending && has_command &&
+            if (!command_pending && command_hold_cycles == 0 && has_command &&
                 !(m_current_command.kind == AccelCommandKind::InferSample &&
                   outstanding >= MAX_SAMPLES_IN_PIPELINE)) {
                 drive_command(m_current_command);
@@ -277,8 +280,13 @@ public:
                           << " commands=" << m_stats.commands
                           << " inference=" << m_stats.inference
                           << " responses=" << m_stats.responses
-                          << " outstanding=" << outstanding << std::endl;
+                          << " outstanding=" << outstanding
+                          << " command_hold=" << command_hold_cycles << std::endl;
                 m_accelerator.print_training_debug_counters(std::cout);
+            }
+
+            if (!command_pending && command_hold_cycles > 0) {
+                --command_hold_cycles;
             }
 
             if (command_pending && cmd_ready.read()) {
@@ -290,9 +298,15 @@ public:
                 }
                 cmd_valid.write(false);
                 command_pending = false;
-                has_command = read_next_command(m_commands, m_current_command);
+                command_hold_cycles = m_config.post_command_hold_cycles;
+                advance_command_after_hold = true;
             } else if (command_pending && !cmd_ready.read()) {
                 ++m_stats.command_stall_cycles;
+            }
+
+            if (!command_pending && command_hold_cycles == 0 && advance_command_after_hold) {
+                has_command = read_next_command(m_commands, m_current_command);
+                advance_command_after_hold = false;
             }
 
             if (rsp_valid.read() && !rsp_ready.read()) {
@@ -446,12 +460,16 @@ void parse_args(int argc, char **argv, ReplayConfig &config) {
             config.reset_cycles = static_cast<unsigned>(std::strtoul(argv[++i], 0, 10));
         } else if (arg == "--assoc-dump" && i + 1 < argc) {
             config.assoc_dump_path = argv[++i];
+        } else if (arg == "--post-command-hold-cycles" && i + 1 < argc) {
+            config.post_command_hold_cycles =
+                static_cast<unsigned>(std::strtoul(argv[++i], 0, 10));
         } else {
             std::cerr << "Usage: " << argv[0]
                       << " --trace rtl_trace_dataset00_smoke20"
                       << " [--dataset 0] [--timeout-cycles N]"
                       << " [--progress-cycles N] [--reset-cycles N]"
-                      << " [--assoc-dump PATH]\n";
+                      << " [--assoc-dump PATH]"
+                      << " [--post-command-hold-cycles N]\n";
             std::exit(EXIT_FAILURE);
         }
     }
