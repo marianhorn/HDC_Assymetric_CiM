@@ -16,6 +16,7 @@ namespace {
 
 struct ReplayConfig {
     std::string trace_dir = "rtl_trace_dataset00_smoke20";
+    std::string assoc_dump_path;
     int dataset_id = 0;
     unsigned long long timeout_cycles = 50000000ULL;
     unsigned long long progress_cycles = 100000ULL;
@@ -443,11 +444,14 @@ void parse_args(int argc, char **argv, ReplayConfig &config) {
             config.progress_cycles = std::strtoull(argv[++i], 0, 10);
         } else if (arg == "--reset-cycles" && i + 1 < argc) {
             config.reset_cycles = static_cast<unsigned>(std::strtoul(argv[++i], 0, 10));
+        } else if (arg == "--assoc-dump" && i + 1 < argc) {
+            config.assoc_dump_path = argv[++i];
         } else {
             std::cerr << "Usage: " << argv[0]
                       << " --trace rtl_trace_dataset00_smoke20"
                       << " [--dataset 0] [--timeout-cycles N]"
-                      << " [--progress-cycles N] [--reset-cycles N]\n";
+                      << " [--progress-cycles N] [--reset-cycles N]"
+                      << " [--assoc-dump PATH]\n";
             std::exit(EXIT_FAILURE);
         }
     }
@@ -482,6 +486,16 @@ int sc_main(int argc, char **argv) {
     ReplayStats stats;
     ReplayDriver driver(accelerator, commands, responses, config, stats);
     driver.run();
+
+    const std::string assoc_dump_path =
+        config.assoc_dump_path.empty()
+            ? path_join(config.trace_dir, "systemc_assoc_dump.txt")
+            : config.assoc_dump_path;
+    std::ofstream assoc_dump(assoc_dump_path.c_str());
+    if (!assoc_dump.is_open()) {
+        SC_REPORT_FATAL("rtl_trace_replay", "failed to open assoc dump file");
+    }
+    accelerator.dump_assoc_mem(assoc_dump);
 
     const double average_latency =
         (stats.responses == 0)

@@ -275,6 +275,7 @@ public:
 #ifndef STRATUS_HLS
     void reset_training_debug_counters();
     void print_training_debug_counters(std::ostream &out) const;
+    void dump_assoc_mem(std::ostream &out) const;
 #endif
 
 private:
@@ -347,6 +348,16 @@ private:
     unsigned long long m_debug_bundler_invalid_training_step_tokens;
     unsigned long long m_debug_train_valid_ngram_tokens;
     unsigned long long m_debug_train_invalid_training_step_tokens;
+    unsigned long long m_debug_bundler_valid_popcount[NUM_CLASSES];
+    unsigned long long m_debug_bundler_valid_weighted_sum[NUM_CLASSES];
+    unsigned long long m_debug_bundler_valid_first_popcount[NUM_CLASSES];
+    unsigned long long m_debug_bundler_valid_last_popcount[NUM_CLASSES];
+    bool m_debug_bundler_valid_seen[NUM_CLASSES];
+    unsigned long long m_debug_train_valid_popcount[NUM_CLASSES];
+    unsigned long long m_debug_train_valid_weighted_sum[NUM_CLASSES];
+    unsigned long long m_debug_train_valid_first_popcount[NUM_CLASSES];
+    unsigned long long m_debug_train_valid_last_popcount[NUM_CLASSES];
+    bool m_debug_train_valid_seen[NUM_CLASSES];
 #endif
 
     hv_t m_ngram_buffer[N_GRAM_SIZE];

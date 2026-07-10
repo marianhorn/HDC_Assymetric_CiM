@@ -1,6 +1,9 @@
 // SYNTHESIS TARGET: This module is intended for HLS/SystemC synthesis.
 // Keep dataset loading, floating-point quantization, and testbench code outside this file.
 #include "hdc_accelerator.h"
+#ifndef STRATUS_HLS
+#include <iomanip>
+#endif
 #ifdef STRATUS_HLS
 #include "generated_cim_rom_dataset00.h"
 #endif
@@ -177,6 +180,33 @@ distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
     return distance;
 }
 
+#ifndef STRATUS_HLS
+unsigned long long hv_popcount_debug(const hv_t &hv) {
+    unsigned long long count = 0;
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+            if (((hv.words[word] >> bit) & hv_word_t(1)) != 0) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+unsigned long long hv_weighted_sum_debug(const hv_t &hv) {
+    unsigned long long sum = 0;
+    for (unsigned word = 0; word < HV_WORDS; ++word) {
+        const unsigned base_dim = word * HV_WORD_BITS;
+        for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+            if (((hv.words[word] >> bit) & hv_word_t(1)) != 0) {
+                sum += static_cast<unsigned long long>(base_dim + bit);
+            }
+        }
+    }
+    return sum;
+}
+#endif
+
 #ifdef STRATUS_HLS
 hv_word_t encode_sample_word(const sample_bits_t &sample, unsigned word_index) {
     hv_word_t encoded_word = 0;
@@ -334,6 +364,18 @@ void HDC_Accelerator::reset_training_debug_counters() {
     m_debug_bundler_invalid_training_step_tokens = 0;
     m_debug_train_valid_ngram_tokens = 0;
     m_debug_train_invalid_training_step_tokens = 0;
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_debug_bundler_valid_popcount[class_id] = 0;
+        m_debug_bundler_valid_weighted_sum[class_id] = 0;
+        m_debug_bundler_valid_first_popcount[class_id] = 0;
+        m_debug_bundler_valid_last_popcount[class_id] = 0;
+        m_debug_bundler_valid_seen[class_id] = false;
+        m_debug_train_valid_popcount[class_id] = 0;
+        m_debug_train_valid_weighted_sum[class_id] = 0;
+        m_debug_train_valid_first_popcount[class_id] = 0;
+        m_debug_train_valid_last_popcount[class_id] = 0;
+        m_debug_train_valid_seen[class_id] = false;
+    }
 }
 
 void HDC_Accelerator::print_training_debug_counters(std::ostream &out) const {
@@ -345,6 +387,55 @@ void HDC_Accelerator::print_training_debug_counters(std::ostream &out) const {
         << " train_valid_ngram=" << m_debug_train_valid_ngram_tokens
         << " train_invalid_training_step=" << m_debug_train_invalid_training_step_tokens
         << std::endl;
+    out << "debug bundler_payload_popcount";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "=" << m_debug_bundler_valid_popcount[class_id];
+    }
+    out << std::endl;
+    out << "debug bundler_payload_weighted_sum";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "=" << m_debug_bundler_valid_weighted_sum[class_id];
+    }
+    out << std::endl;
+    out << "debug bundler_payload_first_last";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "_first=" << m_debug_bundler_valid_first_popcount[class_id]
+            << " c" << class_id << "_last=" << m_debug_bundler_valid_last_popcount[class_id];
+    }
+    out << std::endl;
+    out << "debug train_payload_popcount";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "=" << m_debug_train_valid_popcount[class_id];
+    }
+    out << std::endl;
+    out << "debug train_payload_weighted_sum";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "=" << m_debug_train_valid_weighted_sum[class_id];
+    }
+    out << std::endl;
+    out << "debug train_payload_first_last";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "_first=" << m_debug_train_valid_first_popcount[class_id]
+            << " c" << class_id << "_last=" << m_debug_train_valid_last_popcount[class_id];
+    }
+    out << std::endl;
+}
+
+void HDC_Accelerator::dump_assoc_mem(std::ostream &out) const {
+    out << "# SystemC valid/ready associative-memory dump after replay" << std::endl;
+    out << "# scalarized assoc words count=" << (NUM_CLASSES * HV_WORDS)
+        << " words_per_class=" << HV_WORDS << std::endl;
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        for (unsigned word = 0; word < HV_WORDS; ++word) {
+            const unsigned flat = class_id * HV_WORDS + word;
+            out << "assoc_word flat=" << flat
+                << " class=" << class_id
+                << " word=" << word
+                << " value=" << std::hex << std::uppercase << std::setw(16)
+                << std::setfill('0') << m_assoc_mem[class_id].words[word].to_uint64()
+                << std::dec << std::nouppercase << std::setfill(' ') << std::endl;
+        }
+    }
 }
 #endif
 
@@ -899,6 +990,16 @@ void HDC_Accelerator::ngram_thread() {
                                             : OUTPUT_DISTANCE;
                         if (output_target == OUTPUT_BUNDLER) {
                             ++m_debug_bundler_train_valid_tokens;
+                            const unsigned class_id = output_packet.class_id.to_uint();
+                            const unsigned long long popcount = hv_popcount_debug(output_packet.ngram);
+                            m_debug_bundler_valid_popcount[class_id] += popcount;
+                            m_debug_bundler_valid_weighted_sum[class_id] +=
+                                hv_weighted_sum_debug(output_packet.ngram);
+                            if (!m_debug_bundler_valid_seen[class_id]) {
+                                m_debug_bundler_valid_first_popcount[class_id] = popcount;
+                                m_debug_bundler_valid_seen[class_id] = true;
+                            }
+                            m_debug_bundler_valid_last_popcount[class_id] = popcount;
                         }
                         output_pending = true;
                         output_presented = false;
@@ -984,6 +1085,16 @@ void HDC_Accelerator::ngram_thread() {
                                                 : OUTPUT_DISTANCE;
                             if (output_target == OUTPUT_BUNDLER) {
                                 ++m_debug_bundler_train_valid_tokens;
+                                const unsigned class_id = output_packet.class_id.to_uint();
+                                const unsigned long long popcount = hv_popcount_debug(output_packet.ngram);
+                                m_debug_bundler_valid_popcount[class_id] += popcount;
+                                m_debug_bundler_valid_weighted_sum[class_id] +=
+                                    hv_weighted_sum_debug(output_packet.ngram);
+                                if (!m_debug_bundler_valid_seen[class_id]) {
+                                    m_debug_bundler_valid_first_popcount[class_id] = popcount;
+                                    m_debug_bundler_valid_seen[class_id] = true;
+                                }
+                                m_debug_bundler_valid_last_popcount[class_id] = popcount;
                             }
                             output_pending = true;
                             output_presented = false;
@@ -1291,6 +1402,16 @@ void HDC_Accelerator::train_thread() {
                 if (item.kind == AccelCommandKind::TrainSample) {
                     if (item.valid_ngram) {
                         ++m_debug_train_valid_ngram_tokens;
+                        const unsigned class_id = item.class_id.to_uint();
+                        const unsigned long long popcount = hv_popcount_debug(item.ngram);
+                        m_debug_train_valid_popcount[class_id] += popcount;
+                        m_debug_train_valid_weighted_sum[class_id] +=
+                            hv_weighted_sum_debug(item.ngram);
+                        if (!m_debug_train_valid_seen[class_id]) {
+                            m_debug_train_valid_first_popcount[class_id] = popcount;
+                            m_debug_train_valid_seen[class_id] = true;
+                        }
+                        m_debug_train_valid_last_popcount[class_id] = popcount;
                         work = item;
                         if (!m_current_class_valid) {
                             m_current_class_id = item.class_id;

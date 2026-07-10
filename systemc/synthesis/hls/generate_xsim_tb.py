@@ -327,7 +327,9 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
         )
 
     bundler_kind = "m_bundler_in_m_chan_data_kind"
+    bundler_class = "m_bundler_in_m_chan_data_class_id"
     bundler_valid_ngram = "m_bundler_in_m_chan_data_valid_ngram"
+    bundler_ngram = "m_bundler_in_m_chan_data_ngram"
     if (
         has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
         and has_internal_signal(module_body, bundler_kind)
@@ -385,6 +387,64 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             end"""
         )
 
+    if (
+        has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
+        and has_internal_signal(module_body, bundler_kind)
+        and has_internal_signal(module_body, bundler_class)
+        and has_internal_signal(module_body, bundler_valid_ngram)
+        and has_internal_signal(module_body, bundler_ngram)
+    ):
+        decls.extend(
+            [
+                "    integer training_bundler_payload_popcount [0:4];",
+                "    integer training_bundler_payload_weighted_sum [0:4];",
+                "    integer training_bundler_payload_first_popcount [0:4];",
+                "    integer training_bundler_payload_last_popcount [0:4];",
+                "    integer training_bundler_payload_seen [0:4];",
+                """    function integer training_weighted_sum;
+        input logic [VECTOR_DIMENSION-1:0] value;
+        integer bit_index;
+        begin
+            training_weighted_sum = 0;
+            for (bit_index = 0; bit_index < VECTOR_DIMENSION; bit_index = bit_index + 1) begin
+                if (value[bit_index]) begin
+                    training_weighted_sum = training_weighted_sum + bit_index;
+                end
+            end
+        end
+    endfunction""",
+            ]
+        )
+        inits.append(
+            """        for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
+            training_bundler_payload_popcount[counter_index] = 0;
+            training_bundler_payload_weighted_sum[counter_index] = 0;
+            training_bundler_payload_first_popcount[counter_index] = 0;
+            training_bundler_payload_last_popcount[counter_index] = 0;
+            training_bundler_payload_seen[counter_index] = 0;
+        end"""
+        )
+        bundler_fire = p2p_fire_condition("m_bundler_in")
+        updates.append(
+            f"""            if ({bundler_fire} && dut.{bundler_kind} == 2 &&
+                dut.{bundler_valid_ngram} && dut.{bundler_class} >= 0 &&
+                dut.{bundler_class} <= 4) begin
+                if (!training_bundler_payload_seen[dut.{bundler_class}]) begin
+                    training_bundler_payload_first_popcount[dut.{bundler_class}] =
+                        $countones(dut.{bundler_ngram});
+                    training_bundler_payload_seen[dut.{bundler_class}] = 1;
+                end
+                training_bundler_payload_popcount[dut.{bundler_class}] =
+                    training_bundler_payload_popcount[dut.{bundler_class}] +
+                    $countones(dut.{bundler_ngram});
+                training_bundler_payload_weighted_sum[dut.{bundler_class}] =
+                    training_bundler_payload_weighted_sum[dut.{bundler_class}] +
+                    training_weighted_sum(dut.{bundler_ngram});
+                training_bundler_payload_last_popcount[dut.{bundler_class}] =
+                    $countones(dut.{bundler_ngram});
+            end"""
+        )
+
     training_display_fields = []
     if (
         has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
@@ -417,6 +477,38 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
         displays.append(
             f'            $display("debug training_path_counters_rtl {training_format}",\n'
             f"                     {training_args});"
+        )
+    if (
+        has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
+        and has_internal_signal(module_body, bundler_kind)
+        and has_internal_signal(module_body, bundler_class)
+        and has_internal_signal(module_body, bundler_valid_ngram)
+        and has_internal_signal(module_body, bundler_ngram)
+    ):
+        displays.append(
+            """            $display("debug rtl_bundler_payload_popcount c0=%0d c1=%0d c2=%0d c3=%0d c4=%0d",
+                     training_bundler_payload_popcount[0],
+                     training_bundler_payload_popcount[1],
+                     training_bundler_payload_popcount[2],
+                     training_bundler_payload_popcount[3],
+                     training_bundler_payload_popcount[4]);
+            $display("debug rtl_bundler_payload_weighted_sum c0=%0d c1=%0d c2=%0d c3=%0d c4=%0d",
+                     training_bundler_payload_weighted_sum[0],
+                     training_bundler_payload_weighted_sum[1],
+                     training_bundler_payload_weighted_sum[2],
+                     training_bundler_payload_weighted_sum[3],
+                     training_bundler_payload_weighted_sum[4]);
+            $display("debug rtl_bundler_payload_first_last c0_first=%0d c0_last=%0d c1_first=%0d c1_last=%0d c2_first=%0d c2_last=%0d c3_first=%0d c3_last=%0d c4_first=%0d c4_last=%0d",
+                     training_bundler_payload_first_popcount[0],
+                     training_bundler_payload_last_popcount[0],
+                     training_bundler_payload_first_popcount[1],
+                     training_bundler_payload_last_popcount[1],
+                     training_bundler_payload_first_popcount[2],
+                     training_bundler_payload_last_popcount[2],
+                     training_bundler_payload_first_popcount[3],
+                     training_bundler_payload_last_popcount[3],
+                     training_bundler_payload_first_popcount[4],
+                     training_bundler_payload_last_popcount[4]);"""
         )
 
     return {
@@ -633,6 +725,7 @@ def generate_p2p_tb(args: argparse.Namespace,
 module hdc_accelerator_rtl_tb;
     localparam integer NUM_FEATURES = {args.num_features};
     localparam integer NUM_CLASSES = {args.num_classes};
+    localparam integer VECTOR_DIMENSION = {args.vector_dimension};
     localparam integer COMMAND_WIDTH = {command_width};
     localparam integer RESPONSE_WIDTH = {response_width};
     localparam integer COMMAND_KIND_BITS = {command_kind_bits};
@@ -1026,6 +1119,7 @@ def generate_tb(args: argparse.Namespace) -> str:
 module hdc_accelerator_rtl_tb;
     localparam integer NUM_FEATURES = {args.num_features};
     localparam integer NUM_CLASSES = {args.num_classes};
+    localparam integer VECTOR_DIMENSION = {args.vector_dimension};
     localparam integer MAX_OUTSTANDING = {args.max_outstanding};
     localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
     localparam integer PROGRESS_CYCLES = {args.progress_cycles};
@@ -1327,6 +1421,7 @@ def main() -> None:
     parser.add_argument("--out", required=True, type=pathlib.Path)
     parser.add_argument("--num-features", type=int, default=32)
     parser.add_argument("--num-classes", type=int, default=5)
+    parser.add_argument("--vector-dimension", type=int, default=1024)
     parser.add_argument("--max-outstanding", type=int, default=32)
     parser.add_argument("--timeout-cycles", type=int, default=50000000)
     parser.add_argument("--progress-cycles", type=int, default=100000)
