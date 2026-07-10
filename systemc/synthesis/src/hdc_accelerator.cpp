@@ -217,7 +217,7 @@ hv_word_t encode_sample_word(const sample_bits_t &sample, unsigned word_index) {
         HLS_UNROLL_LOOP(OFF, "encode-word-bits-loop");
         feature_score_t score = 0;
         for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-            HLS_UNROLL_LOOP(OFF, "encode-features-loop");
+            HLS_UNROLL_LOOP(ON, "encode-features-loop");
             const unsigned level = get_sample_level(sample, feature).to_uint();
             const hv_word_t feature_word = HDC_CIM_ROM_DATASET00[level][feature][word_index];
             if (((feature_word >> bit) & hv_word_t(1)) != 0) {
