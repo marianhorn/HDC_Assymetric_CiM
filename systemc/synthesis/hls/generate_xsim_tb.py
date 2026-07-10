@@ -427,7 +427,15 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
     }
 
 
-def generate_debug_task(module_body: str) -> str:
+def generate_debug_task(
+    module_body: str,
+    cmd_valid_signal: str = "cmd_valid",
+    cmd_ready_signal: str = "cmd_ready",
+    rsp_valid_signal: str = "rsp_valid",
+    rsp_ready_signal: str = "rsp_ready",
+    top_cmd_extra_format: str = " hold=%0d",
+    top_cmd_extra_args: str = ", command_hold_cycles",
+) -> str:
     state_fields = [
         ("cmd", "global_state5"),
         ("enc", "global_state4"),
@@ -557,13 +565,13 @@ def generate_debug_task(module_body: str) -> str:
     return f"""
     task print_dut_debug;
         begin
-            $display("debug top_cmd_kind_fires k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d hold=%0d",
+            $display("debug top_cmd_kind_fires k0=%0d k1=%0d k2=%0d k3=%0d k4=%0d{top_cmd_extra_format}",
                      top_cmd_kind_fires[0], top_cmd_kind_fires[1],
                      top_cmd_kind_fires[2], top_cmd_kind_fires[3],
-                     top_cmd_kind_fires[4], command_hold_cycles);
+                     top_cmd_kind_fires[4]{top_cmd_extra_args});
 {p2p_counter_logic["displays"]}
             $display("debug top cmd_v=%0b cmd_r=%0b rsp_v=%0b rsp_r=%0b outstanding=%0d",
-                     cmd_valid, cmd_ready, rsp_valid, rsp_ready, outstanding);
+                     {cmd_valid_signal}, {cmd_ready_signal}, {rsp_valid_signal}, {rsp_ready_signal}, outstanding);
 {displays.rstrip()}
         end
     endtask
@@ -827,6 +835,8 @@ module hdc_accelerator_rtl_tb;
             end
         end
     endtask
+
+{generate_debug_task(module_body, "cmd_vld", "!cmd_busy", "rsp_vld", "!rsp_busy", "", "")}
 
     task finish_if_complete;
         integer extra;
