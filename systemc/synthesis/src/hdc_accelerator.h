@@ -343,6 +343,11 @@ private:
     sc_core::sc_signal<bool> m_train_control_done_ready;
 
     unsigned long long m_debug_encoder_out_train_tokens;
+    unsigned long long m_debug_encoder_valid_popcount[NUM_CLASSES];
+    unsigned long long m_debug_encoder_valid_weighted_sum[NUM_CLASSES];
+    unsigned long long m_debug_encoder_valid_first_popcount[NUM_CLASSES];
+    unsigned long long m_debug_encoder_valid_last_popcount[NUM_CLASSES];
+    bool m_debug_encoder_valid_seen[NUM_CLASSES];
     unsigned long long m_debug_bundler_train_invalid_tokens;
     unsigned long long m_debug_bundler_train_valid_tokens;
     unsigned long long m_debug_bundler_invalid_training_step_tokens;

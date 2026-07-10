@@ -365,6 +365,11 @@ void HDC_Accelerator::reset_training_debug_counters() {
     m_debug_train_valid_ngram_tokens = 0;
     m_debug_train_invalid_training_step_tokens = 0;
     for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        m_debug_encoder_valid_popcount[class_id] = 0;
+        m_debug_encoder_valid_weighted_sum[class_id] = 0;
+        m_debug_encoder_valid_first_popcount[class_id] = 0;
+        m_debug_encoder_valid_last_popcount[class_id] = 0;
+        m_debug_encoder_valid_seen[class_id] = false;
         m_debug_bundler_valid_popcount[class_id] = 0;
         m_debug_bundler_valid_weighted_sum[class_id] = 0;
         m_debug_bundler_valid_first_popcount[class_id] = 0;
@@ -387,6 +392,22 @@ void HDC_Accelerator::print_training_debug_counters(std::ostream &out) const {
         << " train_valid_ngram=" << m_debug_train_valid_ngram_tokens
         << " train_invalid_training_step=" << m_debug_train_invalid_training_step_tokens
         << std::endl;
+    out << "debug encoder_payload_popcount";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "=" << m_debug_encoder_valid_popcount[class_id];
+    }
+    out << std::endl;
+    out << "debug encoder_payload_weighted_sum";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "=" << m_debug_encoder_valid_weighted_sum[class_id];
+    }
+    out << std::endl;
+    out << "debug encoder_payload_first_last";
+    for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
+        out << " c" << class_id << "_first=" << m_debug_encoder_valid_first_popcount[class_id]
+            << " c" << class_id << "_last=" << m_debug_encoder_valid_last_popcount[class_id];
+    }
+    out << std::endl;
     out << "debug bundler_payload_popcount";
     for (unsigned class_id = 0; class_id < NUM_CLASSES; ++class_id) {
         out << " c" << class_id << "=" << m_debug_bundler_valid_popcount[class_id];
@@ -728,6 +749,17 @@ void HDC_Accelerator::encoder_thread() {
                         output_packet.encoded.words[word_index] = encoded_word;
                         if (output_packet.kind == AccelCommandKind::TrainSample) {
                             ++m_debug_encoder_out_train_tokens;
+                            const unsigned class_id = output_packet.class_id.to_uint();
+                            const unsigned long long popcount =
+                                hv_popcount_debug(output_packet.encoded);
+                            m_debug_encoder_valid_popcount[class_id] += popcount;
+                            m_debug_encoder_valid_weighted_sum[class_id] +=
+                                hv_weighted_sum_debug(output_packet.encoded);
+                            if (!m_debug_encoder_valid_seen[class_id]) {
+                                m_debug_encoder_valid_first_popcount[class_id] = popcount;
+                                m_debug_encoder_valid_seen[class_id] = true;
+                            }
+                            m_debug_encoder_valid_last_popcount[class_id] = popcount;
                         }
                         output_valid = true;
                         output_presented = false;

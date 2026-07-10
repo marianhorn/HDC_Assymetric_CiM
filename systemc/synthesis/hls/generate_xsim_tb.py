@@ -300,6 +300,8 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
         return f"dut.{vld}"
 
     enc_out_kind = "m_encoder_out_m_chan_data_kind"
+    enc_out_class = "m_encoder_out_m_chan_data_class_id"
+    enc_out_encoded = "m_encoder_out_m_chan_data_encoded"
     if (
         has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
         and has_internal_signal(module_body, enc_out_kind)
@@ -323,6 +325,62 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             end
             if ({p2p_fire_condition("m_encoder_out")} && dut.{enc_out_kind} == 2) begin
                 training_enc_out_train_fire = training_enc_out_train_fire + 1;
+            end"""
+        )
+
+    if (
+        has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
+        and has_internal_signal(module_body, enc_out_kind)
+        and has_internal_signal(module_body, enc_out_class)
+        and has_internal_signal(module_body, enc_out_encoded)
+    ):
+        decls.extend(
+            [
+                "    integer training_encoder_payload_popcount [0:4];",
+                "    integer training_encoder_payload_weighted_sum [0:4];",
+                "    integer training_encoder_payload_first_popcount [0:4];",
+                "    integer training_encoder_payload_last_popcount [0:4];",
+                "    integer training_encoder_payload_seen [0:4];",
+                """    function integer training_encoder_weighted_sum;
+        input logic [VECTOR_DIMENSION-1:0] value;
+        integer bit_index;
+        begin
+            training_encoder_weighted_sum = 0;
+            for (bit_index = 0; bit_index < VECTOR_DIMENSION; bit_index = bit_index + 1) begin
+                if (value[bit_index]) begin
+                    training_encoder_weighted_sum = training_encoder_weighted_sum + bit_index;
+                end
+            end
+        end
+    endfunction""",
+            ]
+        )
+        inits.append(
+            """        for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
+            training_encoder_payload_popcount[counter_index] = 0;
+            training_encoder_payload_weighted_sum[counter_index] = 0;
+            training_encoder_payload_first_popcount[counter_index] = 0;
+            training_encoder_payload_last_popcount[counter_index] = 0;
+            training_encoder_payload_seen[counter_index] = 0;
+        end"""
+        )
+        enc_out_fire = p2p_fire_condition("m_encoder_out")
+        updates.append(
+            f"""            if ({enc_out_fire} && dut.{enc_out_kind} == 2 &&
+                dut.{enc_out_class} >= 0 && dut.{enc_out_class} <= 4) begin
+                if (!training_encoder_payload_seen[dut.{enc_out_class}]) begin
+                    training_encoder_payload_first_popcount[dut.{enc_out_class}] =
+                        $countones(dut.{enc_out_encoded});
+                    training_encoder_payload_seen[dut.{enc_out_class}] = 1;
+                end
+                training_encoder_payload_popcount[dut.{enc_out_class}] =
+                    training_encoder_payload_popcount[dut.{enc_out_class}] +
+                    $countones(dut.{enc_out_encoded});
+                training_encoder_payload_weighted_sum[dut.{enc_out_class}] =
+                    training_encoder_payload_weighted_sum[dut.{enc_out_class}] +
+                    training_encoder_weighted_sum(dut.{enc_out_encoded});
+                training_encoder_payload_last_popcount[dut.{enc_out_class}] =
+                    $countones(dut.{enc_out_encoded});
             end"""
         )
 
@@ -477,6 +535,37 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
         displays.append(
             f'            $display("debug training_path_counters_rtl {training_format}",\n'
             f"                     {training_args});"
+        )
+    if (
+        has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
+        and has_internal_signal(module_body, enc_out_kind)
+        and has_internal_signal(module_body, enc_out_class)
+        and has_internal_signal(module_body, enc_out_encoded)
+    ):
+        displays.append(
+            """            $display("debug rtl_encoder_payload_popcount c0=%0d c1=%0d c2=%0d c3=%0d c4=%0d",
+                     training_encoder_payload_popcount[0],
+                     training_encoder_payload_popcount[1],
+                     training_encoder_payload_popcount[2],
+                     training_encoder_payload_popcount[3],
+                     training_encoder_payload_popcount[4]);
+            $display("debug rtl_encoder_payload_weighted_sum c0=%0d c1=%0d c2=%0d c3=%0d c4=%0d",
+                     training_encoder_payload_weighted_sum[0],
+                     training_encoder_payload_weighted_sum[1],
+                     training_encoder_payload_weighted_sum[2],
+                     training_encoder_payload_weighted_sum[3],
+                     training_encoder_payload_weighted_sum[4]);
+            $display("debug rtl_encoder_payload_first_last c0_first=%0d c0_last=%0d c1_first=%0d c1_last=%0d c2_first=%0d c2_last=%0d c3_first=%0d c3_last=%0d c4_first=%0d c4_last=%0d",
+                     training_encoder_payload_first_popcount[0],
+                     training_encoder_payload_last_popcount[0],
+                     training_encoder_payload_first_popcount[1],
+                     training_encoder_payload_last_popcount[1],
+                     training_encoder_payload_first_popcount[2],
+                     training_encoder_payload_last_popcount[2],
+                     training_encoder_payload_first_popcount[3],
+                     training_encoder_payload_last_popcount[3],
+                     training_encoder_payload_first_popcount[4],
+                     training_encoder_payload_last_popcount[4]);"""
         )
     if (
         has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
