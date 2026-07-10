@@ -209,6 +209,13 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 f"    integer {label}_vld_edges;",
                 f"    integer {label}_busy_cycles;",
                 f"    integer {label}_prev_vld;",
+                f"    integer {label}_first_vld_edge_cycle;",
+                f"    integer {label}_last_vld_edge_cycle;",
+                f"    integer {label}_max_vld_edge_gap;",
+                f"    integer {label}_fire_cycles;",
+                f"    integer {label}_first_fire_cycle;",
+                f"    integer {label}_last_fire_cycle;",
+                f"    integer {label}_max_fire_gap;",
             ]
         )
         inits.extend(
@@ -217,12 +224,27 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 f"        {label}_vld_edges = 0;",
                 f"        {label}_busy_cycles = 0;",
                 f"        {label}_prev_vld = 0;",
+                f"        {label}_first_vld_edge_cycle = -1;",
+                f"        {label}_last_vld_edge_cycle = -1;",
+                f"        {label}_max_vld_edge_gap = 0;",
+                f"        {label}_fire_cycles = 0;",
+                f"        {label}_first_fire_cycle = -1;",
+                f"        {label}_last_fire_cycle = -1;",
+                f"        {label}_max_fire_gap = 0;",
             ]
         )
         updates.append(
             f"""            if (dut.{vld}) begin
                 {label}_vld_cycles = {label}_vld_cycles + 1;
                 if (!{label}_prev_vld) begin
+                    if ({label}_first_vld_edge_cycle < 0) begin
+                        {label}_first_vld_edge_cycle = cycle_count;
+                    end
+                    if ({label}_last_vld_edge_cycle >= 0 &&
+                        (cycle_count - {label}_last_vld_edge_cycle) > {label}_max_vld_edge_gap) begin
+                        {label}_max_vld_edge_gap = cycle_count - {label}_last_vld_edge_cycle;
+                    end
+                    {label}_last_vld_edge_cycle = cycle_count;
                     {label}_vld_edges = {label}_vld_edges + 1;
                 end
             end"""
@@ -234,6 +256,22 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 {label}_busy_cycles = {label}_busy_cycles + 1;
             end"""
             )
+        fire_condition = f"dut.{vld}"
+        if has_busy:
+            fire_condition = f"dut.{vld} && !dut.{busy}"
+        updates.append(
+            f"""            if ({fire_condition}) begin
+                if ({label}_first_fire_cycle < 0) begin
+                    {label}_first_fire_cycle = cycle_count;
+                end
+                if ({label}_last_fire_cycle >= 0 &&
+                    (cycle_count - {label}_last_fire_cycle) > {label}_max_fire_gap) begin
+                    {label}_max_fire_gap = cycle_count - {label}_last_fire_cycle;
+                end
+                {label}_last_fire_cycle = cycle_count;
+                {label}_fire_cycles = {label}_fire_cycles + 1;
+            end"""
+        )
 
     if present_channels:
         format_fields = " ".join(
@@ -248,6 +286,14 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             f'            $display("debug p2p_counters {format_fields}",\n'
             f"                     {args});"
         )
+        for label, _, _ in present_channels:
+            displays.append(
+                f"""            $display("debug p2p_timing {label} first_edge=%0d last_edge=%0d max_edge_gap=%0d first_fire=%0d last_fire=%0d max_fire_gap=%0d fire_cycles=%0d",
+                     {label}_first_vld_edge_cycle, {label}_last_vld_edge_cycle,
+                     {label}_max_vld_edge_gap, {label}_first_fire_cycle,
+                     {label}_last_fire_cycle, {label}_max_fire_gap,
+                     {label}_fire_cycles);"""
+            )
 
     enc_kind_signal = None
     for candidate in (
@@ -848,6 +894,9 @@ module hdc_accelerator_rtl_tb;
     integer responses_received;
     integer command_stall_cycles;
     integer response_stall_cycles;
+    integer cmd_first_accept_cycle;
+    integer cmd_last_accept_cycle;
+    integer cmd_max_accept_gap;
     integer outstanding;
     integer next_kind;
     integer accepted_kind;
@@ -1018,7 +1067,7 @@ module hdc_accelerator_rtl_tb;
         end
     endtask
 
-{generate_debug_task(module_body, "cmd_vld", "!cmd_busy", "rsp_vld", "!rsp_busy", "", "")}
+{generate_debug_task(module_body, "cmd_vld", "!cmd_busy", "rsp_vld", "!rsp_busy", " top_first_accept=%0d top_last_accept=%0d top_max_accept_gap=%0d", ", cmd_first_accept_cycle, cmd_last_accept_cycle, cmd_max_accept_gap")}
 
     task finish_if_complete;
         integer extra;
@@ -1068,6 +1117,9 @@ module hdc_accelerator_rtl_tb;
         responses_received = 0;
         command_stall_cycles = 0;
         response_stall_cycles = 0;
+        cmd_first_accept_cycle = -1;
+        cmd_last_accept_cycle = -1;
+        cmd_max_accept_gap = 0;
         outstanding = 0;
         accepted_kind = 0;
         has_command = 0;
@@ -1118,6 +1170,14 @@ module hdc_accelerator_rtl_tb;
 
             if (cmd_vld && !cmd_busy) begin
                 accepted_kind = cmd_data[0 +: COMMAND_KIND_BITS];
+                if (cmd_first_accept_cycle < 0) begin
+                    cmd_first_accept_cycle = cycle_count;
+                end
+                if (cmd_last_accept_cycle >= 0 &&
+                    (cycle_count - cmd_last_accept_cycle) > cmd_max_accept_gap) begin
+                    cmd_max_accept_gap = cycle_count - cmd_last_accept_cycle;
+                end
+                cmd_last_accept_cycle = cycle_count;
                 commands_sent = commands_sent + 1;
                 if (accepted_kind >= 0 && accepted_kind <= 4) begin
                     top_cmd_kind_fires[accepted_kind] = top_cmd_kind_fires[accepted_kind] + 1;
