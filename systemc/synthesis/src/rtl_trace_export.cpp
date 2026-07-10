@@ -46,6 +46,8 @@ struct TraceLimits {
     int test_samples = -1;
 };
 
+static constexpr unsigned POST_COMMAND_HOLD_CYCLES = 5;
+
 bool is_comment_or_empty(const std::string &line) {
     for (std::string::size_type i = 0; i < line.size(); ++i) {
         const char c = line[i];
@@ -424,6 +426,10 @@ private:
             }
         }
         cmd_valid.write(false);
+        for (unsigned hold = 0; hold < POST_COMMAND_HOLD_CYCLES; ++hold) {
+            rsp_ready.write(false);
+            tick();
+        }
     }
 
     AccelResponse read_response() const {
@@ -501,9 +507,11 @@ private:
         int received = 0;
         int outstanding = 0;
         bool command_pending = false;
+        unsigned command_hold_cycles = 0;
 
         while (received < num_samples) {
-            if (!command_pending && issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
+            if (!command_pending && command_hold_cycles == 0 &&
+                issued < num_samples && outstanding < MAX_SAMPLES_IN_PIPELINE) {
                 quantize_sample(m_memory, &raw_data[issued * NUM_FEATURES], quantized_sample);
                 command.kind = AccelCommandKind::InferSample;
                 command.class_id = 0;
@@ -520,10 +528,15 @@ private:
             rsp_ready.write(outstanding > 0);
             tick();
 
+            if (!command_pending && command_hold_cycles > 0) {
+                --command_hold_cycles;
+            }
+
             if (command_pending && cmd_ready.read()) {
                 write_command_line(command);
                 cmd_valid.write(false);
                 command_pending = false;
+                command_hold_cycles = POST_COMMAND_HOLD_CYCLES;
                 ++issued;
                 ++outstanding;
                 ++m_stats.commands;
