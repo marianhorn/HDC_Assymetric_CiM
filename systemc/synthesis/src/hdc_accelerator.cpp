@@ -154,39 +154,15 @@ void unpack_distances(DistancePacket &packet, const DistanceChannelPacket &chann
 }
 
 distance_counter_t popcount_word(hv_word_t value) {
-    sc_dt::sc_uint<2> sum2[32];
-    sc_dt::sc_uint<3> sum4[16];
-    sc_dt::sc_uint<4> sum8[8];
-    sc_dt::sc_uint<5> sum16[4];
-    sc_dt::sc_uint<6> sum32[2];
-    sc_dt::sc_uint<7> total = 0;
-
-    for (unsigned i = 0; i < 32; ++i) {
-        HLS_UNROLL_LOOP(ON, "popcount-stage-2");
-        const unsigned bit0 = 2u * i;
-        const unsigned bit1 = bit0 + 1u;
-        sum2[i] = sc_dt::sc_uint<1>((value >> bit0) & hv_word_t(1)) +
-                  sc_dt::sc_uint<1>((value >> bit1) & hv_word_t(1));
-    }
-    for (unsigned i = 0; i < 16; ++i) {
-        HLS_UNROLL_LOOP(ON, "popcount-stage-4");
-        sum4[i] = sum2[2u * i] + sum2[(2u * i) + 1u];
-    }
-    for (unsigned i = 0; i < 8; ++i) {
-        HLS_UNROLL_LOOP(ON, "popcount-stage-8");
-        sum8[i] = sum4[2u * i] + sum4[(2u * i) + 1u];
-    }
-    for (unsigned i = 0; i < 4; ++i) {
-        HLS_UNROLL_LOOP(ON, "popcount-stage-16");
-        sum16[i] = sum8[2u * i] + sum8[(2u * i) + 1u];
-    }
-    for (unsigned i = 0; i < 2; ++i) {
-        HLS_UNROLL_LOOP(ON, "popcount-stage-32");
-        sum32[i] = sum16[2u * i] + sum16[(2u * i) + 1u];
-    }
-
-    total = sum32[0] + sum32[1];
-    return distance_counter_t(total);
+    hv_word_t x = value;
+    x = x - ((x >> 1) & hv_word_t(0x5555555555555555ULL));
+    x = (x & hv_word_t(0x3333333333333333ULL)) +
+        ((x >> 2) & hv_word_t(0x3333333333333333ULL));
+    x = (x + (x >> 4)) & hv_word_t(0x0F0F0F0F0F0F0F0FULL);
+    x = x + (x >> 8);
+    x = x + (x >> 16);
+    x = x + (x >> 32);
+    return distance_counter_t(x.range(6, 0));
 }
 #endif
 
