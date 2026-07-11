@@ -251,23 +251,87 @@ hv_word_t encode_sample_word(const sample_bits_t &sample, unsigned word_index) {
     const feature_score_t signed_threshold =
         (NUM_FEATURES % 2 == 1) ? feature_score_t(-1) : feature_score_t(0);
 
-    for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-        HLS_UNROLL_LOOP(OFF, "encode-word-bits-loop");
-        feature_score_t score = 0;
-        for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-            HLS_UNROLL_LOOP(ON, "encode-features-loop");
-            const unsigned level = get_sample_level(sample, feature).to_uint();
-            const hv_word_t feature_word = get_cim_feature_word(feature, level, word_index);
-            if (((feature_word >> bit) & hv_word_t(1)) != 0) {
-                ++score;
-            } else {
-                --score;
-            }
-        }
+#define HDC_LOAD_FEATURE_WORD(index) \
+    const hv_word_t feature_word_##index = \
+        get_cim_feature_word(index, get_sample_level(sample, index).to_uint(), word_index)
+    HDC_LOAD_FEATURE_WORD(0);
+    HDC_LOAD_FEATURE_WORD(1);
+    HDC_LOAD_FEATURE_WORD(2);
+    HDC_LOAD_FEATURE_WORD(3);
+    HDC_LOAD_FEATURE_WORD(4);
+    HDC_LOAD_FEATURE_WORD(5);
+    HDC_LOAD_FEATURE_WORD(6);
+    HDC_LOAD_FEATURE_WORD(7);
+    HDC_LOAD_FEATURE_WORD(8);
+    HDC_LOAD_FEATURE_WORD(9);
+    HDC_LOAD_FEATURE_WORD(10);
+    HDC_LOAD_FEATURE_WORD(11);
+    HDC_LOAD_FEATURE_WORD(12);
+    HDC_LOAD_FEATURE_WORD(13);
+    HDC_LOAD_FEATURE_WORD(14);
+    HDC_LOAD_FEATURE_WORD(15);
+    HDC_LOAD_FEATURE_WORD(16);
+    HDC_LOAD_FEATURE_WORD(17);
+    HDC_LOAD_FEATURE_WORD(18);
+    HDC_LOAD_FEATURE_WORD(19);
+    HDC_LOAD_FEATURE_WORD(20);
+    HDC_LOAD_FEATURE_WORD(21);
+    HDC_LOAD_FEATURE_WORD(22);
+    HDC_LOAD_FEATURE_WORD(23);
+    HDC_LOAD_FEATURE_WORD(24);
+    HDC_LOAD_FEATURE_WORD(25);
+    HDC_LOAD_FEATURE_WORD(26);
+    HDC_LOAD_FEATURE_WORD(27);
+    HDC_LOAD_FEATURE_WORD(28);
+    HDC_LOAD_FEATURE_WORD(29);
+    HDC_LOAD_FEATURE_WORD(30);
+    HDC_LOAD_FEATURE_WORD(31);
+#undef HDC_LOAD_FEATURE_WORD
 
-        if (score >= signed_threshold) {
-            encoded_word = encoded_word | (hv_word_t(1) << bit);
+    for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
+        HLS_UNROLL_LOOP(ON, "encode-word-bits-loop");
+        feature_score_t score = 0;
+#define HDC_ACCUM_FEATURE_WORD(index) \
+        if (((feature_word_##index >> bit) & hv_word_t(1)) != 0) { \
+            ++score; \
+        } else { \
+            --score; \
         }
+        HDC_ACCUM_FEATURE_WORD(0);
+        HDC_ACCUM_FEATURE_WORD(1);
+        HDC_ACCUM_FEATURE_WORD(2);
+        HDC_ACCUM_FEATURE_WORD(3);
+        HDC_ACCUM_FEATURE_WORD(4);
+        HDC_ACCUM_FEATURE_WORD(5);
+        HDC_ACCUM_FEATURE_WORD(6);
+        HDC_ACCUM_FEATURE_WORD(7);
+        HDC_ACCUM_FEATURE_WORD(8);
+        HDC_ACCUM_FEATURE_WORD(9);
+        HDC_ACCUM_FEATURE_WORD(10);
+        HDC_ACCUM_FEATURE_WORD(11);
+        HDC_ACCUM_FEATURE_WORD(12);
+        HDC_ACCUM_FEATURE_WORD(13);
+        HDC_ACCUM_FEATURE_WORD(14);
+        HDC_ACCUM_FEATURE_WORD(15);
+        HDC_ACCUM_FEATURE_WORD(16);
+        HDC_ACCUM_FEATURE_WORD(17);
+        HDC_ACCUM_FEATURE_WORD(18);
+        HDC_ACCUM_FEATURE_WORD(19);
+        HDC_ACCUM_FEATURE_WORD(20);
+        HDC_ACCUM_FEATURE_WORD(21);
+        HDC_ACCUM_FEATURE_WORD(22);
+        HDC_ACCUM_FEATURE_WORD(23);
+        HDC_ACCUM_FEATURE_WORD(24);
+        HDC_ACCUM_FEATURE_WORD(25);
+        HDC_ACCUM_FEATURE_WORD(26);
+        HDC_ACCUM_FEATURE_WORD(27);
+        HDC_ACCUM_FEATURE_WORD(28);
+        HDC_ACCUM_FEATURE_WORD(29);
+        HDC_ACCUM_FEATURE_WORD(30);
+        HDC_ACCUM_FEATURE_WORD(31);
+#undef HDC_ACCUM_FEATURE_WORD
+
+        encoded_word[bit] = (score >= signed_threshold) ? 1 : 0;
     }
 
     return encoded_word;

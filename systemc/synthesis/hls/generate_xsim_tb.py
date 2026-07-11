@@ -549,6 +549,128 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             end"""
         )
 
+    distance_kind = "m_distance_in_m_chan_data_kind"
+    distance_valid_ngram = "m_distance_in_m_chan_data_valid_ngram"
+    if (
+        has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
+        and has_internal_signal(module_body, enc_out_kind)
+        and has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
+        and has_internal_signal(module_body, bundler_kind)
+        and has_internal_signal(module_body, bundler_valid_ngram)
+        and has_internal_signal(module_body, "m_distance_in_m_chan_vld")
+        and has_internal_signal(module_body, distance_kind)
+        and has_internal_signal(module_body, distance_valid_ngram)
+    ):
+        decls.extend(
+            [
+                "    integer ngram_train_issue_cycles [0:1048575];",
+                "    integer ngram_infer_issue_cycles [0:1048575];",
+                "    integer ngram_train_head;",
+                "    integer ngram_train_tail;",
+                "    integer ngram_infer_head;",
+                "    integer ngram_infer_tail;",
+                "    integer ngram_train_latency_count;",
+                "    integer ngram_train_latency_total;",
+                "    integer ngram_train_latency_max;",
+                "    integer ngram_infer_latency_count;",
+                "    integer ngram_infer_latency_total;",
+                "    integer ngram_infer_latency_max;",
+                "    integer ngram_bundler_train_invalid_fire;",
+                "    integer ngram_bundler_train_valid_fire;",
+                "    integer ngram_distance_infer_invalid_fire;",
+                "    integer ngram_distance_infer_valid_fire;",
+                "    integer ngram_latency_value;",
+            ]
+        )
+        inits.extend(
+            [
+                "        ngram_train_head = 0;",
+                "        ngram_train_tail = 0;",
+                "        ngram_infer_head = 0;",
+                "        ngram_infer_tail = 0;",
+                "        ngram_train_latency_count = 0;",
+                "        ngram_train_latency_total = 0;",
+                "        ngram_train_latency_max = 0;",
+                "        ngram_infer_latency_count = 0;",
+                "        ngram_infer_latency_total = 0;",
+                "        ngram_infer_latency_max = 0;",
+                "        ngram_bundler_train_invalid_fire = 0;",
+                "        ngram_bundler_train_valid_fire = 0;",
+                "        ngram_distance_infer_invalid_fire = 0;",
+                "        ngram_distance_infer_valid_fire = 0;",
+                "        ngram_latency_value = 0;",
+            ]
+        )
+        enc_out_fire = p2p_fire_condition("m_encoder_out")
+        bundler_fire = p2p_fire_condition("m_bundler_in")
+        distance_fire = p2p_fire_condition("m_distance_in")
+        updates.append(
+            f"""            if ({enc_out_fire} && dut.{enc_out_kind} == 2) begin
+                ngram_train_issue_cycles[ngram_train_tail] = cycle_count;
+                ngram_train_tail = ngram_train_tail + 1;
+            end
+            if ({enc_out_fire} && dut.{enc_out_kind} == 4) begin
+                ngram_infer_issue_cycles[ngram_infer_tail] = cycle_count;
+                ngram_infer_tail = ngram_infer_tail + 1;
+            end
+            if ({bundler_fire} && dut.{bundler_kind} == 2) begin
+                if (dut.{bundler_valid_ngram}) begin
+                    ngram_bundler_train_valid_fire = ngram_bundler_train_valid_fire + 1;
+                end else begin
+                    ngram_bundler_train_invalid_fire = ngram_bundler_train_invalid_fire + 1;
+                end
+                if (ngram_train_head >= ngram_train_tail) begin
+                    $error("ngram train output without queued encoder input at cycle %0d", cycle_count);
+                    error_count = error_count + 1;
+                end else begin
+                    ngram_latency_value = cycle_count - ngram_train_issue_cycles[ngram_train_head];
+                    ngram_train_head = ngram_train_head + 1;
+                    ngram_train_latency_count = ngram_train_latency_count + 1;
+                    ngram_train_latency_total = ngram_train_latency_total + ngram_latency_value;
+                    if (ngram_latency_value > ngram_train_latency_max) begin
+                        ngram_train_latency_max = ngram_latency_value;
+                    end
+                end
+            end
+            if ({distance_fire} && dut.{distance_kind} == 4) begin
+                if (dut.{distance_valid_ngram}) begin
+                    ngram_distance_infer_valid_fire = ngram_distance_infer_valid_fire + 1;
+                end else begin
+                    ngram_distance_infer_invalid_fire = ngram_distance_infer_invalid_fire + 1;
+                end
+                if (ngram_infer_head >= ngram_infer_tail) begin
+                    $error("ngram infer output without queued encoder input at cycle %0d", cycle_count);
+                    error_count = error_count + 1;
+                end else begin
+                    ngram_latency_value = cycle_count - ngram_infer_issue_cycles[ngram_infer_head];
+                    ngram_infer_head = ngram_infer_head + 1;
+                    ngram_infer_latency_count = ngram_infer_latency_count + 1;
+                    ngram_infer_latency_total = ngram_infer_latency_total + ngram_latency_value;
+                    if (ngram_latency_value > ngram_infer_latency_max) begin
+                        ngram_infer_latency_max = ngram_latency_value;
+                    end
+                end
+            end"""
+        )
+        displays.append(
+            """            $display("debug ngram_latency train_count=%0d train_avg=%0d train_max=%0d train_pending=%0d infer_count=%0d infer_avg=%0d infer_max=%0d infer_pending=%0d",
+                     ngram_train_latency_count,
+                     (ngram_train_latency_count == 0) ? 0 :
+                         (ngram_train_latency_total / ngram_train_latency_count),
+                     ngram_train_latency_max,
+                     ngram_train_tail - ngram_train_head,
+                     ngram_infer_latency_count,
+                     (ngram_infer_latency_count == 0) ? 0 :
+                         (ngram_infer_latency_total / ngram_infer_latency_count),
+                     ngram_infer_latency_max,
+                     ngram_infer_tail - ngram_infer_head);
+            $display("debug ngram_output_counts train_invalid=%0d train_valid=%0d infer_invalid=%0d infer_valid=%0d",
+                     ngram_bundler_train_invalid_fire,
+                     ngram_bundler_train_valid_fire,
+                     ngram_distance_infer_invalid_fire,
+                     ngram_distance_infer_valid_fire);"""
+        )
+
     training_display_fields = []
     if (
         has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
