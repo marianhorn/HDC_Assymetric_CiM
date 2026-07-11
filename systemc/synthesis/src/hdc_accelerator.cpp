@@ -1282,7 +1282,7 @@ void HDC_Accelerator::train_thread() {
             } else if (state == TRAIN_INIT_RESET_SCORES) {
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-init-reset-score-word-loop");
-                    m_bundling_score[word_index][bit] = 0;
+                    m_bundling_score[bit][word_index] = 0;
                 }
 
                 if (word_index + 1u == HV_WORDS) {
@@ -1314,9 +1314,9 @@ void HDC_Accelerator::train_thread() {
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(ON, "train-add-ngram-word-loop");
                     if (((word >> bit) & hv_word_t(1)) != 0) {
-                        ++m_bundling_score[word_index][bit];
+                        ++m_bundling_score[bit][word_index];
                     } else {
-                        --m_bundling_score[word_index][bit];
+                        --m_bundling_score[bit][word_index];
                     }
                 }
 
@@ -1333,10 +1333,10 @@ void HDC_Accelerator::train_thread() {
                 hv_word_t class_word = 0;
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-finalize-word-loop");
-                    if (m_bundling_score[word_index][bit] >= signed_threshold) {
+                    if (m_bundling_score[bit][word_index] >= signed_threshold) {
                         class_word = class_word | (hv_word_t(1) << bit);
                     }
-                    m_bundling_score[word_index][bit] = 0;
+                    m_bundling_score[bit][word_index] = 0;
                 }
                 {
                     HLS_DEFINE_PROTOCOL("train_assoc_write_word");
@@ -1355,7 +1355,7 @@ void HDC_Accelerator::train_thread() {
             } else if (state == TRAIN_RESET_TRAINING) {
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-reset-score-word-loop");
-                    m_bundling_score[word_index][bit] = 0;
+                    m_bundling_score[bit][word_index] = 0;
                 }
 
                 if (word_index + 1u == HV_WORDS) {
@@ -1437,7 +1437,7 @@ void HDC_Accelerator::train_thread() {
             if (state == TRAIN_INIT_RESET_SCORES) {
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-init-reset-score-word-loop");
-                    m_bundling_score[word_index][bit] = 0;
+                    m_bundling_score[bit][word_index] = 0;
                 }
 
                 if (word_index + 1u == HV_WORDS) {
@@ -1466,9 +1466,9 @@ void HDC_Accelerator::train_thread() {
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-add-ngram-word-loop");
                     if (((word >> bit) & hv_word_t(1)) != 0) {
-                        ++m_bundling_score[word_index][bit];
+                        ++m_bundling_score[bit][word_index];
                     } else {
-                        --m_bundling_score[word_index][bit];
+                        --m_bundling_score[bit][word_index];
                     }
                 }
 
@@ -1485,10 +1485,10 @@ void HDC_Accelerator::train_thread() {
                 hv_word_t class_word = 0;
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-finalize-word-loop");
-                    if (m_bundling_score[word_index][bit] >= signed_threshold) {
+                    if (m_bundling_score[bit][word_index] >= signed_threshold) {
                         class_word = class_word | (hv_word_t(1) << bit);
                     }
-                    m_bundling_score[word_index][bit] = 0;
+                    m_bundling_score[bit][word_index] = 0;
                 }
                 m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
 
@@ -1506,7 +1506,7 @@ void HDC_Accelerator::train_thread() {
             } else if (state == TRAIN_RESET_TRAINING) {
                 for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
                     HLS_UNROLL_LOOP(OFF, "train-reset-score-word-loop");
-                    m_bundling_score[word_index][bit] = 0;
+                    m_bundling_score[bit][word_index] = 0;
                 }
 
                 if (word_index + 1u == HV_WORDS) {

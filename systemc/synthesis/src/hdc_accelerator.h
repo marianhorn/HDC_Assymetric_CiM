@@ -379,7 +379,7 @@ private:
     hv_t m_ngram_next;
 
     // Signed bundling score for the currently trained class segment.
-    train_score_t m_bundling_score[HV_WORDS][HV_WORD_BITS];
+    train_score_t m_bundling_score[HV_WORD_BITS][HV_WORDS];
     train_counter_t m_current_class_count;
     class_t m_current_class_id;
     bool m_current_class_valid;
