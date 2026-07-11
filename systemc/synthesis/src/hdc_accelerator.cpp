@@ -1243,6 +1243,72 @@ void HDC_Accelerator::ngram_thread() {
 #endif
 }
 
+#define HDC_APPLY_TO_HV_BIT_BANKS(M) \
+    M(0)                             \
+    M(1)                             \
+    M(2)                             \
+    M(3)                             \
+    M(4)                             \
+    M(5)                             \
+    M(6)                             \
+    M(7)                             \
+    M(8)                             \
+    M(9)                             \
+    M(10)                            \
+    M(11)                            \
+    M(12)                            \
+    M(13)                            \
+    M(14)                            \
+    M(15)                            \
+    M(16)                            \
+    M(17)                            \
+    M(18)                            \
+    M(19)                            \
+    M(20)                            \
+    M(21)                            \
+    M(22)                            \
+    M(23)                            \
+    M(24)                            \
+    M(25)                            \
+    M(26)                            \
+    M(27)                            \
+    M(28)                            \
+    M(29)                            \
+    M(30)                            \
+    M(31)                            \
+    M(32)                            \
+    M(33)                            \
+    M(34)                            \
+    M(35)                            \
+    M(36)                            \
+    M(37)                            \
+    M(38)                            \
+    M(39)                            \
+    M(40)                            \
+    M(41)                            \
+    M(42)                            \
+    M(43)                            \
+    M(44)                            \
+    M(45)                            \
+    M(46)                            \
+    M(47)                            \
+    M(48)                            \
+    M(49)                            \
+    M(50)                            \
+    M(51)                            \
+    M(52)                            \
+    M(53)                            \
+    M(54)                            \
+    M(55)                            \
+    M(56)                            \
+    M(57)                            \
+    M(58)                            \
+    M(59)                            \
+    M(60)                            \
+    M(61)                            \
+    M(62)                            \
+    M(63)
+
 void HDC_Accelerator::train_thread() {
     enum TrainState {
         TRAIN_INIT_RESET_SCORES,
@@ -1280,10 +1346,9 @@ void HDC_Accelerator::train_thread() {
                 m_train_control_done.input.put(done);
                 state = TRAIN_IDLE;
             } else if (state == TRAIN_INIT_RESET_SCORES) {
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-init-reset-score-word-loop");
-                    m_bundling_score[bit][word_index] = 0;
-                }
+#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word_index] = 0;
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
+#undef HDC_CLEAR_SCORE_BANK
 
                 if (word_index + 1u == HV_WORDS) {
                     word_index = 0;
@@ -1311,14 +1376,14 @@ void HDC_Accelerator::train_thread() {
                 }
             } else if (state == TRAIN_ADD_NGRAM) {
                 const hv_word_t word = get_hv_word(work.ngram, word_index);
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(ON, "train-add-ngram-word-loop");
-                    if (((word >> bit) & hv_word_t(1)) != 0) {
-                        ++m_bundling_score[bit][word_index];
-                    } else {
-                        --m_bundling_score[bit][word_index];
-                    }
+#define HDC_ADD_SCORE_BANK(index)                         \
+                if (((word >> index) & hv_word_t(1)) != 0) { \
+                    ++m_bundling_score_##index[word_index];  \
+                } else {                                      \
+                    --m_bundling_score_##index[word_index];  \
                 }
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_ADD_SCORE_BANK)
+#undef HDC_ADD_SCORE_BANK
 
                 if (word_index + 1u == HV_WORDS) {
                     ++m_current_class_count;
@@ -1331,13 +1396,13 @@ void HDC_Accelerator::train_thread() {
                 const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
                 const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
                 hv_word_t class_word = 0;
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-finalize-word-loop");
-                    if (m_bundling_score[bit][word_index] >= signed_threshold) {
-                        class_word = class_word | (hv_word_t(1) << bit);
-                    }
-                    m_bundling_score[bit][word_index] = 0;
-                }
+#define HDC_FINALIZE_SCORE_BANK(index)                         \
+                if (m_bundling_score_##index[word_index] >= signed_threshold) { \
+                    class_word[index] = 1;                         \
+                }                                                  \
+                m_bundling_score_##index[word_index] = 0;
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_FINALIZE_SCORE_BANK)
+#undef HDC_FINALIZE_SCORE_BANK
                 {
                     HLS_DEFINE_PROTOCOL("train_assoc_write_word");
                     m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
@@ -1353,10 +1418,9 @@ void HDC_Accelerator::train_thread() {
                     word_index = word_index + 1u;
                 }
             } else if (state == TRAIN_RESET_TRAINING) {
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-reset-score-word-loop");
-                    m_bundling_score[bit][word_index] = 0;
-                }
+#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word_index] = 0;
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
+#undef HDC_CLEAR_SCORE_BANK
 
                 if (word_index + 1u == HV_WORDS) {
                     m_current_class_count = 0;
@@ -1435,10 +1499,9 @@ void HDC_Accelerator::train_thread() {
             }
 
             if (state == TRAIN_INIT_RESET_SCORES) {
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-init-reset-score-word-loop");
-                    m_bundling_score[bit][word_index] = 0;
-                }
+#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word_index] = 0;
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
+#undef HDC_CLEAR_SCORE_BANK
 
                 if (word_index + 1u == HV_WORDS) {
                     word_index = 0;
@@ -1463,14 +1526,14 @@ void HDC_Accelerator::train_thread() {
                 }
             } else if (state == TRAIN_ADD_NGRAM) {
                 const hv_word_t word = work.ngram.words[word_index];
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-add-ngram-word-loop");
-                    if (((word >> bit) & hv_word_t(1)) != 0) {
-                        ++m_bundling_score[bit][word_index];
-                    } else {
-                        --m_bundling_score[bit][word_index];
-                    }
+#define HDC_ADD_SCORE_BANK(index)                         \
+                if (((word >> index) & hv_word_t(1)) != 0) { \
+                    ++m_bundling_score_##index[word_index];  \
+                } else {                                      \
+                    --m_bundling_score_##index[word_index];  \
                 }
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_ADD_SCORE_BANK)
+#undef HDC_ADD_SCORE_BANK
 
                 if (word_index + 1u == HV_WORDS) {
                     ++m_current_class_count;
@@ -1483,13 +1546,13 @@ void HDC_Accelerator::train_thread() {
                 const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
                 const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
                 hv_word_t class_word = 0;
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-finalize-word-loop");
-                    if (m_bundling_score[bit][word_index] >= signed_threshold) {
-                        class_word = class_word | (hv_word_t(1) << bit);
-                    }
-                    m_bundling_score[bit][word_index] = 0;
-                }
+#define HDC_FINALIZE_SCORE_BANK(index)                         \
+                if (m_bundling_score_##index[word_index] >= signed_threshold) { \
+                    class_word[index] = 1;                         \
+                }                                                  \
+                m_bundling_score_##index[word_index] = 0;
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_FINALIZE_SCORE_BANK)
+#undef HDC_FINALIZE_SCORE_BANK
                 m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
 
                 if (word_index + 1u == HV_WORDS) {
@@ -1504,10 +1567,9 @@ void HDC_Accelerator::train_thread() {
                     word_index = word_index + 1u;
                 }
             } else if (state == TRAIN_RESET_TRAINING) {
-                for (unsigned bit = 0; bit < HV_WORD_BITS; ++bit) {
-                    HLS_UNROLL_LOOP(OFF, "train-reset-score-word-loop");
-                    m_bundling_score[bit][word_index] = 0;
-                }
+#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word_index] = 0;
+                HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
+#undef HDC_CLEAR_SCORE_BANK
 
                 if (word_index + 1u == HV_WORDS) {
                     m_current_class_count = 0;
@@ -1565,6 +1627,8 @@ void HDC_Accelerator::train_thread() {
     }
 #endif
 }
+
+#undef HDC_APPLY_TO_HV_BIT_BANKS
 
 void HDC_Accelerator::distance_thread() {
 #ifdef STRATUS_HLS
