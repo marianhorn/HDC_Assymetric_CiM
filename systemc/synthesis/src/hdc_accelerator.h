@@ -21,6 +21,8 @@ using hdc_systemc::AccelCommandKind;
 using hdc_systemc::CLASS_BITS;
 using hdc_systemc::COMMAND_KIND_BITS;
 using hdc_systemc::DISTANCE_BITS;
+using hdc_systemc::HV_WORD_BITS;
+using hdc_systemc::HV_WORDS;
 using hdc_systemc::LEVEL_BITS;
 using hdc_systemc::QuantizedSample;
 using hdc_systemc::class_t;
@@ -377,7 +379,7 @@ private:
     hv_t m_ngram_next;
 
     // Signed bundling score for the currently trained class segment.
-    train_score_t m_bundling_score[VECTOR_DIMENSION];
+    train_score_t m_bundling_score[HV_WORDS][HV_WORD_BITS];
     train_counter_t m_current_class_count;
     class_t m_current_class_id;
     bool m_current_class_valid;
