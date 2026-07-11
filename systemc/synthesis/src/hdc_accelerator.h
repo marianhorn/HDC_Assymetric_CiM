@@ -299,10 +299,12 @@ private:
     void distance_thread();
     void response_thread();
 
-    // N-gram datapath.
+#ifndef STRATUS_HLS
+    // N-gram datapath for the non-HLS reference path.
     void push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sample);
 
     void reset_ngram_buffer();
+#endif
 
 #ifdef STRATUS_HLS
     cynw_p2p_direct<EncoderChannelPacket, CYN::PIN> m_encoder_in;
@@ -367,7 +369,11 @@ private:
     bool m_debug_train_valid_seen[NUM_CLASSES];
 #endif
 
+#ifdef STRATUS_HLS
+    hv_bits_t m_ngram_buffer_bits[N_GRAM_SIZE];
+#else
     hv_t m_ngram_buffer[N_GRAM_SIZE];
+#endif
     unsigned m_ngram_buffer_write_pos;
     unsigned m_ngram_buffer_fill_count;
     bool m_ngram_bind_busy;

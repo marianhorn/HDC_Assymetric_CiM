@@ -164,6 +164,12 @@ distance_counter_t popcount_word(hv_word_t value) {
     x = x + (x >> 32);
     return distance_counter_t(x.range(6, 0));
 }
+
+hv_bits_t rotate_left_one(const hv_bits_t &input) {
+    hv_bits_t rotated = input << 1;
+    rotated[0] = input[VECTOR_DIMENSION - 1u];
+    return rotated;
+}
 #endif
 
 distance_counter_t hamming_distance_words(const hv_t &a, const hv_t &b) {
@@ -893,13 +899,11 @@ void HDC_Accelerator::ngram_thread() {
 
     NGramChannelPacket output_packet;
     EncoderChannelPacket work_packet;
-    hv_t work;
-    hv_t next;
+    hv_bits_t work_bits = 0;
     NGramChannelPacket send_packet;
     NGramState state = NGRAM_INIT_CLEAR;
     unsigned send_target = OUTPUT_NONE;
     unsigned bind_round = 0;
-    unsigned bind_word = 0;
     unsigned oldest_slot = 0;
     unsigned reset_slot = 0;
 
@@ -910,9 +914,9 @@ void HDC_Accelerator::ngram_thread() {
         state = NGRAM_INIT_CLEAR;
         send_target = OUTPUT_NONE;
         bind_round = 0;
-        bind_word = 0;
         oldest_slot = 0;
         reset_slot = 0;
+        work_bits = 0;
         m_encoder_out.output.reset();
         m_bundler_in.input.reset();
         m_distance_in.input.reset();
@@ -923,7 +927,7 @@ void HDC_Accelerator::ngram_thread() {
     while (true) {
         {
             if (state == NGRAM_INIT_CLEAR) {
-                clear_hv(m_ngram_buffer[reset_slot]);
+                m_ngram_buffer_bits[reset_slot] = 0;
                 if (reset_slot + 1u == N_GRAM_SIZE) {
                     reset_slot = 0;
                     state = NGRAM_WAIT_INPUT;
@@ -944,37 +948,32 @@ void HDC_Accelerator::ngram_thread() {
                 state = NGRAM_WAIT_INPUT;
             } else if (state == NGRAM_BIND) {
                 const unsigned rhs_slot = (oldest_slot + bind_round) % N_GRAM_SIZE;
-                next.words[bind_word] = permute_xor_word(work, m_ngram_buffer[rhs_slot], bind_word);
+                const hv_bits_t next_bits =
+                    rotate_left_one(work_bits) ^ m_ngram_buffer_bits[rhs_slot];
+                work_bits = next_bits;
 
-                if (bind_word + 1u == HV_WORDS) {
-                    work = next;
-                    clear_hv(next);
-                    bind_word = 0;
-
-                    if (bind_round + 1u == N_GRAM_SIZE) {
-                        output_packet = NGramChannelPacket();
-                        output_packet.kind = work_packet.kind;
-                        output_packet.class_id = work_packet.class_id;
-                        output_packet.ngram = pack_hv(work);
-                        output_packet.valid_ngram = true;
-                        send_packet = output_packet;
-                        send_target = (decode_kind(work_packet.kind) == AccelCommandKind::TrainSample)
-                                          ? OUTPUT_BUNDLER
-                                          : OUTPUT_DISTANCE;
-                        bind_round = 0;
-                        state = NGRAM_SEND;
-                    } else {
-                        bind_round = bind_round + 1u;
-                    }
+                if (bind_round + 1u == N_GRAM_SIZE) {
+                    output_packet = NGramChannelPacket();
+                    output_packet.kind = work_packet.kind;
+                    output_packet.class_id = work_packet.class_id;
+                    output_packet.ngram = next_bits;
+                    output_packet.valid_ngram = true;
+                    send_packet = output_packet;
+                    send_target = (decode_kind(work_packet.kind) == AccelCommandKind::TrainSample)
+                                      ? OUTPUT_BUNDLER
+                                      : OUTPUT_DISTANCE;
+                    bind_round = 0;
+                    state = NGRAM_SEND;
                 } else {
-                    bind_word = bind_word + 1u;
+                    bind_round = bind_round + 1u;
                 }
             } else {
                 EncoderChannelPacket item = m_encoder_out.output.get();
                 const AccelCommandKind item_kind = decode_kind(item.kind);
 
                 if (item_kind == AccelCommandKind::ResetTraining) {
-                    reset_ngram_buffer();
+                    m_ngram_buffer_write_pos = 0;
+                    m_ngram_buffer_fill_count = 0;
                     output_packet = NGramChannelPacket();
                     output_packet.kind = item.kind;
                     output_packet.class_id = item.class_id;
@@ -983,10 +982,12 @@ void HDC_Accelerator::ngram_thread() {
                     send_target = OUTPUT_BUNDLER;
                     state = NGRAM_SEND;
                 } else if (item_kind == AccelCommandKind::ResetInference) {
-                    reset_ngram_buffer();
+                    m_ngram_buffer_write_pos = 0;
+                    m_ngram_buffer_fill_count = 0;
                     state = NGRAM_SEND_CONTROL;
                 } else if (item_kind == AccelCommandKind::InvalidTrainingStep) {
-                    reset_ngram_buffer();
+                    m_ngram_buffer_write_pos = 0;
+                    m_ngram_buffer_fill_count = 0;
                     output_packet = NGramChannelPacket();
                     output_packet.kind = item.kind;
                     output_packet.class_id = item.class_id;
@@ -996,8 +997,14 @@ void HDC_Accelerator::ngram_thread() {
                     state = NGRAM_SEND;
                 } else if (item_kind == AccelCommandKind::TrainSample ||
                            item_kind == AccelCommandKind::InferSample) {
-                    unpack_hv(work, item.encoded);
-                    push_encoded_sample_to_ngram_buffer(work);
+                    m_ngram_buffer_bits[m_ngram_buffer_write_pos] = item.encoded;
+                    ++m_ngram_buffer_write_pos;
+                    if (m_ngram_buffer_write_pos == N_GRAM_SIZE) {
+                        m_ngram_buffer_write_pos = 0;
+                    }
+                    if (m_ngram_buffer_fill_count < N_GRAM_SIZE) {
+                        ++m_ngram_buffer_fill_count;
+                    }
 
                     output_packet = NGramChannelPacket();
                     output_packet.kind = item.kind;
@@ -1013,17 +1020,15 @@ void HDC_Accelerator::ngram_thread() {
                     } else {
                         oldest_slot = m_ngram_buffer_write_pos;
                         work_packet = item;
-                        work = m_ngram_buffer[oldest_slot];
-                        clear_hv(next);
+                        work_bits = m_ngram_buffer_bits[oldest_slot];
                         bind_round = (N_GRAM_SIZE > 1) ? 1u : N_GRAM_SIZE;
-                        bind_word = 0;
 
                         if (N_GRAM_SIZE > 1) {
                             state = NGRAM_BIND;
                         } else {
                             output_packet.kind = item.kind;
                             output_packet.class_id = item.class_id;
-                            output_packet.ngram = pack_hv(work);
+                            output_packet.ngram = work_bits;
                             output_packet.valid_ngram = true;
                             send_packet = output_packet;
                             send_target = (item_kind == AccelCommandKind::TrainSample)
@@ -1881,6 +1886,7 @@ void HDC_Accelerator::response_thread() {
 #endif
 }
 
+#ifndef STRATUS_HLS
 void HDC_Accelerator::reset_ngram_buffer() {
     m_ngram_buffer_write_pos = 0;
     m_ngram_buffer_fill_count = 0;
@@ -1900,3 +1906,4 @@ void HDC_Accelerator::push_encoded_sample_to_ngram_buffer(const hv_t &encoded_sa
         ++m_ngram_buffer_fill_count;
     }
 }
+#endif
