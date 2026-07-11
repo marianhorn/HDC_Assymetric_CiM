@@ -549,7 +549,6 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             end"""
         )
 
-    distance_kind = "m_distance_in_m_chan_data_kind"
     distance_valid_ngram = "m_distance_in_m_chan_data_valid_ngram"
     if (
         has_internal_signal(module_body, "m_encoder_out_m_chan_vld")
@@ -558,7 +557,6 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
         and has_internal_signal(module_body, bundler_kind)
         and has_internal_signal(module_body, bundler_valid_ngram)
         and has_internal_signal(module_body, "m_distance_in_m_chan_vld")
-        and has_internal_signal(module_body, distance_kind)
         and has_internal_signal(module_body, distance_valid_ngram)
     ):
         decls.extend(
@@ -632,7 +630,7 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                     end
                 end
             end
-            if ({distance_fire} && dut.{distance_kind} == 4) begin
+            if ({distance_fire}) begin
                 if (dut.{distance_valid_ngram}) begin
                     ngram_distance_infer_valid_fire = ngram_distance_infer_valid_fire + 1;
                 end else begin
