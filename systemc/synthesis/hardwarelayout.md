@@ -1,0 +1,333 @@
+# HDC Accelerator Hardware Layout
+
+This file tracks the current HLS/RTL accelerator structure, measured implementation results, and planned hardware changes. It is intended to keep optimization decisions explicit and reproducible.
+
+## Current Target
+
+- Top module: `HDC_Accelerator`
+- HLS tool: Cadence Stratus 22.01 on CAE
+- RTL simulation: Vivado XSim 2023.2
+- FPGA implementation: Vivado 2023.2
+- Device used in current Vivado runs: `xcvu57p`
+- Clock target: 10 ns
+- Vector dimension: 1024
+- Hypervector storage: 16 words x 64 bits
+- Dataset currently compiled into CiM ROM: dataset 00
+
+## Top-Level Structure
+
+The accelerator is a six-thread SystemC pipeline:
+
+1. `command_thread`
+2. `encoder_thread`
+3. `ngram_thread`
+4. `train_thread`
+5. `distance_thread`
+6. `response_thread`
+
+The current HLS path uses Stratus P2P channels for stage-to-stage communication and for external command/response communication. The non-HLS SystemC reference path still uses manual valid/ready signals and is kept as a functional reference.
+
+## External Protocol
+
+Commands contain:
+
+- command kind
+- class id
+- 32 quantized feature levels
+
+Responses contain:
+
+- valid-prediction flag
+- one distance per class
+
+The RTL smoke test uses generated `commands.txt` and `expected_responses.txt`. The accepted smoke scope is dataset 00 with 20 inference samples.
+
+## Current Internal Data Layout
+
+### Encoder
+
+- Input: quantized sample levels.
+- Output: packed 1024-bit encoded hypervector.
+- CiM item memory is split into 32 explicit feature banks.
+- Encoder bit loop inside each 64-bit word is fully unrolled.
+- Feature-word loads are scalarized before the bit loop to avoid artificial local-array or ROM-port bottlenecks.
+
+### Ngram
+
+- HLS path stores the ngram ring buffer as packed `hv_bits_t` values.
+- Encoder output is stored directly into the packed buffer; no unpack to `hv_t` in HLS.
+- Ngram binding uses packed 1024-bit rotate-left-by-one and XOR.
+- Current change: rotate and XOR are split into separate FSM states:
+  - `NGRAM_ROTATE`: register `rotated_bits` and `rhs_bits`.
+  - `NGRAM_XOR`: compute `next_bits = rotated_bits ^ rhs_bits`.
+- This is register slicing, not full multi-token pipelining.
+- Expected cost: roughly one extra cycle per bind round.
+- Expected benefit: shorter critical route from packed rotate/XOR and lower timing pressure.
+
+### Train / Bundler
+
+- Trainer uses explicit 64 bit banks for bundling scores:
+  - `m_bundling_score_0[word]` through `m_bundling_score_63[word]`.
+- This avoids dynamic bit-bank indexing and lets Stratus implement bitwise train add/finalize in parallel.
+- The explicit bank layout was required; multidimensional arrays did not produce the expected speedup.
+
+### Distance
+
+- Distance uses packed ngram input and class associative-memory words.
+- Word-level Hamming distance uses SWAR popcount for each 64-bit diff word.
+- Current distance stage is not yet register-sliced internally.
+- Candidate future slices:
+  - read/XOR register
+  - popcount register
+  - accumulate register
+
+## Optimization History And Measurements
+
+All cycle numbers below refer to the RTL smoke20 flow unless noted otherwise.
+
+### Warning-Clean Stable Baseline
+
+- HLS succeeded with 0 errors and 0 warnings.
+- RTL smoke20 passed after fixing command hold and expected trace generation.
+- Design was functionally correct but slow.
+
+### 32-Bank CiM And Encoder Feature Unroll
+
+Result:
+
+- `cycles=146107`
+- `average_inference_latency=13395.2`
+- `max_inference_latency=15370`
+- RTL errors: 0
+
+Vivado summary:
+
+- Impl LUTs: about 20058
+- Impl FFs: about 30191
+- BRAM: 33
+- Worst listed data path: about 6.4 ns at 10 ns
+
+Conclusion:
+
+- Removed the main CiM memory-port bottleneck.
+- Very large runtime speedup with small resource cost.
+
+### Distance SWAR Popcount
+
+Result:
+
+- `cycles=89387`
+- `average_inference_latency=2872.7`
+- `max_inference_latency=2956`
+- RTL errors: 0
+
+Vivado summary:
+
+- Impl LUTs: about 19871
+- Impl FFs: about 29907
+- BRAM: 33
+- Worst listed data path: about 8.83 ns at 10 ns
+
+Conclusion:
+
+- Distance became much faster.
+- Timing margin decreased but still closed.
+
+### Encoder Bit Unroll
+
+Result:
+
+- `cycles=55008`
+- `average_inference_latency=1470.4`
+- `max_inference_latency=1662`
+- RTL errors: 0
+
+Vivado summary:
+
+- Impl LUTs: about 18945
+- Impl FFs: about 28037
+- BRAM: 33
+- Worst listed data path: about 8.61 ns at 10 ns
+
+Conclusion:
+
+- Encoder no longer dominates as strongly.
+- Runtime bottleneck shifted toward trainer/ngram/distance cadence.
+
+### Explicit Trainer Score Banks
+
+Result:
+
+- `cycles=28546`
+- `average_inference_latency=1470.4`
+- `max_inference_latency=1662`
+- RTL errors: 0
+- `bundler_in max_fire_gap=821`
+- `distance_in max_fire_gap=821`
+- `distance_done max_fire_gap=901`
+
+Vivado summary:
+
+- Impl LUTs: 24509, about 1.88 percent
+- Impl FFs: 30018, about 1.15 percent
+- BRAM: 32, about 1.59 percent
+- DSP: 0
+- Worst listed data path: about 8.58 ns at 10 ns
+
+Conclusion:
+
+- Explicit bit-bank storage was necessary for actual train parallelism.
+- Multidimensional-array banking attempts did not produce the same runtime improvement.
+
+### Packed Ngram Rotate/XOR
+
+Result before register slicing:
+
+- `cycles=3384`
+- `average_inference_latency=217.6`
+- `max_inference_latency=250`
+- RTL errors: 0
+- `ngram_latency train_avg=7 train_max=8`
+- `ngram_latency infer_avg=63 infer_max=82`
+- `enc_out max_fire_gap=207`
+- `distance_done max_fire_gap=152`
+
+Vivado summary before register slicing:
+
+- Impl LUTs: 23490, about 1.80 percent
+- Impl FFs: 27200, about 1.04 percent
+- BRAM: 32, about 1.59 percent
+- DSP: 0
+- Worst listed data path: about 9.31 ns at 10 ns
+- Route dominated timing: about 6.7 ns route vs about 2.6 ns logic
+- High fanout included a packed shift/rotate-related net with fanout about 1357
+
+Conclusion:
+
+- Packed ngram removed the ngram cycle bottleneck.
+- Timing became tighter and routing dominated.
+
+### Ngram Register Slice
+
+Current source change:
+
+- Split packed ngram bind into `NGRAM_ROTATE` and `NGRAM_XOR` states.
+- Register `rotated_bits` and `rhs_bits` across a `wait()`.
+- Functional intent unchanged.
+
+Expected result:
+
+- Small cycle increase relative to packed ngram without slicing.
+- Better timing margin if the critical path was the packed rotate/XOR route.
+- Must be verified with HLS, RTL smoke20, and Vivado timing.
+
+## Current Bottleneck Assessment
+
+After packed ngram, the old ngram bottleneck is gone. The remaining runtime bottleneck appears distributed across:
+
+- encoder output cadence
+- distance done cadence
+- P2P backpressure around distance and response
+
+The current timing bottleneck is route-dominated wide logic, especially wide packed operations and high-fanout control/data nets.
+
+## Register Slicing Strategy
+
+Register slicing means splitting one long combinational path across multiple `SC_CTHREAD` states with `wait()` between them. An intermediate C++ variable alone is not a register unless it lives across a `wait()`.
+
+Good candidates:
+
+1. Ngram packed rotate/XOR.
+2. Distance XOR -> popcount -> accumulation.
+3. Encoder score accumulation if future unrolling makes timing worse.
+
+## Future Parallelization Candidates
+
+### Distance
+
+Potential next target after verifying ngram register slice.
+
+Options:
+
+- Register-slice current serial word/class distance path first.
+- Then consider class-parallel distance calculation.
+- Consider word-parallel distance only if associative memory is explicitly banked enough to support concurrent reads.
+
+Risk:
+
+- More distance parallelism can increase route delay and high fanout.
+- Do not add large unrolls before improving timing margin.
+
+### Encoder
+
+Already has CiM feature banking and bitwise word unroll. Further improvements are possible but may increase timing pressure.
+
+Potential changes:
+
+- Register between CIM feature-word load and feature-score accumulation.
+- Split feature accumulation into partial sums if timing worsens.
+
+### Trainer
+
+Trainer already uses explicit 64 score banks. Remaining improvements would likely be minor compared to current distance/encoder cadence.
+
+Potential changes:
+
+- Register-slice finalize path if high fanout from score banks becomes critical.
+- Avoid further trainer expansion unless runtime counters show it is limiting.
+
+## Test Commands
+
+### HLS
+
+```sh
+cd systemc/synthesis/hls
+rm -rf bdw_work Makefile.prj vivado_rtl_sim_hdc xsim.dir
+make Makefile.prj
+make hls_HDC_Accelerator_HLS_BASIC | tee output_hls_<name>.txt
+```
+
+### RTL Smoke20
+
+```sh
+cd systemc/synthesis/hls
+rm -rf vivado_rtl_sim_hdc xsim.dir
+bash run_rtl_sim_hdc.sh ../rtl_trace_dataset00_smoke20 | tee output_rtl_smoke20_<name>.txt
+```
+
+### Vivado Utilization And Timing
+
+```sh
+cd systemc/synthesis/hls
+rm -rf vivado_synth_hdc
+vivado -mode batch -source vivado_synth_hdc.tcl | tee output_vivado_<name>.txt
+
+{
+  echo "== utilization_synth =="
+  grep -E "CLB LUTs|LUT as Logic|LUT as Memory|CLB Registers|Register as Flip Flop|Block RAM Tile|URAM|DSPs" \
+    vivado_synth_hdc/utilization_synth.rpt
+
+  echo
+  echo "== utilization_impl =="
+  grep -E "CLB LUTs|LUT as Logic|LUT as Memory|CLB Registers|Register as Flip Flop|Block RAM Tile|URAM|DSPs" \
+    vivado_synth_hdc/utilization_impl.rpt
+
+  echo
+  echo "== timing_impl =="
+  grep -E "WNS|TNS|WHS|THS|Requirement|Data Path Delay" \
+    vivado_synth_hdc/timing_impl.rpt | head -60
+
+  echo
+  echo "== high_fanout_impl =="
+  head -90 vivado_synth_hdc/high_fanout_impl.rpt
+} | tee output_vivado_<name>_summary.txt
+```
+
+## Acceptance Criteria For Each Hardware Change
+
+- HLS succeeds with 0 errors.
+- HLS warnings are reviewed; avoid reintroducing protocol warnings.
+- RTL smoke20 finishes with `errors=0` and all 20 responses received.
+- Vivado implementation completes.
+- Timing closes at 10 ns with positive WNS.
+- Resource growth is justified by cycle reduction or timing margin.

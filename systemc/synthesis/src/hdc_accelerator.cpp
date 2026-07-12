@@ -892,7 +892,8 @@ void HDC_Accelerator::ngram_thread() {
     enum NGramState {
         NGRAM_INIT_CLEAR,
         NGRAM_WAIT_INPUT,
-        NGRAM_BIND,
+        NGRAM_ROTATE,
+        NGRAM_XOR,
         NGRAM_SEND,
         NGRAM_SEND_CONTROL
     };
@@ -900,6 +901,8 @@ void HDC_Accelerator::ngram_thread() {
     NGramChannelPacket output_packet;
     EncoderChannelPacket work_packet;
     hv_bits_t work_bits = 0;
+    hv_bits_t rotated_bits = 0;
+    hv_bits_t rhs_bits = 0;
     NGramChannelPacket send_packet;
     NGramState state = NGRAM_INIT_CLEAR;
     unsigned send_target = OUTPUT_NONE;
@@ -917,6 +920,8 @@ void HDC_Accelerator::ngram_thread() {
         oldest_slot = 0;
         reset_slot = 0;
         work_bits = 0;
+        rotated_bits = 0;
+        rhs_bits = 0;
         m_encoder_out.output.reset();
         m_bundler_in.input.reset();
         m_distance_in.input.reset();
@@ -946,10 +951,13 @@ void HDC_Accelerator::ngram_thread() {
                 }
                 send_target = OUTPUT_NONE;
                 state = NGRAM_WAIT_INPUT;
-            } else if (state == NGRAM_BIND) {
+            } else if (state == NGRAM_ROTATE) {
                 const unsigned rhs_slot = (oldest_slot + bind_round) % N_GRAM_SIZE;
-                const hv_bits_t next_bits =
-                    rotate_left_one(work_bits) ^ m_ngram_buffer_bits[rhs_slot];
+                rotated_bits = rotate_left_one(work_bits);
+                rhs_bits = m_ngram_buffer_bits[rhs_slot];
+                state = NGRAM_XOR;
+            } else if (state == NGRAM_XOR) {
+                const hv_bits_t next_bits = rotated_bits ^ rhs_bits;
                 work_bits = next_bits;
 
                 if (bind_round + 1u == N_GRAM_SIZE) {
@@ -966,6 +974,7 @@ void HDC_Accelerator::ngram_thread() {
                     state = NGRAM_SEND;
                 } else {
                     bind_round = bind_round + 1u;
+                    state = NGRAM_ROTATE;
                 }
             } else {
                 EncoderChannelPacket item = m_encoder_out.output.get();
@@ -1024,7 +1033,7 @@ void HDC_Accelerator::ngram_thread() {
                         bind_round = (N_GRAM_SIZE > 1) ? 1u : N_GRAM_SIZE;
 
                         if (N_GRAM_SIZE > 1) {
-                            state = NGRAM_BIND;
+                            state = NGRAM_ROTATE;
                         } else {
                             output_packet.kind = item.kind;
                             output_packet.class_id = item.class_id;
