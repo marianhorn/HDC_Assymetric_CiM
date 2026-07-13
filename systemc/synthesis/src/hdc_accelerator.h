@@ -281,9 +281,9 @@ public:
 #endif
 
 private:
-    static constexpr unsigned ENCODER_WORDS_PER_CYCLE = 1;
-    static_assert(ENCODER_WORDS_PER_CYCLE == 1,
-                  "multi-word-per-cycle encoder support is intentionally not implemented yet");
+    static constexpr unsigned ENCODER_WORDS_PER_CYCLE = 4;
+    static_assert(HV_WORDS % ENCODER_WORDS_PER_CYCLE == 0,
+                  "encoder word parallelism requires HV_WORDS to be divisible by ENCODER_WORDS_PER_CYCLE");
     static constexpr unsigned NGRAM_WORDS_PER_CYCLE = 1;
     static_assert(NGRAM_WORDS_PER_CYCLE == 1,
                   "multi-word-per-cycle n-gram support is intentionally not implemented yet");

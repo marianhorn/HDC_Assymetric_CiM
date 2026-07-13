@@ -51,6 +51,9 @@ The RTL smoke test uses generated `commands.txt` and `expected_responses.txt`. T
 - CiM item memory is split into 32 explicit feature banks.
 - Encoder bit loop inside each 64-bit word is fully unrolled.
 - Feature-word loads are scalarized before the bit loop to avoid artificial local-array or ROM-port bottlenecks.
+- Current HLS encoder experiment processes 4 hypervector words per compute step.
+- This changes the encoder from 16 word steps per sample to 4 word steps per sample if Stratus can schedule the required CiM reads.
+- Main risk: every feature bank must provide four word reads per encoder step; if ROM port limits block this, explicit word-lane CiM duplication/banking is the next fix.
 
 ### Ngram
 
@@ -81,6 +84,15 @@ The RTL smoke test uses generated `commands.txt` and `expected_responses.txt`. T
   - this replaces the previous serial `class_id` loop.
 - Bit-level distance inside each 64-bit word is already parallelized by SWAR popcount.
 - Fully word-parallel distance is not implemented yet.
+- Measured class-parallel result:
+  - HLS: 0 errors, 0 warnings.
+  - RTL smoke20: `cycles=3052`, `average_inference_latency=95.8`, `max_inference_latency=98`, `errors=0`.
+  - `distance_in max_fire_gap=74`, `distance_done max_fire_gap=90`.
+  - Vivado impl LUTs: 25970, about 1.99 percent.
+  - Vivado impl FFs: 32233, about 1.24 percent.
+  - Vivado BRAM: 32, about 1.59 percent.
+  - Vivado worst listed data path: about 7.60 ns at 10 ns.
+- Conclusion: keep class-parallel distance. It improves both runtime and timing compared with the ngram-slice baseline.
 
 ## Optimization History And Measurements
 
@@ -255,7 +267,7 @@ Current target after verifying ngram register slice.
 
 Options:
 
-- Class-parallel distance calculation. Current experiment.
+- Class-parallel distance calculation. Done and beneficial.
 - Keep word traversal serial for now to avoid a 16-word reduction tree.
 - Consider word-parallel distance only if associative memory is explicitly banked enough to support concurrent reads.
 
@@ -266,10 +278,12 @@ Risk:
 
 ### Encoder
 
-Already has CiM feature banking and bitwise word unroll. Further improvements are possible but may increase timing pressure.
+Already has CiM feature banking and bitwise word unroll. Current experiment is 4-word-per-cycle encoding.
 
 Potential changes:
 
+- Keep 4-word-per-cycle if HLS schedules and RTL improves.
+- If HLS fails or runtime does not improve, duplicate or bank CiM by word lane so each feature can supply four word reads per step.
 - Register between CIM feature-word load and feature-score accumulation.
 - Split feature accumulation into partial sums if timing worsens.
 
