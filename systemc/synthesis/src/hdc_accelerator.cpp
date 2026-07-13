@@ -1646,6 +1646,8 @@ void HDC_Accelerator::train_thread() {
 
 void HDC_Accelerator::distance_thread() {
 #ifdef STRATUS_HLS
+    static_assert(NUM_CLASSES == 5,
+                  "class-parallel distance path assumes five classes");
     enum DistanceState {
         DIST_WAIT_INPUT,
         DIST_COMPUTE,
@@ -1654,19 +1656,23 @@ void HDC_Accelerator::distance_thread() {
 
     NGramChannelPacket work;
     DistanceChannelPacket send_packet;
-    distance_bits_t output_distances = 0;
     DistanceState state = DIST_WAIT_INPUT;
-    unsigned class_id = 0;
     unsigned word_index = 0;
-    distance_counter_t distance_acc = 0;
+    distance_counter_t distance_acc0 = 0;
+    distance_counter_t distance_acc1 = 0;
+    distance_counter_t distance_acc2 = 0;
+    distance_counter_t distance_acc3 = 0;
+    distance_counter_t distance_acc4 = 0;
 
     {
         HLS_DEFINE_PROTOCOL("distance_reset");
         state = DIST_WAIT_INPUT;
-        class_id = 0;
         word_index = 0;
-        distance_acc = 0;
-        output_distances = 0;
+        distance_acc0 = 0;
+        distance_acc1 = 0;
+        distance_acc2 = 0;
+        distance_acc3 = 0;
+        distance_acc4 = 0;
         send_packet.valid_prediction = false;
         send_packet.distances = 0;
         m_distance_in.output.reset();
@@ -1687,39 +1693,64 @@ void HDC_Accelerator::distance_thread() {
                     state = DIST_SEND;
                 } else {
                     work = item;
-                    output_distances = 0;
-                    class_id = 0;
                     word_index = 0;
-                    distance_acc = 0;
+                    distance_acc0 = 0;
+                    distance_acc1 = 0;
+                    distance_acc2 = 0;
+                    distance_acc3 = 0;
+                    distance_acc4 = 0;
                     state = DIST_COMPUTE;
                 }
             } else {
-                hv_word_t assoc_word = 0;
+                hv_word_t assoc_word0 = 0;
+                hv_word_t assoc_word1 = 0;
+                hv_word_t assoc_word2 = 0;
+                hv_word_t assoc_word3 = 0;
+                hv_word_t assoc_word4 = 0;
                 {
                     HLS_DEFINE_PROTOCOL("distance_assoc_read_word");
-                    assoc_word = m_assoc_mem[class_id].words[word_index];
+                    assoc_word0 = m_assoc_mem[0].words[word_index];
+                    assoc_word1 = m_assoc_mem[1].words[word_index];
+                    assoc_word2 = m_assoc_mem[2].words[word_index];
+                    assoc_word3 = m_assoc_mem[3].words[word_index];
+                    assoc_word4 = m_assoc_mem[4].words[word_index];
                 }
 
-                const hv_word_t diff = get_hv_word(work.ngram, word_index) ^ assoc_word;
-                const distance_counter_t next_distance =
-                    distance_acc + popcount_word(diff);
+                const hv_word_t ngram_word = get_hv_word(work.ngram, word_index);
+                const distance_counter_t next_distance0 =
+                    distance_acc0 + popcount_word(ngram_word ^ assoc_word0);
+                const distance_counter_t next_distance1 =
+                    distance_acc1 + popcount_word(ngram_word ^ assoc_word1);
+                const distance_counter_t next_distance2 =
+                    distance_acc2 + popcount_word(ngram_word ^ assoc_word2);
+                const distance_counter_t next_distance3 =
+                    distance_acc3 + popcount_word(ngram_word ^ assoc_word3);
+                const distance_counter_t next_distance4 =
+                    distance_acc4 + popcount_word(ngram_word ^ assoc_word4);
 
                 if (word_index == (HV_WORDS - 1u)) {
-                    set_distance_word(output_distances, class_id, next_distance);
+                    distance_bits_t final_distances = 0;
+                    set_distance_word(final_distances, 0, next_distance0);
+                    set_distance_word(final_distances, 1, next_distance1);
+                    set_distance_word(final_distances, 2, next_distance2);
+                    set_distance_word(final_distances, 3, next_distance3);
+                    set_distance_word(final_distances, 4, next_distance4);
                     word_index = 0;
-                    distance_acc = 0;
-
-                    if (class_id == (NUM_CLASSES - 1u)) {
-                        class_id = 0;
-                        send_packet.valid_prediction = true;
-                        send_packet.distances = output_distances;
-                        state = DIST_SEND;
-                    } else {
-                        class_id = class_id + 1u;
-                    }
+                    distance_acc0 = 0;
+                    distance_acc1 = 0;
+                    distance_acc2 = 0;
+                    distance_acc3 = 0;
+                    distance_acc4 = 0;
+                    send_packet.valid_prediction = true;
+                    send_packet.distances = final_distances;
+                    state = DIST_SEND;
                 } else {
                     word_index = word_index + 1u;
-                    distance_acc = next_distance;
+                    distance_acc0 = next_distance0;
+                    distance_acc1 = next_distance1;
+                    distance_acc2 = next_distance2;
+                    distance_acc3 = next_distance3;
+                    distance_acc4 = next_distance4;
                 }
             }
 

@@ -75,11 +75,12 @@ The RTL smoke test uses generated `commands.txt` and `expected_responses.txt`. T
 
 - Distance uses packed ngram input and class associative-memory words.
 - Word-level Hamming distance uses SWAR popcount for each 64-bit diff word.
-- Current distance stage is not yet register-sliced internally.
-- Candidate future slices:
-  - read/XOR register
-  - popcount register
-  - accumulate register
+- Current HLS distance experiment is class-parallel and word-serial:
+  - one `word_index` is processed per compute step.
+  - all five class distances are updated in parallel using explicit accumulators.
+  - this replaces the previous serial `class_id` loop.
+- Bit-level distance inside each 64-bit word is already parallelized by SWAR popcount.
+- Fully word-parallel distance is not implemented yet.
 
 ## Optimization History And Measurements
 
@@ -215,15 +216,20 @@ Current source change:
 - Register `rotated_bits` and `rhs_bits` across a `wait()`.
 - Functional intent unchanged.
 
-Expected result:
+Measured result:
 
-- Small cycle increase relative to packed ngram without slicing.
-- Better timing margin if the critical path was the packed rotate/XOR route.
-- Must be verified with HLS, RTL smoke20, and Vivado timing.
+- `cycles=3388`
+- `average_inference_latency=218.2`
+- `max_inference_latency=250`
+- RTL errors: 0
+- `ngram_latency train_avg=9 train_max=10`
+- `ngram_latency infer_avg=64 infer_max=82`
+- Vivado worst listed data path improved from about 9.31 ns to about 8.34 ns.
+- Runtime cost versus unsliced packed ngram: about 4 total cycles in smoke20.
 
 ## Current Bottleneck Assessment
 
-After packed ngram, the old ngram bottleneck is gone. The remaining runtime bottleneck appears distributed across:
+After packed ngram and the ngram register slice, the old ngram bottleneck is gone. The remaining runtime bottleneck appears distributed across:
 
 - encoder output cadence
 - distance done cadence
@@ -237,26 +243,26 @@ Register slicing means splitting one long combinational path across multiple `SC
 
 Good candidates:
 
-1. Ngram packed rotate/XOR.
-2. Distance XOR -> popcount -> accumulation.
+1. Ngram packed rotate/XOR. Done.
+2. Distance XOR -> popcount -> accumulation. Serial slicing was rejected because it worsened cycles and timing.
 3. Encoder score accumulation if future unrolling makes timing worse.
 
 ## Future Parallelization Candidates
 
 ### Distance
 
-Potential next target after verifying ngram register slice.
+Current target after verifying ngram register slice.
 
 Options:
 
-- Register-slice current serial word/class distance path first.
-- Then consider class-parallel distance calculation.
+- Class-parallel distance calculation. Current experiment.
+- Keep word traversal serial for now to avoid a 16-word reduction tree.
 - Consider word-parallel distance only if associative memory is explicitly banked enough to support concurrent reads.
 
 Risk:
 
 - More distance parallelism can increase route delay and high fanout.
-- Do not add large unrolls before improving timing margin.
+- If timing worsens badly, inspect whether associative memory is still implemented as a shared memory and consider explicit class banks.
 
 ### Encoder
 
