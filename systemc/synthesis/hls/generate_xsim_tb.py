@@ -476,6 +476,13 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 end
             end
             if ({bundler_fire}) begin
+                if (dut.{bundler_kind} == 2) begin
+                    if (train_sample_complete_first_cycle < 0) begin
+                        train_sample_complete_first_cycle = cycle_count;
+                    end
+                    train_sample_complete_last_cycle = cycle_count;
+                    train_sample_complete_count = train_sample_complete_count + 1;
+                end
                 if (dut.{bundler_kind} == 2 && !dut.{bundler_valid_ngram}) begin
                     training_bundler_train_invalid_fire =
                         training_bundler_train_invalid_fire + 1;
@@ -1030,6 +1037,18 @@ module hdc_accelerator_rtl_tb;
     integer max_latency;
     integer error_count;
     integer top_cmd_kind_fires [0:4];
+    integer train_sample_accept_first_cycle;
+    integer train_sample_accept_last_cycle;
+    integer train_sample_accept_count;
+    integer train_sample_complete_first_cycle;
+    integer train_sample_complete_last_cycle;
+    integer train_sample_complete_count;
+    integer infer_sample_accept_first_cycle;
+    integer infer_sample_accept_last_cycle;
+    integer infer_sample_accept_count;
+    integer infer_sample_complete_first_cycle;
+    integer infer_sample_complete_last_cycle;
+    integer infer_sample_complete_count;
     integer counter_index;
 {p2p_counter_logic["decls"]}
 
@@ -1213,6 +1232,20 @@ module hdc_accelerator_rtl_tb;
                 $display("average_inference_latency=%0f", average_latency);
                 $display("max_inference_latency=%0d", max_latency);
                 $display("errors=%0d", error_count);
+                $display("phase training_samples accept_first=%0d accept_last=%0d accept_count=%0d complete_first=%0d complete_last=%0d complete_count=%0d span_accept_to_complete=%0d",
+                         train_sample_accept_first_cycle, train_sample_accept_last_cycle,
+                         train_sample_accept_count, train_sample_complete_first_cycle,
+                         train_sample_complete_last_cycle, train_sample_complete_count,
+                         (train_sample_accept_first_cycle >= 0 && train_sample_complete_last_cycle >= 0)
+                             ? (train_sample_complete_last_cycle - train_sample_accept_first_cycle)
+                             : -1);
+                $display("phase inference_samples accept_first=%0d accept_last=%0d accept_count=%0d complete_first=%0d complete_last=%0d complete_count=%0d span_accept_to_complete=%0d",
+                         infer_sample_accept_first_cycle, infer_sample_accept_last_cycle,
+                         infer_sample_accept_count, infer_sample_complete_first_cycle,
+                         infer_sample_complete_last_cycle, infer_sample_complete_count,
+                         (infer_sample_accept_first_cycle >= 0 && infer_sample_complete_last_cycle >= 0)
+                             ? (infer_sample_complete_last_cycle - infer_sample_accept_first_cycle)
+                             : -1);
                 print_dut_debug();
 
                 $fclose(command_fd);
@@ -1248,6 +1281,18 @@ module hdc_accelerator_rtl_tb;
         total_latency = 0;
         max_latency = 0;
         error_count = 0;
+        train_sample_accept_first_cycle = -1;
+        train_sample_accept_last_cycle = -1;
+        train_sample_accept_count = 0;
+        train_sample_complete_first_cycle = -1;
+        train_sample_complete_last_cycle = -1;
+        train_sample_complete_count = 0;
+        infer_sample_accept_first_cycle = -1;
+        infer_sample_accept_last_cycle = -1;
+        infer_sample_accept_count = 0;
+        infer_sample_complete_first_cycle = -1;
+        infer_sample_complete_last_cycle = -1;
+        infer_sample_complete_count = 0;
         for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
             top_cmd_kind_fires[counter_index] = 0;
         end
@@ -1302,6 +1347,20 @@ module hdc_accelerator_rtl_tb;
                 if (accepted_kind >= 0 && accepted_kind <= 4) begin
                     top_cmd_kind_fires[accepted_kind] = top_cmd_kind_fires[accepted_kind] + 1;
                 end
+                if (accepted_kind == 2) begin
+                    if (train_sample_accept_first_cycle < 0) begin
+                        train_sample_accept_first_cycle = cycle_count;
+                    end
+                    train_sample_accept_last_cycle = cycle_count;
+                    train_sample_accept_count = train_sample_accept_count + 1;
+                end
+                if (accepted_kind == 4) begin
+                    if (infer_sample_accept_first_cycle < 0) begin
+                        infer_sample_accept_first_cycle = cycle_count;
+                    end
+                    infer_sample_accept_last_cycle = cycle_count;
+                    infer_sample_accept_count = infer_sample_accept_count + 1;
+                end
                 if (commands_sent < 64) begin
                     $display("debug accepted_cmd idx=%0d trace_kind=%0d packed_kind=%0d class=%0d cycle=%0d",
                              commands_sent, next_kind, accepted_kind,
@@ -1328,6 +1387,11 @@ module hdc_accelerator_rtl_tb;
                     $fatal(1, "Unexpected response with no outstanding inference: cycle=%0d responses=%0d rsp_data=0x%0h",
                            cycle_count, responses_received, rsp_data);
                 end
+                if (infer_sample_complete_first_cycle < 0) begin
+                    infer_sample_complete_first_cycle = cycle_count;
+                end
+                infer_sample_complete_last_cycle = cycle_count;
+                infer_sample_complete_count = infer_sample_complete_count + 1;
                 check_response();
                 responses_received = responses_received + 1;
                 outstanding = outstanding - 1;
