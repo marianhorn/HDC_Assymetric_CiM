@@ -88,12 +88,17 @@ The RTL smoke test uses generated `commands.txt` and `expected_responses.txt`. T
 
 - Distance uses packed ngram input and class associative-memory words.
 - Word-level Hamming distance uses SWAR popcount for each 64-bit diff word.
-- Current HLS distance experiment is class-parallel and word-serial:
-  - one `word_index` is processed per compute step.
-  - all five class distances are updated in parallel using explicit accumulators.
-  - this replaces the previous serial `class_id` loop.
+- Previous HLS distance baseline was class-parallel and word-serial:
+  - one `word_index` was processed per compute step.
+  - all five class distances were updated in parallel using explicit accumulators.
+  - this replaced the previous serial `class_id` loop.
 - Bit-level distance inside each 64-bit word is already parallelized by SWAR popcount.
-- Fully word-parallel distance is not implemented yet.
+- Current experiment is full word-parallel distance:
+  - all five classes are still processed in parallel.
+  - all 16 words per class are compared in parallel.
+  - each word uses SWAR popcount.
+  - each class uses an explicit balanced 16-word reduction tree.
+  - valid ngram distance computation becomes one compute state plus P2P input/output overhead.
 - Measured class-parallel result:
   - HLS: 0 errors, 0 warnings.
   - RTL smoke20: `cycles=3052`, `average_inference_latency=95.8`, `max_inference_latency=98`, `errors=0`.
@@ -273,13 +278,18 @@ Good candidates:
 
 ### Distance
 
-Current target after verifying ngram register slice.
+Current target after verifying ngram register slice and class-parallel distance.
 
 Options:
 
 - Class-parallel distance calculation. Done and beneficial.
-- Keep word traversal serial for now to avoid a 16-word reduction tree.
-- Consider word-parallel distance only if associative memory is explicitly banked enough to support concurrent reads.
+- Full word-parallel distance calculation. Current experiment:
+  - 5 classes in parallel.
+  - 16 words per class in parallel.
+  - 80 SWAR popcount lanes total.
+  - balanced reduction tree per class.
+- If HLS cannot schedule the concurrent associative-memory reads, explicitly bank associative memory by class and word.
+- If Vivado timing worsens, add one register slice between popcount outputs and final reductions or fall back to 4/8 words per cycle.
 
 Risk:
 

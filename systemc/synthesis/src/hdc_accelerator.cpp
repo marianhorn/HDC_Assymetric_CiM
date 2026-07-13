@@ -153,7 +153,7 @@ void unpack_distances(DistancePacket &packet, const DistanceChannelPacket &chann
     }
 }
 
-distance_counter_t popcount_word(hv_word_t value) {
+inline distance_counter_t popcount_word(hv_word_t value) {
     hv_word_t x = value;
     x = x - ((x >> 1) & hv_word_t(0x5555555555555555ULL));
     x = (x & hv_word_t(0x3333333333333333ULL)) +
@@ -163,6 +163,48 @@ distance_counter_t popcount_word(hv_word_t value) {
     x = x + (x >> 16);
     x = x + (x >> 32);
     return distance_counter_t(x.range(6, 0));
+}
+
+inline distance_counter_t hamming_distance_packed_assoc_full(const hv_bits_t &ngram,
+                                                             const hv_t &assoc) {
+    static_assert(HV_WORDS == 16,
+                  "full distance unroll assumes a 1024-bit hypervector packed as 16 64-bit words");
+
+    const distance_counter_t p00 = popcount_word(get_hv_word(ngram, 0) ^ assoc.words[0]);
+    const distance_counter_t p01 = popcount_word(get_hv_word(ngram, 1) ^ assoc.words[1]);
+    const distance_counter_t p02 = popcount_word(get_hv_word(ngram, 2) ^ assoc.words[2]);
+    const distance_counter_t p03 = popcount_word(get_hv_word(ngram, 3) ^ assoc.words[3]);
+    const distance_counter_t p04 = popcount_word(get_hv_word(ngram, 4) ^ assoc.words[4]);
+    const distance_counter_t p05 = popcount_word(get_hv_word(ngram, 5) ^ assoc.words[5]);
+    const distance_counter_t p06 = popcount_word(get_hv_word(ngram, 6) ^ assoc.words[6]);
+    const distance_counter_t p07 = popcount_word(get_hv_word(ngram, 7) ^ assoc.words[7]);
+    const distance_counter_t p08 = popcount_word(get_hv_word(ngram, 8) ^ assoc.words[8]);
+    const distance_counter_t p09 = popcount_word(get_hv_word(ngram, 9) ^ assoc.words[9]);
+    const distance_counter_t p10 = popcount_word(get_hv_word(ngram, 10) ^ assoc.words[10]);
+    const distance_counter_t p11 = popcount_word(get_hv_word(ngram, 11) ^ assoc.words[11]);
+    const distance_counter_t p12 = popcount_word(get_hv_word(ngram, 12) ^ assoc.words[12]);
+    const distance_counter_t p13 = popcount_word(get_hv_word(ngram, 13) ^ assoc.words[13]);
+    const distance_counter_t p14 = popcount_word(get_hv_word(ngram, 14) ^ assoc.words[14]);
+    const distance_counter_t p15 = popcount_word(get_hv_word(ngram, 15) ^ assoc.words[15]);
+
+    const distance_counter_t s00 = p00 + p01;
+    const distance_counter_t s01 = p02 + p03;
+    const distance_counter_t s02 = p04 + p05;
+    const distance_counter_t s03 = p06 + p07;
+    const distance_counter_t s04 = p08 + p09;
+    const distance_counter_t s05 = p10 + p11;
+    const distance_counter_t s06 = p12 + p13;
+    const distance_counter_t s07 = p14 + p15;
+
+    const distance_counter_t s10 = s00 + s01;
+    const distance_counter_t s11 = s02 + s03;
+    const distance_counter_t s12 = s04 + s05;
+    const distance_counter_t s13 = s06 + s07;
+
+    const distance_counter_t s20 = s10 + s11;
+    const distance_counter_t s21 = s12 + s13;
+
+    return distance_counter_t(s20 + s21);
 }
 
 hv_bits_t rotate_left_one(const hv_bits_t &input) {
@@ -1660,22 +1702,10 @@ void HDC_Accelerator::distance_thread() {
     NGramChannelPacket work;
     DistanceChannelPacket send_packet;
     DistanceState state = DIST_WAIT_INPUT;
-    unsigned word_index = 0;
-    distance_counter_t distance_acc0 = 0;
-    distance_counter_t distance_acc1 = 0;
-    distance_counter_t distance_acc2 = 0;
-    distance_counter_t distance_acc3 = 0;
-    distance_counter_t distance_acc4 = 0;
 
     {
         HLS_DEFINE_PROTOCOL("distance_reset");
         state = DIST_WAIT_INPUT;
-        word_index = 0;
-        distance_acc0 = 0;
-        distance_acc1 = 0;
-        distance_acc2 = 0;
-        distance_acc3 = 0;
-        distance_acc4 = 0;
         send_packet.valid_prediction = false;
         send_packet.distances = 0;
         m_distance_in.output.reset();
@@ -1696,65 +1726,24 @@ void HDC_Accelerator::distance_thread() {
                     state = DIST_SEND;
                 } else {
                     work = item;
-                    word_index = 0;
-                    distance_acc0 = 0;
-                    distance_acc1 = 0;
-                    distance_acc2 = 0;
-                    distance_acc3 = 0;
-                    distance_acc4 = 0;
                     state = DIST_COMPUTE;
                 }
             } else {
-                hv_word_t assoc_word0 = 0;
-                hv_word_t assoc_word1 = 0;
-                hv_word_t assoc_word2 = 0;
-                hv_word_t assoc_word3 = 0;
-                hv_word_t assoc_word4 = 0;
-                {
-                    HLS_DEFINE_PROTOCOL("distance_assoc_read_word");
-                    assoc_word0 = m_assoc_mem[0].words[word_index];
-                    assoc_word1 = m_assoc_mem[1].words[word_index];
-                    assoc_word2 = m_assoc_mem[2].words[word_index];
-                    assoc_word3 = m_assoc_mem[3].words[word_index];
-                    assoc_word4 = m_assoc_mem[4].words[word_index];
-                }
-
-                const hv_word_t ngram_word = get_hv_word(work.ngram, word_index);
-                const distance_counter_t next_distance0 =
-                    distance_acc0 + popcount_word(ngram_word ^ assoc_word0);
-                const distance_counter_t next_distance1 =
-                    distance_acc1 + popcount_word(ngram_word ^ assoc_word1);
-                const distance_counter_t next_distance2 =
-                    distance_acc2 + popcount_word(ngram_word ^ assoc_word2);
-                const distance_counter_t next_distance3 =
-                    distance_acc3 + popcount_word(ngram_word ^ assoc_word3);
-                const distance_counter_t next_distance4 =
-                    distance_acc4 + popcount_word(ngram_word ^ assoc_word4);
-
-                if (word_index == (HV_WORDS - 1u)) {
-                    distance_bits_t final_distances = 0;
-                    set_distance_word(final_distances, 0, next_distance0);
-                    set_distance_word(final_distances, 1, next_distance1);
-                    set_distance_word(final_distances, 2, next_distance2);
-                    set_distance_word(final_distances, 3, next_distance3);
-                    set_distance_word(final_distances, 4, next_distance4);
-                    word_index = 0;
-                    distance_acc0 = 0;
-                    distance_acc1 = 0;
-                    distance_acc2 = 0;
-                    distance_acc3 = 0;
-                    distance_acc4 = 0;
-                    send_packet.valid_prediction = true;
-                    send_packet.distances = final_distances;
-                    state = DIST_SEND;
-                } else {
-                    word_index = word_index + 1u;
-                    distance_acc0 = next_distance0;
-                    distance_acc1 = next_distance1;
-                    distance_acc2 = next_distance2;
-                    distance_acc3 = next_distance3;
-                    distance_acc4 = next_distance4;
-                }
+                HLS_DEFINE_PROTOCOL("distance_full_compute");
+                distance_bits_t final_distances = 0;
+                set_distance_word(final_distances, 0,
+                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[0]));
+                set_distance_word(final_distances, 1,
+                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[1]));
+                set_distance_word(final_distances, 2,
+                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[2]));
+                set_distance_word(final_distances, 3,
+                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[3]));
+                set_distance_word(final_distances, 4,
+                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[4]));
+                send_packet.valid_prediction = true;
+                send_packet.distances = final_distances;
+                state = DIST_SEND;
             }
 
             {
