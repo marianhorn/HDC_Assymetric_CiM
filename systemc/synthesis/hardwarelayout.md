@@ -51,9 +51,19 @@ The RTL smoke test uses generated `commands.txt` and `expected_responses.txt`. T
 - CiM item memory is split into 32 explicit feature banks.
 - Encoder bit loop inside each 64-bit word is fully unrolled.
 - Feature-word loads are scalarized before the bit loop to avoid artificial local-array or ROM-port bottlenecks.
-- Current HLS encoder experiment processes 4 hypervector words per compute step.
-- This changes the encoder from 16 word steps per sample to 4 word steps per sample if Stratus can schedule the required CiM reads.
-- Main risk: every feature bank must provide four word reads per encoder step; if ROM port limits block this, explicit word-lane CiM duplication/banking is the next fix.
+- Current HLS encoder experiment processes all hypervector words per compute step.
+- This changes the encoder from 16 word steps per sample to 1 word-parallel compute step if Stratus can schedule the required CiM reads.
+- Main risk: every feature bank must provide 16 word reads per encoder step; if ROM port limits block this, explicit word-lane CiM duplication/banking is the next fix.
+- Measured 4-word encoder result:
+  - HLS: 0 errors, 0 warnings.
+  - RTL smoke20: `cycles=2002`, `average_inference_latency=59.8`, `max_inference_latency=62`, `errors=0`.
+  - `enc_out max_fire_gap=168`, `distance_done max_fire_gap=57`.
+  - Vivado impl LUTs: 30670, about 2.35 percent.
+  - Vivado impl FFs: 37521, about 1.44 percent.
+  - Vivado BRAM: 32, about 1.59 percent.
+  - Vivado worst listed data path: about 8.40 ns at 10 ns.
+- Conclusion: keep 4-word encoder. Runtime improves substantially; timing worsens versus class-parallel-distance baseline but still closes.
+- Current full-word encoder experiment is not measured yet.
 
 ### Ngram
 
@@ -278,12 +288,13 @@ Risk:
 
 ### Encoder
 
-Already has CiM feature banking and bitwise word unroll. Current experiment is 4-word-per-cycle encoding.
+Already has CiM feature banking, bitwise word unroll, and a measured-good 4-word-per-cycle encoder. Current experiment is full-word-per-cycle encoding.
 
 Potential changes:
 
-- Keep 4-word-per-cycle if HLS schedules and RTL improves.
-- If HLS fails or runtime does not improve, duplicate or bank CiM by word lane so each feature can supply four word reads per step.
+- Keep 4-word-per-cycle as fallback because HLS schedules and RTL improves.
+- Test full-word-per-cycle encoding. If HLS fails, RTL does not improve, or timing gets too tight, fall back to 4 or try 8 words per cycle.
+- If increasing beyond 4 words per cycle fails due to memory access, duplicate or bank CiM by word lane so each feature can supply more word reads per step.
 - Register between CIM feature-word load and feature-score accumulation.
 - Split feature accumulation into partial sums if timing worsens.
 

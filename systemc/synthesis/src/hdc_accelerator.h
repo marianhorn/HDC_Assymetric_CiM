@@ -281,7 +281,7 @@ public:
 #endif
 
 private:
-    static constexpr unsigned ENCODER_WORDS_PER_CYCLE = 4;
+    static constexpr unsigned ENCODER_WORDS_PER_CYCLE = HV_WORDS;
     static_assert(HV_WORDS % ENCODER_WORDS_PER_CYCLE == 0,
                   "encoder word parallelism requires HV_WORDS to be divisible by ENCODER_WORDS_PER_CYCLE");
     static constexpr unsigned NGRAM_WORDS_PER_CYCLE = 1;

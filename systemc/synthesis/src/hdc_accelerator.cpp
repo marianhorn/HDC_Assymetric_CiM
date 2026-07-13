@@ -773,30 +773,17 @@ void HDC_Accelerator::encoder_thread() {
                     send_packet = output_packet;
                     state = ENC_SEND;
                 } else {
-                    const unsigned word0 = word_index;
-                    const unsigned word1 = word_index + 1u;
-                    const unsigned word2 = word_index + 2u;
-                    const unsigned word3 = word_index + 3u;
-                    const hv_word_t encoded_word0 =
-                        encode_sample_word(work.sample, word0);
-                    const hv_word_t encoded_word1 =
-                        encode_sample_word(work.sample, word1);
-                    const hv_word_t encoded_word2 =
-                        encode_sample_word(work.sample, word2);
-                    const hv_word_t encoded_word3 =
-                        encode_sample_word(work.sample, word3);
-                    set_hv_word(encoder_result, word0, encoded_word0);
-                    set_hv_word(encoder_result, word1, encoded_word1);
-                    set_hv_word(encoder_result, word2, encoded_word2);
-                    set_hv_word(encoder_result, word3, encoded_word3);
+                    for (unsigned lane = 0; lane < ENCODER_WORDS_PER_CYCLE; ++lane) {
+                        HLS_UNROLL_LOOP(ON, "encode-words-per-cycle-loop");
+                        const unsigned word = word_index + lane;
+                        const hv_word_t encoded_word =
+                            encode_sample_word(work.sample, word);
+                        set_hv_word(encoder_result, word, encoded_word);
+                    }
 
                     if (word_index + ENCODER_WORDS_PER_CYCLE == HV_WORDS) {
                         output_packet = work;
                         output_packet.encoded = encoder_result;
-                        set_hv_word(output_packet.encoded, word0, encoded_word0);
-                        set_hv_word(output_packet.encoded, word1, encoded_word1);
-                        set_hv_word(output_packet.encoded, word2, encoded_word2);
-                        set_hv_word(output_packet.encoded, word3, encoded_word3);
                         send_packet = output_packet;
                         state = ENC_SEND;
                     } else {
