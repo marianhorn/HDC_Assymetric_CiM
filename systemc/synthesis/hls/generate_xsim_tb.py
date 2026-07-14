@@ -345,6 +345,16 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             return f"dut.{vld} && !dut.{busy}"
         return f"dut.{vld}"
 
+    if enc_kind_signal and has_internal_signal(module_body, "m_encoder_in_m_chan_vld"):
+        enc_in_fire = p2p_fire_condition("m_encoder_in")
+        updates.append(
+            f"""            if ({enc_in_fire} && dut.{enc_kind_signal} == 4 &&
+                infer_trace_enc_in_count < INFER_TRACE_LIMIT) begin
+                infer_trace_enc_in_cycle[infer_trace_enc_in_count] = cycle_count;
+                infer_trace_enc_in_count = infer_trace_enc_in_count + 1;
+            end"""
+        )
+
     enc_out_kind = "m_encoder_out_m_chan_data_kind"
     enc_out_class = "m_encoder_out_m_chan_data_class_id"
     enc_out_encoded = "m_encoder_out_m_chan_data_encoded"
@@ -371,6 +381,11 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
             end
             if ({p2p_fire_condition("m_encoder_out")} && dut.{enc_out_kind} == 2) begin
                 training_enc_out_train_fire = training_enc_out_train_fire + 1;
+            end
+            if ({p2p_fire_condition("m_encoder_out")} && dut.{enc_out_kind} == 4 &&
+                infer_trace_enc_out_count < INFER_TRACE_LIMIT) begin
+                infer_trace_enc_out_cycle[infer_trace_enc_out_count] = cycle_count;
+                infer_trace_enc_out_count = infer_trace_enc_out_count + 1;
             end"""
         )
 
@@ -638,6 +653,10 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 end
             end
             if ({distance_fire}) begin
+                if (infer_trace_distance_in_count < INFER_TRACE_LIMIT) begin
+                    infer_trace_distance_in_cycle[infer_trace_distance_in_count] = cycle_count;
+                    infer_trace_distance_in_count = infer_trace_distance_in_count + 1;
+                end
                 if (dut.{distance_valid_ngram}) begin
                     ngram_distance_infer_valid_fire = ngram_distance_infer_valid_fire + 1;
                 end else begin
@@ -674,6 +693,16 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                      ngram_bundler_train_valid_fire,
                      ngram_distance_infer_invalid_fire,
                      ngram_distance_infer_valid_fire);"""
+        )
+
+    if has_internal_signal(module_body, "m_distance_done_m_chan_vld"):
+        distance_done_fire = p2p_fire_condition("m_distance_done")
+        updates.append(
+            f"""            if ({distance_done_fire} &&
+                infer_trace_distance_done_count < INFER_TRACE_LIMIT) begin
+                infer_trace_distance_done_cycle[infer_trace_distance_done_count] = cycle_count;
+                infer_trace_distance_done_count = infer_trace_distance_done_count + 1;
+            end"""
         )
 
     training_display_fields = []
@@ -997,6 +1026,7 @@ module hdc_accelerator_rtl_tb;
     localparam integer TIMEOUT_CYCLES = {args.timeout_cycles};
     localparam integer PROGRESS_CYCLES = {args.progress_cycles};
     localparam integer RESET_CYCLES = {args.reset_cycles};
+    localparam integer INFER_TRACE_LIMIT = 64;
     localparam string COMMAND_PATH = {command_path};
     localparam string RESPONSE_PATH = {response_path};
 
@@ -1049,7 +1079,20 @@ module hdc_accelerator_rtl_tb;
     integer infer_sample_complete_first_cycle;
     integer infer_sample_complete_last_cycle;
     integer infer_sample_complete_count;
+    integer infer_trace_top_accept_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_enc_in_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_enc_out_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_distance_in_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_distance_done_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_response_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_top_accept_count;
+    integer infer_trace_enc_in_count;
+    integer infer_trace_enc_out_count;
+    integer infer_trace_distance_in_count;
+    integer infer_trace_distance_done_count;
+    integer infer_trace_response_count;
     integer counter_index;
+    integer infer_trace_index;
 {p2p_counter_logic["decls"]}
 
     always #5 clk = ~clk;
@@ -1246,6 +1289,33 @@ module hdc_accelerator_rtl_tb;
                          (infer_sample_accept_first_cycle >= 0 && infer_sample_complete_last_cycle >= 0)
                              ? (infer_sample_complete_last_cycle - infer_sample_accept_first_cycle)
                              : -1);
+                $display("debug infer_trace_counts top=%0d enc_in=%0d enc_out=%0d distance_in=%0d distance_done=%0d response=%0d",
+                         infer_trace_top_accept_count, infer_trace_enc_in_count,
+                         infer_trace_enc_out_count, infer_trace_distance_in_count,
+                         infer_trace_distance_done_count, infer_trace_response_count);
+                for (infer_trace_index = 0;
+                     infer_trace_index < infer_sample_accept_count &&
+                     infer_trace_index < INFER_TRACE_LIMIT;
+                     infer_trace_index = infer_trace_index + 1) begin
+                    $display("debug infer_trace idx=%0d top=%0d enc_in=%0d enc_out=%0d distance_in=%0d distance_done=%0d response=%0d top_to_enc_in=%0d enc_in_to_enc_out=%0d enc_out_to_dist_in=%0d dist_in_to_done=%0d done_to_rsp=%0d",
+                             infer_trace_index,
+                             infer_trace_top_accept_cycle[infer_trace_index],
+                             infer_trace_enc_in_cycle[infer_trace_index],
+                             infer_trace_enc_out_cycle[infer_trace_index],
+                             infer_trace_distance_in_cycle[infer_trace_index],
+                             infer_trace_distance_done_cycle[infer_trace_index],
+                             infer_trace_response_cycle[infer_trace_index],
+                             infer_trace_enc_in_cycle[infer_trace_index] -
+                                 infer_trace_top_accept_cycle[infer_trace_index],
+                             infer_trace_enc_out_cycle[infer_trace_index] -
+                                 infer_trace_enc_in_cycle[infer_trace_index],
+                             infer_trace_distance_in_cycle[infer_trace_index] -
+                                 infer_trace_enc_out_cycle[infer_trace_index],
+                             infer_trace_distance_done_cycle[infer_trace_index] -
+                                 infer_trace_distance_in_cycle[infer_trace_index],
+                             infer_trace_response_cycle[infer_trace_index] -
+                                 infer_trace_distance_done_cycle[infer_trace_index]);
+                end
                 print_dut_debug();
 
                 $fclose(command_fd);
@@ -1293,6 +1363,20 @@ module hdc_accelerator_rtl_tb;
         infer_sample_complete_first_cycle = -1;
         infer_sample_complete_last_cycle = -1;
         infer_sample_complete_count = 0;
+        infer_trace_top_accept_count = 0;
+        infer_trace_enc_in_count = 0;
+        infer_trace_enc_out_count = 0;
+        infer_trace_distance_in_count = 0;
+        infer_trace_distance_done_count = 0;
+        infer_trace_response_count = 0;
+        for (infer_trace_index = 0; infer_trace_index < INFER_TRACE_LIMIT; infer_trace_index = infer_trace_index + 1) begin
+            infer_trace_top_accept_cycle[infer_trace_index] = -1;
+            infer_trace_enc_in_cycle[infer_trace_index] = -1;
+            infer_trace_enc_out_cycle[infer_trace_index] = -1;
+            infer_trace_distance_in_cycle[infer_trace_index] = -1;
+            infer_trace_distance_done_cycle[infer_trace_index] = -1;
+            infer_trace_response_cycle[infer_trace_index] = -1;
+        end
         for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
             top_cmd_kind_fires[counter_index] = 0;
         end
@@ -1360,6 +1444,10 @@ module hdc_accelerator_rtl_tb;
                     end
                     infer_sample_accept_last_cycle = cycle_count;
                     infer_sample_accept_count = infer_sample_accept_count + 1;
+                    if (infer_trace_top_accept_count < INFER_TRACE_LIMIT) begin
+                        infer_trace_top_accept_cycle[infer_trace_top_accept_count] = cycle_count;
+                        infer_trace_top_accept_count = infer_trace_top_accept_count + 1;
+                    end
                 end
                 if (commands_sent < 64) begin
                     $display("debug accepted_cmd idx=%0d trace_kind=%0d packed_kind=%0d class=%0d cycle=%0d",
@@ -1392,6 +1480,10 @@ module hdc_accelerator_rtl_tb;
                 end
                 infer_sample_complete_last_cycle = cycle_count;
                 infer_sample_complete_count = infer_sample_complete_count + 1;
+                if (infer_trace_response_count < INFER_TRACE_LIMIT) begin
+                    infer_trace_response_cycle[infer_trace_response_count] = cycle_count;
+                    infer_trace_response_count = infer_trace_response_count + 1;
+                end
                 check_response();
                 responses_received = responses_received + 1;
                 outstanding = outstanding - 1;
