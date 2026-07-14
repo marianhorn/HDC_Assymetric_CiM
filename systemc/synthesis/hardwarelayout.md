@@ -308,6 +308,15 @@ Potential changes:
 - Register between CIM feature-word load and feature-score accumulation.
 - Split feature accumulation into partial sums if timing worsens.
 
+Current experiment:
+
+- CiM ROM is explicitly banked by feature and hypervector word for HLS:
+  `HDC_CIM_ROM_DATASET00_Fxx_Wyy[level]`.
+- This targets the full-word encoder case where all 16 hypervector words are encoded in the same encoder step.
+- Expected HLS improvement: the encoder should no longer report 16 variable reads from each feature ROM
+  `HDC_CIM_ROM_DATASET00_Fxx[level][word]`; reads should be distributed across independent `Fxx_Wyy` banks.
+- Non-HLS valid/ready reference path remains unchanged.
+
 ### Trainer
 
 Trainer already uses explicit 64 score banks. Remaining improvements would likely be minor compared to current distance/encoder cadence.
