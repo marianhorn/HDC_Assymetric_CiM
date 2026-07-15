@@ -1388,10 +1388,13 @@ void HDC_Accelerator::train_thread() {
                     word_index = word_index + TRAIN_WORDS_PER_CYCLE;
                 }
             } else if (state == TRAIN_INIT_RESET_ASSOC) {
-                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
-                    HLS_UNROLL_LOOP(ON, "train-reset-assoc-words-loop");
-                    const unsigned word = word_index + lane;
-                    m_assoc_mem[assoc_class].words[word] = 0;
+                {
+                    HLS_DEFINE_PROTOCOL("train_assoc_clear_words");
+                    for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                        HLS_UNROLL_LOOP(ON, "train-reset-assoc-words-loop");
+                        const unsigned word = word_index + lane;
+                        m_assoc_mem[assoc_class].words[word] = 0;
+                    }
                 }
 
                 if (word_index + TRAIN_WORDS_PER_CYCLE == HV_WORDS) {
@@ -1426,10 +1429,12 @@ void HDC_Accelerator::train_thread() {
             } else if (state == TRAIN_FINALIZE_CLASS) {
                 const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
                 const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
-                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
-                    HLS_UNROLL_LOOP(ON, "train-finalize-words-loop");
-                    const unsigned word = lane;
-                    hv_word_t class_word = 0;
+                {
+                    HLS_DEFINE_PROTOCOL("train_assoc_write_words");
+                    for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                        HLS_UNROLL_LOOP(ON, "train-finalize-words-loop");
+                        const unsigned word = lane;
+                        hv_word_t class_word = 0;
 #define HDC_FINALIZE_SCORE_BANK(index)                         \
                 if (m_bundling_score_##index[word] >= signed_threshold) { \
                     class_word[index] = 1;                         \
@@ -1437,7 +1442,8 @@ void HDC_Accelerator::train_thread() {
                 m_bundling_score_##index[word] = 0;
                     HDC_APPLY_TO_HV_BIT_BANKS(HDC_FINALIZE_SCORE_BANK)
 #undef HDC_FINALIZE_SCORE_BANK
-                    m_assoc_mem[m_current_class_id.to_uint()].words[word] = class_word;
+                        m_assoc_mem[m_current_class_id.to_uint()].words[word] = class_word;
+                    }
                 }
 
                 m_current_class_count = 0;
