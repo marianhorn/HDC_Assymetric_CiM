@@ -1702,21 +1702,23 @@ void HDC_Accelerator::distance_thread() {
                     state = DIST_COMPUTE;
                 }
             } else {
-                HLS_DEFINE_PROTOCOL("distance_full_compute");
-                distance_bits_t final_distances = 0;
-                set_distance_word(final_distances, 0,
-                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[0]));
-                set_distance_word(final_distances, 1,
-                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[1]));
-                set_distance_word(final_distances, 2,
-                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[2]));
-                set_distance_word(final_distances, 3,
-                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[3]));
-                set_distance_word(final_distances, 4,
-                                  hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[4]));
-                send_packet.valid_prediction = true;
-                send_packet.distances = final_distances;
-                state = DIST_SEND;
+                {
+                    HLS_DEFINE_PROTOCOL("distance_full_compute");
+                    distance_bits_t final_distances = 0;
+                    set_distance_word(final_distances, 0,
+                                      hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[0]));
+                    set_distance_word(final_distances, 1,
+                                      hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[1]));
+                    set_distance_word(final_distances, 2,
+                                      hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[2]));
+                    set_distance_word(final_distances, 3,
+                                      hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[3]));
+                    set_distance_word(final_distances, 4,
+                                      hamming_distance_packed_assoc_full(work.ngram, m_assoc_mem[4]));
+                    send_packet.valid_prediction = true;
+                    send_packet.distances = final_distances;
+                    state = DIST_SEND;
+                }
             }
 
             {
