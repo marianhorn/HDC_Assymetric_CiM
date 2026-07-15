@@ -1372,24 +1372,29 @@ void HDC_Accelerator::train_thread() {
                 m_train_control_done.input.put(done);
                 state = TRAIN_IDLE;
             } else if (state == TRAIN_INIT_RESET_SCORES) {
-#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word_index] = 0;
-                HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
+                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                    HLS_UNROLL_LOOP(ON, "train-reset-score-words-loop");
+                    const unsigned word = word_index + lane;
+#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word] = 0;
+                    HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
 #undef HDC_CLEAR_SCORE_BANK
+                }
 
-                if (word_index + 1u == HV_WORDS) {
+                if (word_index + TRAIN_WORDS_PER_CYCLE == HV_WORDS) {
                     word_index = 0;
                     assoc_class = 0;
                     state = TRAIN_INIT_RESET_ASSOC;
                 } else {
-                    word_index = word_index + 1u;
+                    word_index = word_index + TRAIN_WORDS_PER_CYCLE;
                 }
             } else if (state == TRAIN_INIT_RESET_ASSOC) {
-                {
-                    HLS_DEFINE_PROTOCOL("train_assoc_clear_word");
-                    m_assoc_mem[assoc_class].words[word_index] = 0;
+                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                    HLS_UNROLL_LOOP(ON, "train-reset-assoc-words-loop");
+                    const unsigned word = word_index + lane;
+                    m_assoc_mem[assoc_class].words[word] = 0;
                 }
 
-                if (word_index + 1u == HV_WORDS) {
+                if (word_index + TRAIN_WORDS_PER_CYCLE == HV_WORDS) {
                     word_index = 0;
                     if (assoc_class + 1u == NUM_CLASSES) {
                         assoc_class = 0;
@@ -1398,64 +1403,65 @@ void HDC_Accelerator::train_thread() {
                         assoc_class = assoc_class + 1u;
                     }
                 } else {
-                    word_index = word_index + 1u;
+                    word_index = word_index + TRAIN_WORDS_PER_CYCLE;
                 }
             } else if (state == TRAIN_ADD_NGRAM) {
-                const hv_word_t word = get_hv_word(work.ngram, word_index);
+                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                    HLS_UNROLL_LOOP(ON, "train-add-ngram-words-loop");
+                    const unsigned word = lane;
+                    const hv_word_t ngram_word = get_hv_word(work.ngram, word);
 #define HDC_ADD_SCORE_BANK(index)                         \
-                if (((word >> index) & hv_word_t(1)) != 0) { \
-                    ++m_bundling_score_##index[word_index];  \
+                if (((ngram_word >> index) & hv_word_t(1)) != 0) { \
+                    ++m_bundling_score_##index[word];  \
                 } else {                                      \
-                    --m_bundling_score_##index[word_index];  \
+                    --m_bundling_score_##index[word];  \
                 }
-                HDC_APPLY_TO_HV_BIT_BANKS(HDC_ADD_SCORE_BANK)
+                    HDC_APPLY_TO_HV_BIT_BANKS(HDC_ADD_SCORE_BANK)
 #undef HDC_ADD_SCORE_BANK
-
-                if (word_index + 1u == HV_WORDS) {
-                    ++m_current_class_count;
-                    word_index = 0;
-                    state = TRAIN_IDLE;
-                } else {
-                    word_index = word_index + 1u;
                 }
+
+                ++m_current_class_count;
+                word_index = 0;
+                state = TRAIN_IDLE;
             } else if (state == TRAIN_FINALIZE_CLASS) {
                 const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
                 const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
-                hv_word_t class_word = 0;
+                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                    HLS_UNROLL_LOOP(ON, "train-finalize-words-loop");
+                    const unsigned word = lane;
+                    hv_word_t class_word = 0;
 #define HDC_FINALIZE_SCORE_BANK(index)                         \
-                if (m_bundling_score_##index[word_index] >= signed_threshold) { \
+                if (m_bundling_score_##index[word] >= signed_threshold) { \
                     class_word[index] = 1;                         \
                 }                                                  \
-                m_bundling_score_##index[word_index] = 0;
-                HDC_APPLY_TO_HV_BIT_BANKS(HDC_FINALIZE_SCORE_BANK)
+                m_bundling_score_##index[word] = 0;
+                    HDC_APPLY_TO_HV_BIT_BANKS(HDC_FINALIZE_SCORE_BANK)
 #undef HDC_FINALIZE_SCORE_BANK
-                {
-                    HLS_DEFINE_PROTOCOL("train_assoc_write_word");
-                    m_assoc_mem[m_current_class_id.to_uint()].words[word_index] = class_word;
+                    m_assoc_mem[m_current_class_id.to_uint()].words[word] = class_word;
                 }
 
-                if (word_index + 1u == HV_WORDS) {
-                    m_current_class_count = 0;
-                    m_current_class_id = 0;
-                    m_current_class_valid = false;
-                    word_index = 0;
-                    state = TRAIN_SEND_DONE;
-                } else {
-                    word_index = word_index + 1u;
-                }
+                m_current_class_count = 0;
+                m_current_class_id = 0;
+                m_current_class_valid = false;
+                word_index = 0;
+                state = TRAIN_SEND_DONE;
             } else if (state == TRAIN_RESET_TRAINING) {
-#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word_index] = 0;
-                HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
+                for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
+                    HLS_UNROLL_LOOP(ON, "train-reset-training-words-loop");
+                    const unsigned word = word_index + lane;
+#define HDC_CLEAR_SCORE_BANK(index) m_bundling_score_##index[word] = 0;
+                    HDC_APPLY_TO_HV_BIT_BANKS(HDC_CLEAR_SCORE_BANK)
 #undef HDC_CLEAR_SCORE_BANK
+                }
 
-                if (word_index + 1u == HV_WORDS) {
+                if (word_index + TRAIN_WORDS_PER_CYCLE == HV_WORDS) {
                     m_current_class_count = 0;
                     m_current_class_id = 0;
                     m_current_class_valid = false;
                     word_index = 0;
                     state = TRAIN_SEND_DONE;
                 } else {
-                    word_index = word_index + 1u;
+                    word_index = word_index + TRAIN_WORDS_PER_CYCLE;
                 }
             } else {
                 const NGramChannelPacket item = m_bundler_in.output.get();

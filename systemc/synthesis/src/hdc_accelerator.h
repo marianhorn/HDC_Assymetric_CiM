@@ -287,9 +287,9 @@ private:
     static constexpr unsigned NGRAM_WORDS_PER_CYCLE = 1;
     static_assert(NGRAM_WORDS_PER_CYCLE == 1,
                   "multi-word-per-cycle n-gram support is intentionally not implemented yet");
-    static constexpr unsigned TRAIN_WORDS_PER_CYCLE = 1;
-    static_assert(TRAIN_WORDS_PER_CYCLE == 1,
-                  "multi-word-per-cycle train support is intentionally not implemented yet");
+    static constexpr unsigned TRAIN_WORDS_PER_CYCLE = HV_WORDS;
+    static_assert(TRAIN_WORDS_PER_CYCLE == HV_WORDS,
+                  "current train implementation expects full-width word parallelism");
 
     // Clocked pipeline stages.
     void command_thread();

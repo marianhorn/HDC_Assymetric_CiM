@@ -31,9 +31,11 @@ report_high_fanout_nets -file $out_dir/high_fanout_synth.rpt
 
 write_checkpoint -force $out_dir/post_synth.dcp
 
-opt_design
-place_design
-route_design
+opt_design -directive Explore
+place_design -directive ExtraNetDelay_high
+phys_opt_design -directive AggressiveExplore
+route_design -directive AggressiveExplore
+phys_opt_design -directive AggressiveExplore
 
 report_utilization -file $out_dir/utilization_impl.rpt
 report_timing_summary -check_timing_verbose -max_paths 10 -file $out_dir/timing_impl.rpt

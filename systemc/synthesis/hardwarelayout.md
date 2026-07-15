@@ -319,12 +319,31 @@ Current experiment:
 
 ### Trainer
 
-Trainer already uses explicit 64 score banks. Remaining improvements would likely be minor compared to current distance/encoder cadence.
+Trainer already uses explicit 64 score banks.
+
+Current experiment:
+
+- HLS trainer processes all `HV_WORDS` per step for add-ngram, finalize-class, score reset, and associative-memory clear.
+- This means the trainer attempts 16-way word parallelism and 64-way bit-bank parallelism in the same cycle.
+- Expected cycle benefit: valid training ngram add drops from about 16 word steps to 1 scheduled trainer step.
+- Main risk: large fanout and routing pressure from 1024 score updates/finalize decisions in one state.
 
 Potential changes:
 
 - Register-slice finalize path if high fanout from score banks becomes critical.
-- Avoid further trainer expansion unless runtime counters show it is limiting.
+- If timing degrades, fall back to 4 or 8 train words per cycle.
+
+## Vivado Implementation Effort
+
+The Vivado flow uses higher-effort implementation directives for the current high-parallelism experiments:
+
+- `opt_design -directive Explore`
+- `place_design -directive ExtraNetDelay_high`
+- `phys_opt_design -directive AggressiveExplore`
+- `route_design -directive AggressiveExplore`
+- post-route `phys_opt_design -directive AggressiveExplore`
+
+This does not change RTL behavior. It gives Vivado more effort to handle route-dominated timing and high-fanout nets.
 
 ## Test Commands
 
