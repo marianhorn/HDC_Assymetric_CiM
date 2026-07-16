@@ -333,6 +333,21 @@ Potential changes:
 - Register-slice finalize path if high fanout from score banks becomes critical.
 - If timing degrades, fall back to 4 or 8 train words per cycle.
 
+## Stratus HLS Effort
+
+The current HLS configuration uses high effort for scheduling, part selection, and
+register/part sharing searches:
+
+- `sched_effort high`
+- `sharing_effort_parts high`
+- `sharing_effort_regs high`
+- `parts_effort high`
+
+The explicit loop-unroll directives continue to define the intended parallelism.
+High effort can substantially increase HLS runtime, so cycle, utilization, and
+timing comparisons must identify whether they used the old low-effort or current
+high-effort configuration.
+
 ## Vivado Implementation Effort
 
 The Vivado flow uses higher-effort implementation directives for the current high-parallelism experiments:
