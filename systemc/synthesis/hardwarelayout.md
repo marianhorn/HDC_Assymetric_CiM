@@ -335,18 +335,19 @@ Potential changes:
 
 ## Stratus HLS Effort
 
-The current HLS configuration uses high effort for scheduling, part selection, and
-register/part sharing searches:
+The current mixed-effort HLS experiment uses high effort for scheduling and part
+selection while avoiding the expensive resource-sharing search:
 
 - `sched_effort high`
-- `sharing_effort_parts high`
-- `sharing_effort_regs high`
+- `sharing_effort_parts low`
+- `sharing_effort_regs low`
 - `parts_effort high`
 
 The explicit loop-unroll directives continue to define the intended parallelism.
-High effort can substantially increase HLS runtime, so cycle, utilization, and
-timing comparisons must identify whether they used the old low-effort or current
-high-effort configuration.
+The previous all-high experiment took about 37 hours, preserved the same cycle
+schedule, and reduced post-route WNS from 0.987 ns to 0.636 ns. The mixed setup
+tests whether stronger scheduling and part selection can help without the LUT and
+routing pressure introduced by high sharing effort.
 
 ## Vivado Implementation Effort
 

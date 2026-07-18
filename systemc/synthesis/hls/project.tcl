@@ -15,8 +15,8 @@ set_attr inline_partial_constants on
 # Spend more compile time searching for a better schedule and implementation.
 # The explicit HLS unroll directives still define the intended parallelism.
 set_attr sched_effort high
-set_attr sharing_effort_parts high
-set_attr sharing_effort_regs high
+set_attr sharing_effort_parts low
+set_attr sharing_effort_regs low
 set_attr parts_effort high
 set_attr relax_timing on
 set_attr sched_asap on
