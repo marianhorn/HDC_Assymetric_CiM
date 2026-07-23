@@ -8,7 +8,7 @@ This file tracks the current HLS/RTL accelerator structure, measured implementat
 - HLS tool: Cadence Stratus 22.01 on CAE
 - RTL simulation: Vivado XSim 2023.2
 - FPGA implementation: Vivado 2023.2
-- Device used in current Vivado runs: `xcvu57p`
+- Device targeted by Stratus and Vivado: `xczu3eg-sbva484-1-i`
 - Clock target: 10 ns
 - Vector dimension: 1024
 - Hypervector storage: 16 words x 64 bits
