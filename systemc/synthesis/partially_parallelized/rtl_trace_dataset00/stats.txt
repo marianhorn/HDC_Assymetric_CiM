@@ -1,0 +1,12 @@
+dataset=0
+cycles=177274
+commands=5216
+training_commands=4346
+inference_commands=870
+expected_responses=870
+correct=857
+not_correct=11
+transition_error=0
+total=868
+overall_accuracy=0.987327188940
+non_transition_accuracy=0.987327188940
