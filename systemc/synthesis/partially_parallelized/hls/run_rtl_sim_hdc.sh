@@ -14,6 +14,7 @@ HLS_DIR="bdw_work/modules/HDC_Accelerator/HLS_BASIC"
 TOP_RTL="$SCRIPT_DIR/$HLS_DIR/hdc_accelerator_rtl.v"
 OUT_DIR="$SCRIPT_DIR/vivado_rtl_sim_hdc"
 TB_SV="$OUT_DIR/hdc_accelerator_rtl_tb.sv"
+AXIS_WRAPPER_SV="$OUT_DIR/hdc_accelerator_axis_wrapper.sv"
 SIM_RTL_DIR="$OUT_DIR/rtl_with_timescale"
 VIVADO_BIN="$(command -v vivado || true)"
 if [[ -n "$VIVADO_BIN" ]]; then
@@ -72,6 +73,14 @@ python3 "$SCRIPT_DIR/generate_xsim_tb.py" \
     --top "$TOP_RTL" \
     --trace-dir "$TRACE_DIR" \
     --out "$TB_SV"
+python3 "$SCRIPT_DIR/generate_axis_wrapper.py" \
+    --top "$TOP_RTL" \
+    --out "$AXIS_WRAPPER_SV"
+
+# Keep the mature packed-P2P checker, but put the AXI serializer/deserializer
+# between it and the synthesized accelerator.
+sed -i 's/HDC_Accelerator dut (/HDC_AcceleratorAxisTestShim dut (/' "$TB_SV"
+sed -i 's/dut\./dut.axis_dut.core./g' "$TB_SV"
 
 SIM_RTL=()
 copy_with_timescale() {
@@ -96,6 +105,7 @@ pushd "$OUT_DIR" >/dev/null
 
 xvlog -sv -work work -log xvlog.log \
     "${SIM_RTL[@]}" \
+    "$AXIS_WRAPPER_SV" \
     "$TB_SV" \
     "$GLBL_V"
 

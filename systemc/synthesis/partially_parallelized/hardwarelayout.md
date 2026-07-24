@@ -426,3 +426,18 @@ vivado -mode batch -source vivado_synth_hdc.tcl | tee output_vivado_<name>.txt
 - Vivado implementation completes.
 - Timing closes at 10 ns with positive WNS.
 - Resource growth is justified by cycle reduction or timing margin.
+# AXI4-Stream FPGA Boundary
+
+The board-facing top level is `HDC_AcceleratorAxis`. It wraps the unchanged
+Stratus-generated P2P accelerator with 32-bit AXI4-Stream command and response
+interfaces. Command and response words are transferred least-significant
+32-bit beat first. `TLAST` marks the final beat.
+
+- Command packet: 166 bits, transferred in 6 beats.
+- Response packet: generated from `RESPONSE_CHANNEL_BITS`, transferred in
+  `ceil(RESPONSE_CHANNEL_BITS / 32)` beats.
+- The final unused bits in each stream packet are zero padding.
+- The internal command/response P2P channels and all compute stages are
+  unchanged.
+- RTL trace simulation includes the wrapper, so functional regression covers
+  AXI serialization, backpressure, and deserialization.
