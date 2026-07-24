@@ -92,3 +92,6 @@ systemc/synthesis/hls/hls.pro
 systemc/synthesis/hls/vivado_rtl_sim_hdc/
 analysis/resource_saving/*/runs/
 analysis/resource_saving/evaluation/extracted/
+analysis/benchmarking/**/plots/
+analysis/benchmarking/**/results/
+analysis/benchmarking/**/__pycache__/
