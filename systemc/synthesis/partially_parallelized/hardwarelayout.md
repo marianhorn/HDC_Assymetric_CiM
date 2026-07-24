@@ -14,6 +14,16 @@ This file tracks the current HLS/RTL accelerator structure, measured implementat
 - Hypervector storage: 16 words x 64 bits
 - Dataset currently compiled into CiM ROM: dataset 00
 
+### Partially Parallelized Profile
+
+- Encoder: 4 of 16 hypervector words per compute step.
+- Encoder CiM: 32 feature banks indexed by level and word; no feature-by-word
+  duplication.
+- Trainer/bundler: 4 of 16 words per compute step, with 64 bit-position score
+  banks operating in parallel inside each word.
+- Distance: all 5 classes and all 16 words remain parallel.
+- N-gram: packed rotate/XOR implementation remains unchanged.
+
 ## Top-Level Structure
 
 The accelerator is a six-thread SystemC pipeline:

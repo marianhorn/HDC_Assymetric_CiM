@@ -5,7 +5,7 @@
 #include <iomanip>
 #endif
 #ifdef STRATUS_HLS
-#include "generated_cim_rom_dataset00_word_banked.h"
+#include "generated_cim_rom_dataset00_banked.h"
 #endif
 
 using namespace hdc_systemc;
@@ -258,7 +258,40 @@ unsigned long long hv_weighted_sum_debug(const hv_t &hv) {
 
 #ifdef STRATUS_HLS
 inline hv_word_t get_cim_feature_word(unsigned feature, unsigned level, unsigned word_index) {
-    return HDC_CIM_ROM_DATASET00_WORD_BANKED_READ(feature, level, word_index);
+    switch (feature) {
+    case 0: return HDC_CIM_ROM_DATASET00_F00[level][word_index];
+    case 1: return HDC_CIM_ROM_DATASET00_F01[level][word_index];
+    case 2: return HDC_CIM_ROM_DATASET00_F02[level][word_index];
+    case 3: return HDC_CIM_ROM_DATASET00_F03[level][word_index];
+    case 4: return HDC_CIM_ROM_DATASET00_F04[level][word_index];
+    case 5: return HDC_CIM_ROM_DATASET00_F05[level][word_index];
+    case 6: return HDC_CIM_ROM_DATASET00_F06[level][word_index];
+    case 7: return HDC_CIM_ROM_DATASET00_F07[level][word_index];
+    case 8: return HDC_CIM_ROM_DATASET00_F08[level][word_index];
+    case 9: return HDC_CIM_ROM_DATASET00_F09[level][word_index];
+    case 10: return HDC_CIM_ROM_DATASET00_F10[level][word_index];
+    case 11: return HDC_CIM_ROM_DATASET00_F11[level][word_index];
+    case 12: return HDC_CIM_ROM_DATASET00_F12[level][word_index];
+    case 13: return HDC_CIM_ROM_DATASET00_F13[level][word_index];
+    case 14: return HDC_CIM_ROM_DATASET00_F14[level][word_index];
+    case 15: return HDC_CIM_ROM_DATASET00_F15[level][word_index];
+    case 16: return HDC_CIM_ROM_DATASET00_F16[level][word_index];
+    case 17: return HDC_CIM_ROM_DATASET00_F17[level][word_index];
+    case 18: return HDC_CIM_ROM_DATASET00_F18[level][word_index];
+    case 19: return HDC_CIM_ROM_DATASET00_F19[level][word_index];
+    case 20: return HDC_CIM_ROM_DATASET00_F20[level][word_index];
+    case 21: return HDC_CIM_ROM_DATASET00_F21[level][word_index];
+    case 22: return HDC_CIM_ROM_DATASET00_F22[level][word_index];
+    case 23: return HDC_CIM_ROM_DATASET00_F23[level][word_index];
+    case 24: return HDC_CIM_ROM_DATASET00_F24[level][word_index];
+    case 25: return HDC_CIM_ROM_DATASET00_F25[level][word_index];
+    case 26: return HDC_CIM_ROM_DATASET00_F26[level][word_index];
+    case 27: return HDC_CIM_ROM_DATASET00_F27[level][word_index];
+    case 28: return HDC_CIM_ROM_DATASET00_F28[level][word_index];
+    case 29: return HDC_CIM_ROM_DATASET00_F29[level][word_index];
+    case 30: return HDC_CIM_ROM_DATASET00_F30[level][word_index];
+    default: return HDC_CIM_ROM_DATASET00_F31[level][word_index];
+    }
 }
 
 hv_word_t encode_sample_word(const sample_bits_t &sample, unsigned word_index) {
@@ -1411,7 +1444,7 @@ void HDC_Accelerator::train_thread() {
             } else if (state == TRAIN_ADD_NGRAM) {
                 for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
                     HLS_UNROLL_LOOP(ON, "train-add-ngram-words-loop");
-                    const unsigned word = lane;
+                    const unsigned word = word_index + lane;
                     const hv_word_t ngram_word = get_hv_word(work.ngram, word);
 #define HDC_ADD_SCORE_BANK(index)                         \
                 if (((ngram_word >> index) & hv_word_t(1)) != 0) { \
@@ -1423,9 +1456,13 @@ void HDC_Accelerator::train_thread() {
 #undef HDC_ADD_SCORE_BANK
                 }
 
-                ++m_current_class_count;
-                word_index = 0;
-                state = TRAIN_IDLE;
+                if (word_index + TRAIN_WORDS_PER_CYCLE == HV_WORDS) {
+                    ++m_current_class_count;
+                    word_index = 0;
+                    state = TRAIN_IDLE;
+                } else {
+                    word_index = word_index + TRAIN_WORDS_PER_CYCLE;
+                }
             } else if (state == TRAIN_FINALIZE_CLASS) {
                 const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
                 const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
@@ -1433,7 +1470,7 @@ void HDC_Accelerator::train_thread() {
                     HLS_DEFINE_PROTOCOL("train_assoc_write_words");
                     for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
                         HLS_UNROLL_LOOP(ON, "train-finalize-words-loop");
-                        const unsigned word = lane;
+                        const unsigned word = word_index + lane;
                         hv_word_t class_word = 0;
 #define HDC_FINALIZE_SCORE_BANK(index)                         \
                 if (m_bundling_score_##index[word] >= signed_threshold) { \
@@ -1446,11 +1483,15 @@ void HDC_Accelerator::train_thread() {
                     }
                 }
 
-                m_current_class_count = 0;
-                m_current_class_id = 0;
-                m_current_class_valid = false;
-                word_index = 0;
-                state = TRAIN_SEND_DONE;
+                if (word_index + TRAIN_WORDS_PER_CYCLE == HV_WORDS) {
+                    m_current_class_count = 0;
+                    m_current_class_id = 0;
+                    m_current_class_valid = false;
+                    word_index = 0;
+                    state = TRAIN_SEND_DONE;
+                } else {
+                    word_index = word_index + TRAIN_WORDS_PER_CYCLE;
+                }
             } else if (state == TRAIN_RESET_TRAINING) {
                 for (unsigned lane = 0; lane < TRAIN_WORDS_PER_CYCLE; ++lane) {
                     HLS_UNROLL_LOOP(ON, "train-reset-training-words-loop");
