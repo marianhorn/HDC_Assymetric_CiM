@@ -185,11 +185,14 @@ module HDC_AcceleratorAxisTestShim (
     wire m_axis_rsp_tready = !response_valid;
     wire m_axis_rsp_tlast;
 
-    // Do not let the packed compatibility testbench timestamp a command
-    // before the AXI receiver can accept its first beat.
-    assign cmd_busy = command_active || !s_axis_cmd_tready;
+    assign cmd_busy = command_active;
     assign rsp_data = response_collect;
     assign rsp_vld = response_valid;
+    wire axis_command_start = command_active &&
+                              (command_beat == 0) &&
+                              s_axis_cmd_tvalid &&
+                              s_axis_cmd_tready;
+    wire [2:0] axis_command_start_kind = command_shift[2:0];
 
     always @(posedge clk) begin
         if (rst) begin

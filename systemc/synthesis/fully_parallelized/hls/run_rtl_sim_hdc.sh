@@ -81,6 +81,7 @@ python3 "$SCRIPT_DIR/generate_axis_wrapper.py" \
 # packed-P2P trace checker and its detailed internal debug probes.
 sed -i 's/HDC_Accelerator dut (/HDC_AcceleratorAxisTestShim dut (/' "$TB_SV"
 sed -i 's/dut\./dut.axis_dut.core./g' "$TB_SV"
+sed -i 's/dut\.axis_dut\.core\.axis_command_start/dut.axis_command_start/g' "$TB_SV"
 
 SIM_RTL=()
 copy_with_timescale() {

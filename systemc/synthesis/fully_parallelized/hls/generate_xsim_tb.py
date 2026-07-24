@@ -1416,6 +1416,14 @@ module hdc_accelerator_rtl_tb;
                          cmd_vld, cmd_busy, rsp_vld, rsp_busy);
             end
 {p2p_counter_logic["updates"]}
+            // The compatibility shim accepts a packed command before its AXI
+            // transfer starts. Move the newest inference timestamp to the
+            // first AXI beat so reported latency measures the AXI boundary.
+            if (dut.axis_command_start &&
+                dut.axis_command_start_kind == 4 &&
+                issue_tail > issue_head) begin
+                issue_cycles[issue_tail - 1] = cycle_count;
+            end
 
             if (cmd_vld && !cmd_busy) begin
                 accepted_kind = cmd_data[0 +: COMMAND_KIND_BITS];
