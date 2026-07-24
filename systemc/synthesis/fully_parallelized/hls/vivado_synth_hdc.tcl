@@ -1,8 +1,9 @@
 set part_name xcvu57p-fsvk2892-3-e
-set top_name HDC_Accelerator
+set top_name HDC_AcceleratorAxis
 set out_dir vivado_synth_hdc
 set hls_dir bdw_work/modules/HDC_Accelerator/HLS_BASIC
 set top_rtl $hls_dir/hdc_accelerator_rtl.v
+set axis_wrapper $out_dir/hdc_accelerator_axis_wrapper.sv
 set generated_rtl [glob -nocomplain $hls_dir/v_rtl/*.v]
 set memlib_rtl [glob -nocomplain mem_lib/*.v]
 
@@ -18,12 +19,15 @@ if {[llength $memlib_rtl] == 0} {
     error "Missing Stratus memory library RTL under mem_lib."
 }
 
+exec python3 generate_axis_wrapper.py --top $top_rtl --out $axis_wrapper
+
 read_verilog $memlib_rtl
 read_verilog $generated_rtl
 read_verilog $top_rtl
+read_verilog -sv $axis_wrapper
 
 synth_design -top $top_name -part $part_name
-create_clock -name clk -period 10.000 [get_ports clk]
+create_clock -name aclk -period 10.000 [get_ports aclk]
 
 report_utilization -file $out_dir/utilization_synth.rpt
 report_timing_summary -check_timing_verbose -max_paths 10 -file $out_dir/timing_synth.rpt
