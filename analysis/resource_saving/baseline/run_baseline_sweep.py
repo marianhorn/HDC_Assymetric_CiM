@@ -68,6 +68,12 @@ def build_num_levels():
     return levels
 
 
+def build_missing_num_levels_for_dense_10000_plot():
+    existing_levels = set(build_num_levels())
+    target_levels = set(range(5, 201))
+    return sorted(target_levels - existing_levels)
+
+
 def parse_seeds(text):
     requested = [part.strip() for part in text.split(",") if part.strip()]
     if not requested:
@@ -279,12 +285,25 @@ def main():
             "201..989 step 10, then 1000..5000 step 10."
         ),
     )
+    parser.add_argument(
+        "--missing-levels-10000",
+        action="store_true",
+        help=(
+            "Run only missing baseline NUM_LEVELS for dense 5..200 step-1 plots "
+            "at VECTOR_DIMENSION=10000."
+        ),
+    )
     args = parser.parse_args()
 
     selected_seeds = parse_seeds(args.seeds)
+    if args.dense_level40_missing and args.missing_levels_10000:
+        raise ValueError("Use only one of --dense-level40-missing or --missing-levels-10000")
     if args.dense_level40_missing:
         num_levels_values = [40]
         vector_dimensions = build_missing_dense_level40_dimensions()
+    elif args.missing_levels_10000:
+        num_levels_values = build_missing_num_levels_for_dense_10000_plot()
+        vector_dimensions = [10000]
     else:
         num_levels_values = build_num_levels()
         vector_dimensions = build_vector_dimensions()
