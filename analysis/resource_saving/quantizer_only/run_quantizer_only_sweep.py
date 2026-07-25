@@ -10,6 +10,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..', '..', '..'))
 RUNS_DIR = os.path.join(BASE_DIR, 'runs')
+MISSING_LEVELS_10000_RUNS_DIR = os.path.join(BASE_DIR, 'runs_missing_levels_10000')
 SEEDS = list(range(1, 6))
 
 MODEL_CANDIDATES = [
@@ -61,6 +62,12 @@ def build_num_levels():
     levels = list(range(5, 101))
     levels.extend(range(105, 201, 5))
     return levels
+
+
+def build_missing_num_levels_for_dense_10000_plot():
+    existing_levels = set(build_num_levels())
+    target_levels = set(range(5, 201))
+    return sorted(target_levels - existing_levels)
 
 
 def ensure_clean_seed_dir(seed_dir, skip_clean):
@@ -192,8 +199,8 @@ def parse_seeds(text):
     return deduped
 
 
-def run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
-    seed_dir = os.path.join(RUNS_DIR, f'binning_mode_{mode_name}', f'seed_{item_mem_seed:02d}')
+def run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean, runs_dir):
+    seed_dir = os.path.join(runs_dir, f'binning_mode_{mode_name}', f'seed_{item_mem_seed:02d}')
     logs_dir = os.path.join(seed_dir, 'logs')
     combined_output_path = os.path.join(seed_dir, 'output_all.txt')
     manifest_path = os.path.join(seed_dir, 'run_manifest.csv')
@@ -302,25 +309,41 @@ def main():
         default=','.join(str(seed) for seed in SEEDS),
         help='Comma-separated item-memory seeds to run, for example: 1,2,3',
     )
+    parser.add_argument(
+        '--missing-levels-10000',
+        action='store_true',
+        help=(
+            'Run only missing NUM_LEVELS for dense 5..200 step-1 plots at '
+            'VECTOR_DIMENSION=10000. Writes to runs_missing_levels_10000.'
+        ),
+    )
     args = parser.parse_args()
 
     selected_modes = parse_binning_modes(args.binning_modes)
     selected_seeds = parse_seeds(args.seeds)
-    num_levels_values = build_num_levels()
-    vector_dimensions = build_vector_dimensions()
+    if args.missing_levels_10000:
+        num_levels_values = build_missing_num_levels_for_dense_10000_plot()
+        vector_dimensions = [10000]
+        runs_dir = MISSING_LEVELS_10000_RUNS_DIR
+    else:
+        num_levels_values = build_num_levels()
+        vector_dimensions = build_vector_dimensions()
+        runs_dir = RUNS_DIR
     make_cmd_name = choose_make_command()
 
-    os.makedirs(RUNS_DIR, exist_ok=True)
+    os.makedirs(runs_dir, exist_ok=True)
 
     print(f'Repo root: {REPO_ROOT}')
-    print(f'Runs folder: {RUNS_DIR}')
+    print(f'Runs folder: {runs_dir}')
     print(f'Binning modes: {selected_modes}')
     print(f'Seeds: {selected_seeds}')
+    print(f'NUM_LEVELS values: {num_levels_values}')
+    print(f'VECTOR_DIMENSION values: {vector_dimensions}')
     print(f'Configurations per seed: {len(num_levels_values) * len(vector_dimensions)}')
 
     for mode_name, mode_value in selected_modes:
         for item_mem_seed in selected_seeds:
-            run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
+            run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean, runs_dir)
 
     print('\nFinished all quantizer-only resource-saving sweeps.')
 

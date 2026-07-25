@@ -45,6 +45,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-dimension", type=int)
     parser.add_argument("--y-min", type=float)
     parser.add_argument("--y-max", type=float)
+    parser.add_argument(
+        "--sample-step",
+        type=int,
+        default=1,
+        help="Plot every Nth dimension after filtering and averaging. Default: 1.",
+    )
     parser.add_argument("--runs-dir", type=Path, default=DEFAULT_RUNS_DIR)
     parser.add_argument("--output", type=Path)
     parser.add_argument(
@@ -66,6 +72,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--min-dimension must be <= --max-dimension")
     if args.y_min is not None and args.y_max is not None and args.y_min >= args.y_max:
         raise ValueError("--y-min must be < --y-max")
+    if args.sample_step < 1:
+        raise ValueError("--sample-step must be >= 1")
 
 
 def load_selected_rows(args: argparse.Namespace) -> list[dict[str, object]]:
@@ -140,6 +148,21 @@ def aggregate(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return averaged
 
 
+def sample_dimensions(
+    averaged: list[dict[str, object]], sample_step: int
+) -> list[dict[str, object]]:
+    if sample_step == 1:
+        return averaged
+
+    sampled = []
+    for dataset in sorted({int(row["dataset"]) for row in averaged}):
+        dataset_rows = [
+            row for row in averaged if int(row["dataset"]) == dataset
+        ]
+        sampled.extend(dataset_rows[::sample_step])
+    return sampled
+
+
 def print_configurations(
     averaged: list[dict[str, object]], args: argparse.Namespace
 ) -> None:
@@ -155,6 +178,8 @@ def print_configurations(
         print(f"  dimension range: {args.min_dimension}..{args.max_dimension}")
     if args.y_min is not None or args.y_max is not None:
         print(f"  y range: {args.y_min}..{args.y_max}")
+    if args.sample_step != 1:
+        print(f"  sample step: every {args.sample_step} dimension value")
     print(f"  seeds: {', '.join(map(str, seeds))}")
     print(f"  datasets: {', '.join(map(str, datasets))}")
     print(f"  dimensions ({len(dimensions)}): {', '.join(map(str, dimensions))}")
@@ -390,12 +415,14 @@ def output_range_suffix(args: argparse.Namespace) -> str:
         lo = "min" if args.y_min is None else f"{args.y_min:g}"
         hi = "max" if args.y_max is None else f"{args.y_max:g}"
         parts.append(f"y_{lo}_{hi}")
+    if args.sample_step != 1:
+        parts.append(f"step_{args.sample_step}")
     return "" if not parts else "_" + "_".join(parts).replace(".", "p")
 
 
 def main() -> None:
     args = parse_args()
-    averaged = aggregate(load_selected_rows(args))
+    averaged = sample_dimensions(aggregate(load_selected_rows(args)), args.sample_step)
     print_configurations(averaged, args)
 
     output = args.output or (

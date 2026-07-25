@@ -91,6 +91,8 @@ systemc/synthesis/hls/stratus_ide.log
 systemc/synthesis/hls/hls.pro
 systemc/synthesis/hls/vivado_rtl_sim_hdc/
 analysis/resource_saving/*/runs/
+analysis/resource_saving/*/runs_missing_levels_10000/
+analysis/resource_saving/runs/
 analysis/resource_saving/evaluation/extracted/
 analysis/benchmarking/**/plots/
 analysis/benchmarking/**/results/
