@@ -1,0 +1,300 @@
+`timescale 1ns/1ps
+
+module p2p_pipeline_rtl_tb;
+    localparam integer NUM_TOKENS = 16;
+    localparam integer TIMEOUT_CYCLES = 5000;
+
+    logic clk;
+    logic rst;
+
+    logic in_valid;
+    wire in_ready;
+    logic [2:0] in_kind;
+    logic [7:0] in_value;
+    logic [7:0] in_sample_levels [0:31];
+
+    wire out_valid;
+    logic out_ready;
+    wire [2:0] out_kind;
+    wire [7:0] out_value;
+    wire [15:0] out_sample_checksum;
+    wire [15:0] out_encoded_checksum;
+
+    wire [15:0] source_count;
+    wire [15:0] stage_count;
+    wire [15:0] sink_count;
+
+    integer cycle_count;
+    integer sent;
+    integer received;
+    integer errors;
+    integer expected_kind;
+    integer expected_value;
+    integer input_value;
+    integer expected_sample_checksum_value;
+    integer expected_encoded_checksum_value;
+
+    function integer expected_sample_checksum;
+        input integer kind;
+        input integer value;
+        integer index;
+        integer checksum;
+        begin
+            checksum = 0;
+`ifdef P2P_PAYLOAD_SAMPLE
+            for (index = 0; index < 32; index = index + 1) begin
+                checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
+            end
+`elsif P2P_ENCODER_SCALAR_MIMIC
+            for (index = 0; index < 32; index = index + 1) begin
+                checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
+            end
+`elsif P2P_PAYLOAD_FULL
+            for (index = 0; index < 32; index = index + 1) begin
+                checksum = (checksum + ((value + kind + 3 * index) & 8'hff)) & 16'hffff;
+            end
+`endif
+            expected_sample_checksum = checksum;
+        end
+    endfunction
+
+    function integer expected_encoded_checksum;
+        input integer kind;
+        input integer value;
+        integer index;
+        integer feature;
+        integer checksum;
+        integer low;
+        integer high;
+        integer level;
+        integer term;
+        integer acc0;
+        integer acc1;
+        integer acc2;
+        integer acc3;
+        integer scalar_sample_checksum;
+        begin
+            checksum = 0;
+`ifdef P2P_ENCODER_MIMIC
+            if (kind == 2 || kind == 4) begin
+                scalar_sample_checksum = expected_sample_checksum(kind, value);
+                for (index = 0; index < 16; index = index + 1) begin
+                    acc0 = 0;
+                    acc1 = 0;
+                    acc2 = 0;
+                    acc3 = 0;
+                    for (feature = 0; feature < 32; feature = feature + 1) begin
+`ifdef P2P_ENCODER_SCALAR_MIMIC
+                        level = (scalar_sample_checksum + 3 * feature + index) & 8'hff;
+`else
+                        level = (value + kind + 3 * feature) & 8'hff;
+`endif
+                        term = level + kind + kind + feature + index;
+                        acc0 = (acc0 + term) & 16'hffff;
+                        acc1 = (acc1 ^ ((term << (feature & 3)) & 16'hffff)) & 16'hffff;
+                        acc2 = (acc2 + term * (feature + 1)) & 16'hffff;
+                        acc3 = (acc3 ^ ((term + index * 17) & 16'hffff)) & 16'hffff;
+                    end
+                    checksum = checksum ^ acc0;
+                    checksum = checksum ^ acc1;
+                    checksum = checksum ^ acc2;
+                    checksum = checksum ^ acc3;
+                end
+            end
+`elsif P2P_PAYLOAD_ENCODED
+            for (index = 0; index < 16; index = index + 1) begin
+                low = value | (index << 8) | (kind << 16) | ((13'h123 + index) << 19);
+                high = 32'habc00000 + (index << 4);
+                checksum = checksum ^ (low & 16'hffff);
+                checksum = checksum ^ ((low >> 16) & 16'hffff);
+                checksum = checksum ^ (high & 16'hffff);
+                checksum = checksum ^ ((high >> 16) & 16'hffff);
+            end
+`elsif P2P_PAYLOAD_FULL
+            for (index = 0; index < 16; index = index + 1) begin
+                low = value | (index << 8) | (kind << 16) | ((13'h123 + index) << 19);
+                high = 32'habc00000 + (index << 4);
+                checksum = checksum ^ (low & 16'hffff);
+                checksum = checksum ^ ((low >> 16) & 16'hffff);
+                checksum = checksum ^ (high & 16'hffff);
+                checksum = checksum ^ ((high >> 16) & 16'hffff);
+            end
+`endif
+            expected_encoded_checksum = checksum & 16'hffff;
+        end
+    endfunction
+
+    P2PPipeline dut (
+        .clk(clk),
+        .rst(rst),
+        .in_valid(in_valid),
+        .in_ready(in_ready),
+        .in_kind(in_kind),
+        .in_value(in_value),
+        .in_sample_levels_0(in_sample_levels[0]),
+        .in_sample_levels_1(in_sample_levels[1]),
+        .in_sample_levels_2(in_sample_levels[2]),
+        .in_sample_levels_3(in_sample_levels[3]),
+        .in_sample_levels_4(in_sample_levels[4]),
+        .in_sample_levels_5(in_sample_levels[5]),
+        .in_sample_levels_6(in_sample_levels[6]),
+        .in_sample_levels_7(in_sample_levels[7]),
+        .in_sample_levels_8(in_sample_levels[8]),
+        .in_sample_levels_9(in_sample_levels[9]),
+        .in_sample_levels_10(in_sample_levels[10]),
+        .in_sample_levels_11(in_sample_levels[11]),
+        .in_sample_levels_12(in_sample_levels[12]),
+        .in_sample_levels_13(in_sample_levels[13]),
+        .in_sample_levels_14(in_sample_levels[14]),
+        .in_sample_levels_15(in_sample_levels[15]),
+        .in_sample_levels_16(in_sample_levels[16]),
+        .in_sample_levels_17(in_sample_levels[17]),
+        .in_sample_levels_18(in_sample_levels[18]),
+        .in_sample_levels_19(in_sample_levels[19]),
+        .in_sample_levels_20(in_sample_levels[20]),
+        .in_sample_levels_21(in_sample_levels[21]),
+        .in_sample_levels_22(in_sample_levels[22]),
+        .in_sample_levels_23(in_sample_levels[23]),
+        .in_sample_levels_24(in_sample_levels[24]),
+        .in_sample_levels_25(in_sample_levels[25]),
+        .in_sample_levels_26(in_sample_levels[26]),
+        .in_sample_levels_27(in_sample_levels[27]),
+        .in_sample_levels_28(in_sample_levels[28]),
+        .in_sample_levels_29(in_sample_levels[29]),
+        .in_sample_levels_30(in_sample_levels[30]),
+        .in_sample_levels_31(in_sample_levels[31]),
+        .out_valid(out_valid),
+        .out_ready(out_ready),
+        .out_kind(out_kind),
+        .out_value(out_value),
+        .out_sample_checksum(out_sample_checksum),
+        .out_encoded_checksum(out_encoded_checksum),
+        .source_count(source_count),
+        .stage_count(stage_count),
+        .sink_count(sink_count)
+    );
+
+    always #5 clk = ~clk;
+
+    initial begin
+        clk = 1'b0;
+        rst = 1'b1;
+        in_valid = 1'b0;
+        in_kind = '0;
+        in_value = '0;
+        for (integer init_feature = 0; init_feature < 32; init_feature = init_feature + 1) begin
+            in_sample_levels[init_feature] = '0;
+        end
+        out_ready = 1'b0;
+        cycle_count = 0;
+        sent = 0;
+        received = 0;
+        errors = 0;
+`ifdef P2P_INTERNAL_SOURCE
+        sent = NUM_TOKENS;
+`endif
+
+        repeat (5) @(posedge clk);
+        #1;
+        rst = 1'b0;
+        out_ready = 1'b1;
+        repeat (2) @(posedge clk);
+        #1;
+
+        forever begin
+            if (cycle_count > TIMEOUT_CYCLES) begin
+                $fatal(1,
+                       "P2P RTL timeout cycles=%0d sent=%0d received=%0d source_count=%0d stage_count=%0d sink_count=%0d",
+                       cycle_count, sent, received, source_count, stage_count, sink_count);
+            end
+
+`ifndef P2P_INTERNAL_SOURCE
+            if (!in_valid && sent < NUM_TOKENS) begin
+                in_kind = sent % 5;
+                in_value = 10 + sent;
+                for (integer drive_feature = 0; drive_feature < 32; drive_feature = drive_feature + 1) begin
+                    in_sample_levels[drive_feature] = (10 + sent + (sent % 5) + 3 * drive_feature) & 8'hff;
+                end
+                in_valid = 1'b1;
+            end
+`endif
+
+            @(posedge clk);
+            #1;
+            cycle_count = cycle_count + 1;
+
+            if ((cycle_count % 100) == 0) begin
+                $display("progress cycles=%0d sent=%0d received=%0d in_v=%0b in_r=%0b out_v=%0b out_r=%0b counts=%0d/%0d/%0d",
+                         cycle_count, sent, received, in_valid, in_ready,
+                         out_valid, out_ready, source_count, stage_count, sink_count);
+            end
+
+`ifndef P2P_INTERNAL_SOURCE
+            if (in_valid && in_ready) begin
+                sent = sent + 1;
+                in_valid = 1'b0;
+            end
+`endif
+
+            if (out_valid && out_ready) begin
+                expected_kind = received % 5;
+                input_value = 10 + received;
+`ifdef P2P_ENCODER_MIMIC
+                expected_value = input_value;
+`else
+                expected_value = input_value + 1;
+`endif
+                expected_sample_checksum_value =
+                    expected_sample_checksum(expected_kind, input_value);
+                expected_encoded_checksum_value =
+                    expected_encoded_checksum(expected_kind, input_value);
+
+                if (out_kind !== expected_kind[2:0] ||
+                    out_value !== expected_value[7:0] ||
+                    out_sample_checksum !== expected_sample_checksum_value[15:0] ||
+                    out_encoded_checksum !== expected_encoded_checksum_value[15:0]) begin
+                    $error("Mismatch token=%0d got kind=%0d value=%0d sample=%0d encoded=%0d expected kind=%0d value=%0d sample=%0d encoded=%0d",
+                           received, out_kind, out_value,
+                           out_sample_checksum, out_encoded_checksum,
+                           expected_kind, expected_value,
+                           expected_sample_checksum_value,
+                           expected_encoded_checksum_value);
+                    errors = errors + 1;
+                end
+
+                received = received + 1;
+            end
+
+            if (sent == NUM_TOKENS && received == NUM_TOKENS && !in_valid) begin
+                // The DUT counters are registered outputs and can lag the
+                // testbench handshake counters by one cycle at completion.
+                repeat (2) begin
+                    @(posedge clk);
+                    #1;
+                    cycle_count = cycle_count + 1;
+                end
+
+                $display("P2P RTL simulation complete");
+                $display("cycles=%0d", cycle_count);
+                $display("sent=%0d", sent);
+                $display("received=%0d", received);
+                $display("source_count=%0d", source_count);
+                $display("stage_count=%0d", stage_count);
+                $display("sink_count=%0d", sink_count);
+                $display("errors=%0d", errors);
+
+                if (source_count !== NUM_TOKENS[15:0] ||
+                    stage_count !== NUM_TOKENS[15:0] ||
+                    sink_count !== NUM_TOKENS[15:0]) begin
+                    $fatal(1, "Counter mismatch");
+                end
+
+                if (errors != 0) begin
+                    $fatal(1, "P2P RTL comparison failed");
+                end
+
+                $finish;
+            end
+        end
+    end
+endmodule

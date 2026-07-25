@@ -5,18 +5,8 @@ namespace hdc_systemc {
 
 namespace {
 
-bool get_bit(const hv_t &hv, int index) {
-    return hv[index].to_bool();
-}
-
-void set_bit(hv_t &hv, int index, bool value) {
-    hv[index] = value ? sc_dt::SC_LOGIC_1 : sc_dt::SC_LOGIC_0;
-}
-
 void clear_hv(hv_t &hv) {
-    for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        hv[d] = sc_dt::SC_LOGIC_0;
-    }
+    hv_clear(hv);
 }
 
 } // namespace
@@ -374,7 +364,7 @@ void HDC_Accelerator::reset_ngram_buffer() {
 
 void HDC_Accelerator::add_ngram_to_bundling_buffer(const hv_t &encoded_ngram) {
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        if (get_bit(encoded_ngram, d)) {
+        if (hv_get_bit(encoded_ngram, static_cast<unsigned>(d))) {
             ++m_bundling_score[d];
         } else {
             --m_bundling_score[d];
@@ -415,7 +405,7 @@ void HDC_Accelerator::finalize_current_class() {
     const bool odd_count = (m_current_class_count.to_uint() & 1u) != 0u;
     const train_score_t signed_threshold = odd_count ? train_score_t(-1) : train_score_t(0);
     for (int d = 0; d < VECTOR_DIMENSION; ++d) {
-        set_bit(class_vector, d, m_bundling_score[d] >= signed_threshold);
+        hv_set_bit(class_vector, static_cast<unsigned>(d), m_bundling_score[d] >= signed_threshold);
         m_bundling_score[d] = 0;
     }
     sc_core::wait(MEM_LATENCY_AM_WRITE_NS, sc_core::SC_NS);
@@ -461,9 +451,9 @@ void HDC_Accelerator::ngram_pe_thread(unsigned pe_id) {
         for (unsigned d = begin; d < end; ++d) {
             const unsigned source_index = (d + VECTOR_DIMENSION - 1) % VECTOR_DIMENSION;
             const bool bit =
-                get_bit(*m_ngram_work_input, static_cast<int>(source_index)) ^
-                get_bit(*m_ngram_work_rhs, static_cast<int>(d));
-            set_bit(*m_ngram_work_output, static_cast<int>(d), bit);
+                hv_get_bit(*m_ngram_work_input, source_index) ^
+                hv_get_bit(*m_ngram_work_rhs, d);
+            hv_set_bit(*m_ngram_work_output, d, bit);
         }
 
         m_ngram_done_flags[pe_id] = true;
@@ -521,14 +511,14 @@ void HDC_Accelerator::encoder_pe_thread(unsigned pe_id) {
                 sc_core::wait(MEM_LATENCY_CIM_READ_NS, sc_core::SC_NS);
                 const hv_t &feature_hv =
                     m_memory->read_cim(m_encode_current_sample.levels[feature], feature);
-                if (get_bit(feature_hv, static_cast<int>(d))) {
+                if (hv_get_bit(feature_hv, d)) {
                     ++score;
                 } else {
                     --score;
                 }
             }
 
-            set_bit(m_encode_current_output, static_cast<int>(d), score >= signed_threshold);
+            hv_set_bit(m_encode_current_output, d, score >= signed_threshold);
         }
 
         m_encode_done_flags[pe_id] = true;
@@ -569,8 +559,8 @@ void HDC_Accelerator::distance_class_pe_thread(unsigned class_id) {
         const hv_t &class_vector = m_memory->read_assoc_class(class_id);
         distance_counter_t distance = 0;
         for (unsigned d = 0; d < VECTOR_DIMENSION; ++d) {
-            if (get_bit(m_distance_current_query, static_cast<int>(d)) !=
-                get_bit(class_vector, static_cast<int>(d))) {
+            if (hv_get_bit(m_distance_current_query, d) !=
+                hv_get_bit(class_vector, d)) {
                 ++distance;
             }
         }

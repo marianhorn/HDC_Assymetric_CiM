@@ -51,6 +51,17 @@ def build_vector_dimensions():
     return sorted(set(dims))
 
 
+def build_missing_dense_level40_dimensions():
+    requested = set(range(201, 992, 10))
+    requested.update(range(1000, 5001, 10))
+
+    already_present = set(range(201, 1000, 50))
+    already_present.add(1000)
+    already_present.update(range(1500, 5001, 500))
+
+    return sorted(requested - already_present)
+
+
 def build_num_levels():
     levels = list(range(5, 101, 1))
     levels.extend(range(105, 201, 5))
@@ -154,7 +165,13 @@ def append_combined(combined_output_path, log_path, run_index, total_runs, item_
             shutil.copyfileobj(in_f, out_f)
 
 
-def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, skip_clean):
+def run_seed_sweep(
+    item_mem_seed,
+    make_cmd_name,
+    num_levels_values,
+    vector_dimensions,
+    skip_clean,
+):
     seed_dir = os.path.join(RUNS_DIR, f"seed_{item_mem_seed:02d}")
     logs_dir = os.path.join(seed_dir, "logs")
     combined_output_path = os.path.join(seed_dir, "output_all.txt")
@@ -171,6 +188,7 @@ def run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimen
 
     print(f"\nSeed {item_mem_seed}")
     print(f"Output folder: {seed_dir}")
+    print(f"Runs to execute: {total_runs}")
 
     for run_index, (num_levels, vector_dimension) in enumerate(runs, start=1):
         log_name = f"run_levels_{num_levels:03d}_dim_{vector_dimension:05d}.txt"
@@ -253,11 +271,23 @@ def main():
         default=",".join(str(seed) for seed in SEEDS),
         help="Comma-separated item-memory seeds to run, for example: 1,2,3",
     )
+    parser.add_argument(
+        "--dense-level40-missing",
+        action="store_true",
+        help=(
+            "Run only missing NUM_LEVELS=40 baseline dimensions for the dense grid: "
+            "201..989 step 10, then 1000..5000 step 10."
+        ),
+    )
     args = parser.parse_args()
 
     selected_seeds = parse_seeds(args.seeds)
-    num_levels_values = build_num_levels()
-    vector_dimensions = build_vector_dimensions()
+    if args.dense_level40_missing:
+        num_levels_values = [40]
+        vector_dimensions = build_missing_dense_level40_dimensions()
+    else:
+        num_levels_values = build_num_levels()
+        vector_dimensions = build_vector_dimensions()
     make_cmd_name = choose_make_command()
 
     os.makedirs(RUNS_DIR, exist_ok=True)
@@ -265,10 +295,21 @@ def main():
     print(f"Repo root: {REPO_ROOT}")
     print(f"Runs folder: {RUNS_DIR}")
     print(f"Seeds: {selected_seeds}")
+    print(f"NUM_LEVELS values: {num_levels_values}")
+    print(
+        f"VECTOR_DIMENSION values ({len(vector_dimensions)}): "
+        f"{vector_dimensions[0]}..{vector_dimensions[-1]}"
+    )
     print(f"Configurations per seed: {len(num_levels_values) * len(vector_dimensions)}")
 
     for item_mem_seed in selected_seeds:
-        run_seed_sweep(item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
+        run_seed_sweep(
+            item_mem_seed,
+            make_cmd_name,
+            num_levels_values,
+            vector_dimensions,
+            args.skip_clean,
+        )
 
     print("\nFinished all seeded baseline sweeps.")
 

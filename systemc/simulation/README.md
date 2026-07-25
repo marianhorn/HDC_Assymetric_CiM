@@ -328,6 +328,11 @@ ACCEL_LATENCY_BUNDLE_NS
 ACCEL_LATENCY_DISTANCE_NS
 ```
 
+Hypervectors are stored as packed 64-bit words to match the native C reference
+layout. `VECTOR_DIMENSION` must be divisible by 64; non-divisible dimensions
+are intentionally unsupported to keep the representation aligned with the
+synthesis model.
+
 The import file headers are checked against the active SystemC configuration. If `NUM_LEVELS`, `NUM_FEATURES`, or `VECTOR_DIMENSION` do not match the imported files, the simulation fails early.
 
 ## Import Files
@@ -362,6 +367,7 @@ Current limitations:
 - controller streams data commands with a bounded inference window; reset, flush, and shutdown commands remain blocking stream boundaries
 - memory is functional and does not model ports, banks, contention, or bandwidth stalls
 - import files must already exist and match the compiled configuration
+- `VECTOR_DIMENSION` must be divisible by 64
 - bundling is sequential
 
 ## Presentation Summary
