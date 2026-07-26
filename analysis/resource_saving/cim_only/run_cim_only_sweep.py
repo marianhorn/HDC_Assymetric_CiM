@@ -46,6 +46,12 @@ def build_vector_dimensions():
     return [201, 301, 501, 751, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000]
 
 
+def build_missing_level40_dense_dimensions():
+    requested = set(range(1000, 10001, 50))
+    already_present = set(range(1000, 5001, 500))
+    return sorted(requested - already_present)
+
+
 def build_num_levels():
     return [6, 8, 12, 16, 24, 32, 48, 64, 96, 120, 160, 200]
 
@@ -236,11 +242,23 @@ def main():
         default=",".join(str(seed) for seed in SEEDS),
         help="Comma-separated seeds to run. Each seed is used as both ITEM_MEM_SEED and GA_DEFAULT_SEED.",
     )
+    parser.add_argument(
+        "--level40-dense-dimensions-missing",
+        action="store_true",
+        help=(
+            "Run GA-only NUM_LEVELS=40 for VECTOR_DIMENSION=1000..10000 step 50, "
+            "excluding already measured 1000..5000 step 500."
+        ),
+    )
     args = parser.parse_args()
 
     selected_seeds = parse_seeds(args.seeds)
-    num_levels_values = build_num_levels()
-    vector_dimensions = build_vector_dimensions()
+    if args.level40_dense_dimensions_missing:
+        num_levels_values = [40]
+        vector_dimensions = build_missing_level40_dense_dimensions()
+    else:
+        num_levels_values = build_num_levels()
+        vector_dimensions = build_vector_dimensions()
     make_cmd_name = choose_make_command()
 
     os.makedirs(RUNS_DIR, exist_ok=True)
@@ -248,6 +266,11 @@ def main():
     print(f"Repo root: {REPO_ROOT}")
     print(f"Runs folder: {RUNS_DIR}")
     print(f"Seeds: {selected_seeds}")
+    print(f"NUM_LEVELS values: {num_levels_values}")
+    print(
+        f"VECTOR_DIMENSION values ({len(vector_dimensions)}): "
+        f"{vector_dimensions[0]}..{vector_dimensions[-1]}"
+    )
     print(f"Configurations per seed: {len(num_levels_values) * len(vector_dimensions)}")
 
     for seed in selected_seeds:
