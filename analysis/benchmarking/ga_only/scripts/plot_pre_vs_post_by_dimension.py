@@ -25,6 +25,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 GA_ONLY_DIR = SCRIPT_DIR.parent
 BENCHMARKING_DIR = GA_ONLY_DIR.parent
 DEFAULT_RUNS_DIR = BENCHMARKING_DIR.parent / "resource_saving" / "cim_only" / "runs"
+DEFAULT_BASELINE_RUNS_DIR = (
+    BENCHMARKING_DIR.parent / "resource_saving" / "baseline" / "runs"
+)
 DEFAULT_PLOTS_DIR = GA_ONLY_DIR / "plots"
 DEFAULT_RESULTS_DIR = GA_ONLY_DIR / "results"
 INFO_RE = re.compile(
@@ -49,7 +52,25 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Plot every Nth dimension after filtering and averaging. Default: 1.",
     )
+    parser.add_argument(
+        "--reference-dimension",
+        type=int,
+        default=10000,
+        help="Draw a horizontal reference line at this dimension's averaged accuracy. Default: 10000.",
+    )
+    parser.add_argument(
+        "--reference-phase",
+        choices=["preopt", "postopt"],
+        default="preopt",
+        help="Baseline phase used for the reference line. Default: preopt.",
+    )
     parser.add_argument("--runs-dir", type=Path, default=DEFAULT_RUNS_DIR)
+    parser.add_argument(
+        "--reference-runs-dir",
+        type=Path,
+        default=DEFAULT_BASELINE_RUNS_DIR,
+        help="Baseline runs directory used for the horizontal reference lines.",
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument(
         "--no-show",
@@ -116,6 +137,52 @@ def load_selected_rows(args: argparse.Namespace) -> list[dict[str, object]]:
 
     if not rows:
         raise RuntimeError(f"No rows for levels={args.num_levels}, split=test")
+    return rows
+
+
+def load_reference_rows(args: argparse.Namespace) -> list[dict[str, object]]:
+    rows = []
+    result_paths = sorted(args.reference_runs_dir.resolve().glob("seed_*/results.csv"))
+    if not result_paths:
+        raise FileNotFoundError(
+            f"No baseline reference results found under {args.reference_runs_dir}"
+        )
+
+    for path in result_paths:
+        seed_match = re.fullmatch(r"seed_(\d+)", path.parent.name)
+        if seed_match is None:
+            continue
+        seed = int(seed_match.group(1))
+        with path.open(newline="", encoding="utf-8") as result_file:
+            reader = csv.DictReader(result_file)
+            if args.metric not in (reader.fieldnames or []):
+                raise KeyError(f"Metric column not found in {path}: {args.metric}")
+            for row in reader:
+                info_match = INFO_RE.search(row["info"])
+                if info_match is None:
+                    continue
+                if (
+                    int(row["num_levels"]) != args.num_levels
+                    or int(row["vector_dimension"]) != args.reference_dimension
+                    or info_match.group("split") != "test"
+                    or info_match.group("phase") != args.reference_phase
+                ):
+                    continue
+                rows.append(
+                    {
+                        "seed": seed,
+                        "dataset": int(info_match.group("dataset")),
+                        "phase": args.reference_phase,
+                        "vector_dimension": args.reference_dimension,
+                        "value": float(row[args.metric]),
+                    }
+                )
+
+    if not rows:
+        raise RuntimeError(
+            f"No baseline reference rows for levels={args.num_levels}, "
+            f"dimension={args.reference_dimension}, phase={args.reference_phase}-test"
+        )
     return rows
 
 
@@ -206,12 +273,27 @@ def add_dataset_average(
     )
 
 
+def reference_values(
+    averaged: list[dict[str, object]], args: argparse.Namespace
+) -> dict[int, float]:
+    values = {}
+    for row in averaged:
+        if (
+            str(row["phase"]) == args.reference_phase
+            and int(row["vector_dimension"]) == args.reference_dimension
+        ):
+            values[int(row["dataset"])] = float(row["mean"])
+    return values
+
+
 def dataset_label(dataset: int) -> str:
     return "dataset average" if dataset < 0 else str(dataset)
 
 
 def print_configurations(
-    averaged: list[dict[str, object]], args: argparse.Namespace
+    averaged: list[dict[str, object]],
+    args: argparse.Namespace,
+    references: dict[int, float],
 ) -> None:
     dimensions = sorted({int(row["vector_dimension"]) for row in averaged})
     seeds = sorted({seed for row in averaged for seed in row["seeds"]})
@@ -227,6 +309,10 @@ def print_configurations(
         print(f"  y range: {args.y_min}..{args.y_max}")
     if args.sample_step != 1:
         print(f"  sample step: every {args.sample_step} dimension value")
+    print(
+        f"  reference: baseline {args.reference_phase}-test at "
+        f"VECTOR_DIMENSION={args.reference_dimension}"
+    )
     print(f"  seeds: {', '.join(map(str, seeds))}")
     print(f"  datasets: {', '.join(dataset_label(dataset) for dataset in datasets)}")
     print(f"  dimensions ({len(dimensions)}): {', '.join(map(str, dimensions))}")
@@ -241,6 +327,14 @@ def print_configurations(
             f"{int(row['seed_count']):10d} {seed_text:9s} "
             f"{float(row['mean']):.8f}"
         )
+    if references:
+        print()
+        print("Reference values:")
+        for dataset in sorted(references):
+            print(
+                f"  {dataset_label(dataset)}: "
+                f"{references[dataset]:.8f}"
+            )
 
 
 def write_csv(path: Path, averaged: list[dict[str, object]]) -> None:
@@ -264,7 +358,12 @@ def write_csv(path: Path, averaged: list[dict[str, object]]) -> None:
             writer.writerow(record)
 
 
-def write_html(path: Path, averaged: list[dict[str, object]], args: argparse.Namespace) -> None:
+def write_html(
+    path: Path,
+    averaged: list[dict[str, object]],
+    args: argparse.Namespace,
+    references: dict[int, float],
+) -> None:
     datasets = sorted({int(row["dataset"]) for row in averaged})
     dimensions = sorted({int(row["vector_dimension"]) for row in averaged})
     means = {
@@ -281,6 +380,7 @@ def write_html(path: Path, averaged: list[dict[str, object]], args: argparse.Nam
     colors = {
         "preopt": "#7f8c8d",
         "postopt": "#d62728",
+        "reference": "#1f77b4",
     }
     title = f"GA-only pre vs post test {args.metric.replace('_', ' ')} at {args.num_levels} levels"
     y_min = 0.0 if args.y_min is None else args.y_min
@@ -312,6 +412,9 @@ def write_html(path: Path, averaged: list[dict[str, object]], args: argparse.Nam
     const dimensions = {dimensions!r};
     const means = {means!r};
     const colors = {colors!r};
+    const references = {references!r};
+    const referenceDimension = {args.reference_dimension!r};
+    const referencePhase = {args.reference_phase!r};
     const yMin = {y_min!r};
     const yMax = {y_max!r};
     const width = 1050;
@@ -351,6 +454,24 @@ def write_html(path: Path, averaged: list[dict[str, object]], args: argparse.Nam
       }}
       makeSvg(svg, "line", {{ x1: margin.left, y1: height - margin.bottom, x2: width - margin.right, y2: height - margin.bottom, class: "axis" }});
       makeSvg(svg, "line", {{ x1: margin.left, y1: margin.top, x2: margin.left, y2: height - margin.bottom, class: "axis" }});
+      if (references[dataset] !== undefined) {{
+        const refY = yScale(references[dataset]);
+        makeSvg(svg, "line", {{
+          x1: margin.left,
+          y1: refY,
+          x2: width - margin.right,
+          y2: refY,
+          stroke: colors.reference,
+          "stroke-width": 2,
+          "stroke-dasharray": "3 5"
+        }});
+        makeSvg(svg, "text", {{
+          x: width - margin.right + 24,
+          y: refY + 4,
+          class: "tick",
+          fill: colors.reference
+        }}, `baseline ${{referencePhase}} @ ${{referenceDimension}}`);
+      }}
       ["preopt", "postopt"].forEach((phase, index) => {{
         const phasePoints = dimensions
           .filter(dimension => means[dataset][phase][dimension] !== undefined)
@@ -375,7 +496,10 @@ def write_html(path: Path, averaged: list[dict[str, object]], args: argparse.Nam
 
 
 def plot_results(
-    path: Path, averaged: list[dict[str, object]], args: argparse.Namespace
+    path: Path,
+    averaged: list[dict[str, object]],
+    args: argparse.Namespace,
+    references: dict[int, float],
 ) -> None:
     datasets = sorted({int(row["dataset"]) for row in averaged})
     fig, axes = plt.subplots(
@@ -404,6 +528,14 @@ def plot_results(
                 linestyle=styles[phase],
                 color=colors[phase],
                 label=phase,
+            )
+        if dataset in references:
+            ax.axhline(
+                references[dataset],
+                color="#1f77b4",
+                linestyle=":",
+                linewidth=1.8,
+                label=f"baseline {args.reference_phase} @ {args.reference_dimension}",
             )
         ax.set_title("Dataset average" if dataset < 0 else f"Dataset {dataset}")
         ax.set_ylabel("Mean accuracy")
@@ -445,15 +577,18 @@ def output_range_suffix(args: argparse.Namespace) -> str:
         parts.append(f"y_{lo}_{hi}")
     if args.sample_step != 1:
         parts.append(f"step_{args.sample_step}")
+    if args.reference_dimension != 10000 or args.reference_phase != "preopt":
+        parts.append(f"ref_{args.reference_phase}_{args.reference_dimension}")
     return "" if not parts else "_" + "_".join(parts).replace(".", "p")
 
 
 def main() -> None:
     args = parse_args()
-    averaged = add_dataset_average(
-        sample_dimensions(aggregate(load_selected_rows(args)), args.sample_step)
-    )
-    print_configurations(averaged, args)
+    full_averaged = add_dataset_average(aggregate(load_selected_rows(args)))
+    baseline_reference = add_dataset_average(aggregate(load_reference_rows(args)))
+    references = reference_values(baseline_reference, args)
+    averaged = sample_dimensions(full_averaged, args.sample_step)
+    print_configurations(averaged, args, references)
 
     output = args.output or (
         DEFAULT_PLOTS_DIR
@@ -474,9 +609,9 @@ def main() -> None:
     csv_output.parent.mkdir(parents=True, exist_ok=True)
     html_output = output.with_suffix(".html")
 
-    plot_results(output, averaged, args)
+    plot_results(output, averaged, args, references)
     write_csv(csv_output, averaged)
-    write_html(html_output, averaged, args)
+    write_html(html_output, averaged, args, references)
     print()
     print(f"Saved PNG plot:      {output}")
     print(f"Saved HTML plot:     {html_output}")

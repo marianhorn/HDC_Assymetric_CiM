@@ -83,6 +83,39 @@ def build_runs():
     return sorted(set(runs))
 
 
+def build_level40_dense_dimension_runs():
+    """Dense NUM_LEVELS=40 refinement over large dimensions."""
+    return [(40, vector_dimension) for vector_dimension in range(1000, 10001, 100)]
+
+
+def read_existing_configs(mode_name, seed):
+    results_path = os.path.join(
+        RUNS_DIR,
+        f"binning_mode_{mode_name}",
+        f"seed_{seed:02d}",
+        "results.csv",
+    )
+    existing = set()
+
+    if not os.path.exists(results_path):
+        return existing
+
+    with open(results_path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                existing.add((int(row["num_levels"]), int(row["vector_dimension"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+
+    return existing
+
+
+def filter_missing_runs(mode_name, seed, runs):
+    existing = read_existing_configs(mode_name, seed)
+    return [run for run in runs if run not in existing]
+
+
 def parse_binning_modes(text):
     requested = [part.strip().lower() for part in text.split(",") if part.strip()]
     if not requested:
@@ -315,11 +348,27 @@ def main():
         default=",".join(str(seed) for seed in SEEDS),
         help="Comma-separated seeds to run. Each seed is used as both ITEM_MEM_SEED and GA_DEFAULT_SEED.",
     )
+    parser.add_argument(
+        "--level40-dense-dimensions-missing",
+        action="store_true",
+        help=(
+            "Append only missing quantizer+GA runs for NUM_LEVELS=40 and "
+            "VECTOR_DIMENSION=1000..10000 in steps of 100. Existing results "
+            "are preserved automatically."
+        ),
+    )
     args = parser.parse_args()
 
     selected_modes = parse_binning_modes(args.binning_modes)
     selected_seeds = parse_seeds(args.seeds)
-    runs = build_runs()
+    if args.level40_dense_dimensions_missing:
+        runs = build_level40_dense_dimension_runs()
+        grid_description = "missing dense NUM_LEVELS=40 points, VECTOR_DIMENSION=1000..10000 step 100"
+        append_results = True
+    else:
+        runs = build_runs()
+        grid_description = "missing cim_uniform low-grid points (NUM_LEVELS <= 50, VECTOR_DIMENSION <= 2000)"
+        append_results = args.skip_clean
     make_cmd_name = choose_make_command()
 
     os.makedirs(RUNS_DIR, exist_ok=True)
@@ -328,12 +377,23 @@ def main():
     print(f"Runs folder: {RUNS_DIR}")
     print(f"Binning modes: {selected_modes}")
     print(f"Seeds: {selected_seeds}")
-    print("Grid: missing cim_uniform low-grid points (NUM_LEVELS <= 50, VECTOR_DIMENSION <= 2000)")
-    print(f"Configurations per seed/mode: {len(runs)}")
+    print(f"Grid: {grid_description}")
+    print(f"Candidate configurations per seed/mode: {len(runs)}")
 
     for mode_name, mode_value in selected_modes:
         for seed in selected_seeds:
-            run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, runs, args.skip_clean)
+            runs_for_seed = runs
+            if args.level40_dense_dimensions_missing:
+                runs_for_seed = filter_missing_runs(mode_name, seed, runs)
+                skipped = len(runs) - len(runs_for_seed)
+                print(
+                    f"\nMode {mode_name}, seed {seed:02d}: "
+                    f"{len(runs_for_seed)} missing, {skipped} already present."
+                )
+                if not runs_for_seed:
+                    continue
+
+            run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, runs_for_seed, append_results)
 
     print("\nFinished all quantizer-and-cim resource-saving sweeps.")
 
