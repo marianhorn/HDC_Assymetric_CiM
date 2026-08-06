@@ -11,15 +11,65 @@ namespace hdc_systemc {
 
 namespace {
 
+enum { DATASET_PATH_CAPACITY = 512 };
+
+bool file_exists(const char *path) {
+    std::ifstream file(path);
+    return file.good();
+}
+
+void format_dataset_paths(const char *repo_prefix,
+                          int dataset_id,
+                          char *training_emg_path,
+                          char *training_labels_path,
+                          char *testing_emg_path,
+                          char *testing_labels_path) {
+    std::snprintf(training_emg_path,
+                  DATASET_PATH_CAPACITY,
+                  "%s/foot/data/dataset%02d/training_emg.csv",
+                  repo_prefix,
+                  dataset_id);
+    std::snprintf(training_labels_path,
+                  DATASET_PATH_CAPACITY,
+                  "%s/foot/data/dataset%02d/training_labels.csv",
+                  repo_prefix,
+                  dataset_id);
+    std::snprintf(testing_emg_path,
+                  DATASET_PATH_CAPACITY,
+                  "%s/foot/data/dataset%02d/testing_emg.csv",
+                  repo_prefix,
+                  dataset_id);
+    std::snprintf(testing_labels_path,
+                  DATASET_PATH_CAPACITY,
+                  "%s/foot/data/dataset%02d/testing_labels.csv",
+                  repo_prefix,
+                  dataset_id);
+}
+
 void build_dataset_paths(int dataset_id,
                          char *training_emg_path,
                          char *training_labels_path,
                          char *testing_emg_path,
                          char *testing_labels_path) {
-    std::snprintf(training_emg_path, 128, "../../foot/data/dataset%02d/training_emg.csv", dataset_id);
-    std::snprintf(training_labels_path, 128, "../../foot/data/dataset%02d/training_labels.csv", dataset_id);
-    std::snprintf(testing_emg_path, 128, "../../foot/data/dataset%02d/testing_emg.csv", dataset_id);
-    std::snprintf(testing_labels_path, 128, "../../foot/data/dataset%02d/testing_labels.csv", dataset_id);
+    static const char *const repo_prefixes[] = {".", "..", "../..", "../../.."};
+    for (unsigned i = 0; i < sizeof(repo_prefixes) / sizeof(repo_prefixes[0]); ++i) {
+        format_dataset_paths(repo_prefixes[i],
+                             dataset_id,
+                             training_emg_path,
+                             training_labels_path,
+                             testing_emg_path,
+                             testing_labels_path);
+        if (file_exists(training_emg_path)) {
+            return;
+        }
+    }
+
+    format_dataset_paths("../../..",
+                         dataset_id,
+                         training_emg_path,
+                         training_labels_path,
+                         testing_emg_path,
+                         testing_labels_path);
 }
 
 DatasetSplit load_emg_split(const char *emg_path, const char *labels_path) {
@@ -87,10 +137,10 @@ DatasetSplit load_emg_split(const char *emg_path, const char *labels_path) {
 } // namespace
 
 FootDataset load_foot_dataset_by_id(int dataset_id) {
-    char training_emg_path[128];
-    char training_labels_path[128];
-    char testing_emg_path[128];
-    char testing_labels_path[128];
+    char training_emg_path[DATASET_PATH_CAPACITY];
+    char training_labels_path[DATASET_PATH_CAPACITY];
+    char testing_emg_path[DATASET_PATH_CAPACITY];
+    char testing_labels_path[DATASET_PATH_CAPACITY];
 
     build_dataset_paths(dataset_id,
                         training_emg_path,
