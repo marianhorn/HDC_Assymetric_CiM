@@ -96,6 +96,10 @@ int main(void) {
             fprintf(stderr, "Error: Failed to initialize quantizer for dataset %d.\n", dataset);
             return EXIT_FAILURE;
         }
+        if (quantizer_export_cuts_csv_for_dataset(dataset) != 0) {
+            fprintf(stderr, "Error: Failed to export quantizer thresholds for dataset %d.\n", dataset);
+            return EXIT_FAILURE;
+        }
 
         train_model_timeseries(trainingData, trainingLabels, trainingSamples, &assMem, &enc);
 

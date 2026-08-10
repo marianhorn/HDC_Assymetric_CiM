@@ -96,4 +96,5 @@ analysis/resource_saving/runs/
 analysis/resource_saving/evaluation/extracted/
 analysis/benchmarking/**/plots/
 analysis/benchmarking/**/results/
+analysis/benchmarking/**/exports/
 analysis/benchmarking/**/__pycache__/

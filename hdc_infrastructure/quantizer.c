@@ -5,9 +5,15 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifndef QUANTIZER_EXPORT_ENABLED
 #define QUANTIZER_EXPORT_ENABLED 0
+#endif
+#ifndef QUANTIZER_EXPORT_CUTS_PATH_TEMPLATE
 #define QUANTIZER_EXPORT_CUTS_PATH_TEMPLATE "analysis/quantizer_cuts_dataset%02d.csv"
+#endif
+#ifndef QUANTIZER_EXPORT_CENTERS_PATH_TEMPLATE
 #define QUANTIZER_EXPORT_CENTERS_PATH_TEMPLATE "analysis/quantizer_centers_dataset%02d.csv"
+#endif
 #define KMEANS_1D_MAX_ITERATIONS 100
 #define KMEANS_1D_TOLERANCE 1e-9
 #define TREE_1D_MIN_SAMPLES_LEAF 10
