@@ -1887,7 +1887,7 @@ void optimize_item_memory(struct item_memory *item_mem,
                                                    testing_samples,
                                                    flip_counts,
                                                    &permutations,
-                                                   "final_precomputed_ga") != 0) {
+                                                   GA_CIM_EXPORT_LABEL) != 0) {
         fprintf(stderr, "Failed to run precomputed GA.\n");
         free(flip_counts);
         return;

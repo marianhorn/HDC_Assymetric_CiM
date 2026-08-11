@@ -58,6 +58,12 @@
 #ifndef VALIDATION_RATIO
 #define VALIDATION_RATIO 0.3 // validation split ratio
 #endif
+#ifndef DATASET_START
+#define DATASET_START 0 // first dataset index to run
+#endif
+#ifndef DATASET_END
+#define DATASET_END 3 // last dataset index to run, inclusive
+#endif
 
 #ifndef BIPOLAR_MODE
 #define BIPOLAR_MODE 0 // use bipolar vectors
@@ -83,6 +89,9 @@
 #endif
 #ifndef GA_DEFAULT_SEED
 #define GA_DEFAULT_SEED 45 // GA RNG seed
+#endif
+#ifndef GA_CIM_EXPORT_LABEL
+#define GA_CIM_EXPORT_LABEL "final_precomputed_ga" // folder label for exported GA CiMs
 #endif
 #ifndef GA_MAX_FLIPS_CIM
 #define GA_MAX_FLIPS_CIM VECTOR_DIMENSION // CiM max flips budget

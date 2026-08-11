@@ -33,7 +33,7 @@ int main(void) {
 #endif
     int processed_datasets = 0;
 
-    for (int dataset = 0; dataset < 4; dataset++) {
+    for (int dataset = DATASET_START; dataset <= DATASET_END; dataset++) {
         double **trainingData = NULL;
         double **validationData = NULL;
         double **testingData = NULL;

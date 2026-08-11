@@ -62,6 +62,12 @@ def build_missing_dense_level40_dimensions():
     return sorted(requested - already_present)
 
 
+def build_missing_level40_dense_5k_to_10k_dimensions():
+    requested = set(range(5000, 10001, 100))
+    already_present = set(range(5000, 10001, 500))
+    return sorted(requested - already_present)
+
+
 def build_num_levels():
     levels = list(range(5, 101, 1))
     levels.extend(range(105, 201, 5))
@@ -298,6 +304,14 @@ def main():
         ),
     )
     parser.add_argument(
+        "--dense-level40-5k-10k-missing",
+        action="store_true",
+        help=(
+            "Run only missing NUM_LEVELS=40 baseline dimensions for a dense "
+            "5000..10000 step-100 grid. Existing step-500 points are skipped."
+        ),
+    )
+    parser.add_argument(
         "--levels-step10-10000",
         action="store_true",
         help="Run baseline NUM_LEVELS=10..500 step 10 at VECTOR_DIMENSION=10000.",
@@ -308,12 +322,14 @@ def main():
     selected_modes = [
         args.dense_level40_missing,
         args.missing_levels_10000,
+        args.dense_level40_5k_10k_missing,
         args.levels_step10_10000,
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
         raise ValueError(
             "Use only one of --dense-level40-missing, "
-            "--missing-levels-10000, or --levels-step10-10000"
+            "--missing-levels-10000, --dense-level40-5k-10k-missing, "
+            "or --levels-step10-10000"
         )
     if args.dense_level40_missing:
         num_levels_values = [40]
@@ -321,6 +337,9 @@ def main():
     elif args.missing_levels_10000:
         num_levels_values = build_missing_num_levels_for_dense_10000_plot()
         vector_dimensions = [10000]
+    elif args.dense_level40_5k_10k_missing:
+        num_levels_values = [40]
+        vector_dimensions = build_missing_level40_dense_5k_to_10k_dimensions()
     elif args.levels_step10_10000:
         num_levels_values = build_num_levels_step10_to_500()
         vector_dimensions = [10000]
