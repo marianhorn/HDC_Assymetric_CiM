@@ -192,7 +192,15 @@ module HDC_AcceleratorAxisTestShim (
                               (command_beat == 0) &&
                               s_axis_cmd_tvalid &&
                               s_axis_cmd_tready;
+    wire axis_command_final = command_active &&
+                              (command_beat == COMMAND_BEATS - 1) &&
+                              s_axis_cmd_tvalid &&
+                              s_axis_cmd_tready;
+    wire axis_core_command_fire = axis_dut.core_cmd_vld &&
+                                  !axis_dut.core_cmd_busy;
     wire [2:0] axis_command_start_kind = command_shift[2:0];
+    wire [2:0] axis_command_final_kind = command_shift[2:0];
+    wire [2:0] axis_core_command_kind = axis_dut.core_cmd_data[2:0];
 
     always @(posedge clk) begin
         if (rst) begin

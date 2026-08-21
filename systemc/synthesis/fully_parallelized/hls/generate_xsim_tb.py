@@ -1080,12 +1080,18 @@ module hdc_accelerator_rtl_tb;
     integer infer_sample_complete_last_cycle;
     integer infer_sample_complete_count;
     integer infer_trace_top_accept_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_axis_first_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_axis_final_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_core_cmd_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_enc_in_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_enc_out_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_distance_in_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_distance_done_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_response_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_top_accept_count;
+    integer infer_trace_axis_first_count;
+    integer infer_trace_axis_final_count;
+    integer infer_trace_core_cmd_count;
     integer infer_trace_enc_in_count;
     integer infer_trace_enc_out_count;
     integer infer_trace_distance_in_count;
@@ -1258,6 +1264,18 @@ module hdc_accelerator_rtl_tb;
         integer summary_count;
         integer summary_i;
         integer stage_value;
+        integer top_to_axis_sum;
+        integer top_to_axis_min;
+        integer top_to_axis_max;
+        integer axis_serial_sum;
+        integer axis_serial_min;
+        integer axis_serial_max;
+        integer axis_to_core_sum;
+        integer axis_to_core_min;
+        integer axis_to_core_max;
+        integer core_to_enc_sum;
+        integer core_to_enc_min;
+        integer core_to_enc_max;
         integer top_to_enc_sum;
         integer top_to_enc_min;
         integer top_to_enc_max;
@@ -1328,22 +1346,35 @@ module hdc_accelerator_rtl_tb;
                          (infer_sample_accept_first_cycle >= 0 && infer_sample_complete_last_cycle >= 0)
                              ? (infer_sample_complete_last_cycle - infer_sample_accept_first_cycle)
                              : -1);
-                $display("debug infer_trace_counts top=%0d enc_in=%0d enc_out=%0d distance_in=%0d distance_done=%0d response=%0d",
-                         infer_trace_top_accept_count, infer_trace_enc_in_count,
-                         infer_trace_enc_out_count, infer_trace_distance_in_count,
-                         infer_trace_distance_done_count, infer_trace_response_count);
+                $display("debug infer_trace_counts top=%0d axis_first=%0d axis_final=%0d core_cmd=%0d enc_in=%0d enc_out=%0d distance_in=%0d distance_done=%0d response=%0d",
+                         infer_trace_top_accept_count, infer_trace_axis_first_count,
+                         infer_trace_axis_final_count, infer_trace_core_cmd_count,
+                         infer_trace_enc_in_count, infer_trace_enc_out_count,
+                         infer_trace_distance_in_count, infer_trace_distance_done_count,
+                         infer_trace_response_count);
                 for (infer_trace_index = 0;
                      infer_trace_index < infer_sample_accept_count &&
                      infer_trace_index < INFER_TRACE_LIMIT;
                      infer_trace_index = infer_trace_index + 1) begin
-                    $display("debug infer_trace idx=%0d top=%0d enc_in=%0d enc_out=%0d distance_in=%0d distance_done=%0d response=%0d top_to_enc_in=%0d enc_in_to_enc_out=%0d enc_out_to_dist_in=%0d dist_in_to_done=%0d done_to_rsp=%0d",
+                    $display("debug infer_trace idx=%0d top=%0d axis_first=%0d axis_final=%0d core_cmd=%0d enc_in=%0d enc_out=%0d distance_in=%0d distance_done=%0d response=%0d top_to_axis=%0d axis_serial=%0d axis_to_core=%0d core_to_enc_in=%0d top_to_enc_in=%0d enc_in_to_enc_out=%0d enc_out_to_dist_in=%0d dist_in_to_done=%0d done_to_rsp=%0d",
                              infer_trace_index,
                              infer_trace_top_accept_cycle[infer_trace_index],
+                             infer_trace_axis_first_cycle[infer_trace_index],
+                             infer_trace_axis_final_cycle[infer_trace_index],
+                             infer_trace_core_cmd_cycle[infer_trace_index],
                              infer_trace_enc_in_cycle[infer_trace_index],
                              infer_trace_enc_out_cycle[infer_trace_index],
                              infer_trace_distance_in_cycle[infer_trace_index],
                              infer_trace_distance_done_cycle[infer_trace_index],
                              infer_trace_response_cycle[infer_trace_index],
+                             infer_trace_axis_first_cycle[infer_trace_index] -
+                                 infer_trace_top_accept_cycle[infer_trace_index],
+                             infer_trace_axis_final_cycle[infer_trace_index] -
+                                 infer_trace_axis_first_cycle[infer_trace_index],
+                             infer_trace_core_cmd_cycle[infer_trace_index] -
+                                 infer_trace_axis_final_cycle[infer_trace_index],
+                             infer_trace_enc_in_cycle[infer_trace_index] -
+                                 infer_trace_core_cmd_cycle[infer_trace_index],
                              infer_trace_enc_in_cycle[infer_trace_index] -
                                  infer_trace_top_accept_cycle[infer_trace_index],
                              infer_trace_enc_out_cycle[infer_trace_index] -
@@ -1360,6 +1391,10 @@ module hdc_accelerator_rtl_tb;
                 if (summary_count > INFER_TRACE_LIMIT) begin
                     summary_count = INFER_TRACE_LIMIT;
                 end
+                top_to_axis_sum = 0; top_to_axis_min = 2147483647; top_to_axis_max = 0;
+                axis_serial_sum = 0; axis_serial_min = 2147483647; axis_serial_max = 0;
+                axis_to_core_sum = 0; axis_to_core_min = 2147483647; axis_to_core_max = 0;
+                core_to_enc_sum = 0; core_to_enc_min = 2147483647; core_to_enc_max = 0;
                 top_to_enc_sum = 0; top_to_enc_min = 2147483647; top_to_enc_max = 0;
                 enc_sum = 0; enc_min = 2147483647; enc_max = 0;
                 ngram_sum = 0; ngram_min = 2147483647; ngram_max = 0;
@@ -1367,6 +1402,22 @@ module hdc_accelerator_rtl_tb;
                 rsp_sum = 0; rsp_min = 2147483647; rsp_max = 0;
                 total_sum = 0; total_min = 2147483647; total_max = 0;
                 for (summary_i = 0; summary_i < summary_count; summary_i = summary_i + 1) begin
+                    stage_value = infer_trace_axis_first_cycle[summary_i] - infer_trace_top_accept_cycle[summary_i];
+                    top_to_axis_sum = top_to_axis_sum + stage_value;
+                    if (stage_value < top_to_axis_min) top_to_axis_min = stage_value;
+                    if (stage_value > top_to_axis_max) top_to_axis_max = stage_value;
+                    stage_value = infer_trace_axis_final_cycle[summary_i] - infer_trace_axis_first_cycle[summary_i];
+                    axis_serial_sum = axis_serial_sum + stage_value;
+                    if (stage_value < axis_serial_min) axis_serial_min = stage_value;
+                    if (stage_value > axis_serial_max) axis_serial_max = stage_value;
+                    stage_value = infer_trace_core_cmd_cycle[summary_i] - infer_trace_axis_final_cycle[summary_i];
+                    axis_to_core_sum = axis_to_core_sum + stage_value;
+                    if (stage_value < axis_to_core_min) axis_to_core_min = stage_value;
+                    if (stage_value > axis_to_core_max) axis_to_core_max = stage_value;
+                    stage_value = infer_trace_enc_in_cycle[summary_i] - infer_trace_core_cmd_cycle[summary_i];
+                    core_to_enc_sum = core_to_enc_sum + stage_value;
+                    if (stage_value < core_to_enc_min) core_to_enc_min = stage_value;
+                    if (stage_value > core_to_enc_max) core_to_enc_max = stage_value;
                     stage_value = infer_trace_enc_in_cycle[summary_i] - infer_trace_top_accept_cycle[summary_i];
                     top_to_enc_sum = top_to_enc_sum + stage_value;
                     if (stage_value < top_to_enc_min) top_to_enc_min = stage_value;
@@ -1393,6 +1444,13 @@ module hdc_accelerator_rtl_tb;
                     if (stage_value > total_max) total_max = stage_value;
                 end
                 if (summary_count > 0) begin
+                    $display("summary command_path_latency samples=%0d top_to_axis_first min=%0d avg=%0d max=%0d axis_serial min=%0d avg=%0d max=%0d axis_final_to_core min=%0d avg=%0d max=%0d core_to_encoder min=%0d avg=%0d max=%0d top_to_encoder min=%0d avg=%0d max=%0d",
+                             summary_count,
+                             top_to_axis_min, top_to_axis_sum / summary_count, top_to_axis_max,
+                             axis_serial_min, axis_serial_sum / summary_count, axis_serial_max,
+                             axis_to_core_min, axis_to_core_sum / summary_count, axis_to_core_max,
+                             core_to_enc_min, core_to_enc_sum / summary_count, core_to_enc_max,
+                             top_to_enc_min, top_to_enc_sum / summary_count, top_to_enc_max);
                     $display("summary inference_boundary_latency samples=%0d top_to_encoder min=%0d avg=%0d max=%0d encoder min=%0d avg=%0d max=%0d ngram min=%0d avg=%0d max=%0d distance min=%0d avg=%0d max=%0d response min=%0d avg=%0d max=%0d total min=%0d avg=%0d max=%0d",
                              summary_count,
                              top_to_enc_min, top_to_enc_sum / summary_count, top_to_enc_max,
@@ -1495,6 +1553,9 @@ module hdc_accelerator_rtl_tb;
         infer_sample_complete_last_cycle = -1;
         infer_sample_complete_count = 0;
         infer_trace_top_accept_count = 0;
+        infer_trace_axis_first_count = 0;
+        infer_trace_axis_final_count = 0;
+        infer_trace_core_cmd_count = 0;
         infer_trace_enc_in_count = 0;
         infer_trace_enc_out_count = 0;
         infer_trace_distance_in_count = 0;
@@ -1502,6 +1563,9 @@ module hdc_accelerator_rtl_tb;
         infer_trace_response_count = 0;
         for (infer_trace_index = 0; infer_trace_index < INFER_TRACE_LIMIT; infer_trace_index = infer_trace_index + 1) begin
             infer_trace_top_accept_cycle[infer_trace_index] = -1;
+            infer_trace_axis_first_cycle[infer_trace_index] = -1;
+            infer_trace_axis_final_cycle[infer_trace_index] = -1;
+            infer_trace_core_cmd_cycle[infer_trace_index] = -1;
             infer_trace_enc_in_cycle[infer_trace_index] = -1;
             infer_trace_enc_out_cycle[infer_trace_index] = -1;
             infer_trace_distance_in_cycle[infer_trace_index] = -1;
@@ -1547,13 +1611,27 @@ module hdc_accelerator_rtl_tb;
                          cmd_vld, cmd_busy, rsp_vld, rsp_busy);
             end
 {p2p_counter_logic["updates"]}
-            // The compatibility shim accepts a packed command before its AXI
-            // transfer starts. Move the newest inference timestamp to the
-            // first AXI beat so reported latency measures the AXI boundary.
-            if (dut.axis_command_start &&
-                dut.axis_command_start_kind == 4 &&
-                issue_tail > issue_head) begin
-                issue_cycles[issue_tail - 1] = cycle_count;
+            if (dut.axis_command_start && dut.axis_command_start_kind == 4) begin
+                if (infer_trace_axis_first_count < INFER_TRACE_LIMIT) begin
+                    infer_trace_axis_first_cycle[infer_trace_axis_first_count] = cycle_count;
+                    infer_trace_axis_first_count = infer_trace_axis_first_count + 1;
+                end
+                // The compatibility shim accepts a packed command before its AXI
+                // transfer starts. Move the newest inference timestamp to the
+                // first AXI beat so reported latency measures the AXI boundary.
+                if (issue_tail > issue_head) begin
+                    issue_cycles[issue_tail - 1] = cycle_count;
+                end
+            end
+            if (dut.axis_command_final && dut.axis_command_final_kind == 4 &&
+                infer_trace_axis_final_count < INFER_TRACE_LIMIT) begin
+                infer_trace_axis_final_cycle[infer_trace_axis_final_count] = cycle_count;
+                infer_trace_axis_final_count = infer_trace_axis_final_count + 1;
+            end
+            if (dut.axis_core_command_fire && dut.axis_core_command_kind == 4 &&
+                infer_trace_core_cmd_count < INFER_TRACE_LIMIT) begin
+                infer_trace_core_cmd_cycle[infer_trace_core_cmd_count] = cycle_count;
+                infer_trace_core_cmd_count = infer_trace_core_cmd_count + 1;
             end
 
             if (cmd_vld && !cmd_busy) begin
