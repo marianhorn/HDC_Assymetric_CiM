@@ -1255,6 +1255,45 @@ module hdc_accelerator_rtl_tb;
         integer extra;
         integer rc;
         real average_latency;
+        integer summary_count;
+        integer summary_i;
+        integer stage_value;
+        integer top_to_enc_sum;
+        integer top_to_enc_min;
+        integer top_to_enc_max;
+        integer enc_sum;
+        integer enc_min;
+        integer enc_max;
+        integer ngram_sum;
+        integer ngram_min;
+        integer ngram_max;
+        integer dist_sum;
+        integer dist_min;
+        integer dist_max;
+        integer rsp_sum;
+        integer rsp_min;
+        integer rsp_max;
+        integer total_sum;
+        integer total_min;
+        integer total_max;
+        integer top_ii_sum;
+        integer top_ii_min;
+        integer top_ii_max;
+        integer enc_in_ii_sum;
+        integer enc_in_ii_min;
+        integer enc_in_ii_max;
+        integer enc_out_ii_sum;
+        integer enc_out_ii_min;
+        integer enc_out_ii_max;
+        integer dist_in_ii_sum;
+        integer dist_in_ii_min;
+        integer dist_in_ii_max;
+        integer dist_done_ii_sum;
+        integer dist_done_ii_min;
+        integer dist_done_ii_max;
+        integer rsp_ii_sum;
+        integer rsp_ii_min;
+        integer rsp_ii_max;
         begin
             if (!has_command && !cmd_vld && outstanding == 0) begin
                 rc = $fscanf(response_fd, "%d", extra);
@@ -1315,6 +1354,98 @@ module hdc_accelerator_rtl_tb;
                                  infer_trace_distance_in_cycle[infer_trace_index],
                              infer_trace_response_cycle[infer_trace_index] -
                                  infer_trace_distance_done_cycle[infer_trace_index]);
+                end
+
+                summary_count = infer_sample_accept_count;
+                if (summary_count > INFER_TRACE_LIMIT) begin
+                    summary_count = INFER_TRACE_LIMIT;
+                end
+                top_to_enc_sum = 0; top_to_enc_min = 2147483647; top_to_enc_max = 0;
+                enc_sum = 0; enc_min = 2147483647; enc_max = 0;
+                ngram_sum = 0; ngram_min = 2147483647; ngram_max = 0;
+                dist_sum = 0; dist_min = 2147483647; dist_max = 0;
+                rsp_sum = 0; rsp_min = 2147483647; rsp_max = 0;
+                total_sum = 0; total_min = 2147483647; total_max = 0;
+                for (summary_i = 0; summary_i < summary_count; summary_i = summary_i + 1) begin
+                    stage_value = infer_trace_enc_in_cycle[summary_i] - infer_trace_top_accept_cycle[summary_i];
+                    top_to_enc_sum = top_to_enc_sum + stage_value;
+                    if (stage_value < top_to_enc_min) top_to_enc_min = stage_value;
+                    if (stage_value > top_to_enc_max) top_to_enc_max = stage_value;
+                    stage_value = infer_trace_enc_out_cycle[summary_i] - infer_trace_enc_in_cycle[summary_i];
+                    enc_sum = enc_sum + stage_value;
+                    if (stage_value < enc_min) enc_min = stage_value;
+                    if (stage_value > enc_max) enc_max = stage_value;
+                    stage_value = infer_trace_distance_in_cycle[summary_i] - infer_trace_enc_out_cycle[summary_i];
+                    ngram_sum = ngram_sum + stage_value;
+                    if (stage_value < ngram_min) ngram_min = stage_value;
+                    if (stage_value > ngram_max) ngram_max = stage_value;
+                    stage_value = infer_trace_distance_done_cycle[summary_i] - infer_trace_distance_in_cycle[summary_i];
+                    dist_sum = dist_sum + stage_value;
+                    if (stage_value < dist_min) dist_min = stage_value;
+                    if (stage_value > dist_max) dist_max = stage_value;
+                    stage_value = infer_trace_response_cycle[summary_i] - infer_trace_distance_done_cycle[summary_i];
+                    rsp_sum = rsp_sum + stage_value;
+                    if (stage_value < rsp_min) rsp_min = stage_value;
+                    if (stage_value > rsp_max) rsp_max = stage_value;
+                    stage_value = infer_trace_response_cycle[summary_i] - infer_trace_top_accept_cycle[summary_i];
+                    total_sum = total_sum + stage_value;
+                    if (stage_value < total_min) total_min = stage_value;
+                    if (stage_value > total_max) total_max = stage_value;
+                end
+                if (summary_count > 0) begin
+                    $display("summary inference_boundary_latency samples=%0d top_to_encoder min=%0d avg=%0d max=%0d encoder min=%0d avg=%0d max=%0d ngram min=%0d avg=%0d max=%0d distance min=%0d avg=%0d max=%0d response min=%0d avg=%0d max=%0d total min=%0d avg=%0d max=%0d",
+                             summary_count,
+                             top_to_enc_min, top_to_enc_sum / summary_count, top_to_enc_max,
+                             enc_min, enc_sum / summary_count, enc_max,
+                             ngram_min, ngram_sum / summary_count, ngram_max,
+                             dist_min, dist_sum / summary_count, dist_max,
+                             rsp_min, rsp_sum / summary_count, rsp_max,
+                             total_min, total_sum / summary_count, total_max);
+                end
+
+                top_ii_sum = 0; top_ii_min = 2147483647; top_ii_max = 0;
+                enc_in_ii_sum = 0; enc_in_ii_min = 2147483647; enc_in_ii_max = 0;
+                enc_out_ii_sum = 0; enc_out_ii_min = 2147483647; enc_out_ii_max = 0;
+                dist_in_ii_sum = 0; dist_in_ii_min = 2147483647; dist_in_ii_max = 0;
+                dist_done_ii_sum = 0; dist_done_ii_min = 2147483647; dist_done_ii_max = 0;
+                rsp_ii_sum = 0; rsp_ii_min = 2147483647; rsp_ii_max = 0;
+                for (summary_i = 1; summary_i < summary_count; summary_i = summary_i + 1) begin
+                    stage_value = infer_trace_top_accept_cycle[summary_i] - infer_trace_top_accept_cycle[summary_i - 1];
+                    top_ii_sum = top_ii_sum + stage_value;
+                    if (stage_value < top_ii_min) top_ii_min = stage_value;
+                    if (stage_value > top_ii_max) top_ii_max = stage_value;
+                    stage_value = infer_trace_enc_in_cycle[summary_i] - infer_trace_enc_in_cycle[summary_i - 1];
+                    enc_in_ii_sum = enc_in_ii_sum + stage_value;
+                    if (stage_value < enc_in_ii_min) enc_in_ii_min = stage_value;
+                    if (stage_value > enc_in_ii_max) enc_in_ii_max = stage_value;
+                    stage_value = infer_trace_enc_out_cycle[summary_i] - infer_trace_enc_out_cycle[summary_i - 1];
+                    enc_out_ii_sum = enc_out_ii_sum + stage_value;
+                    if (stage_value < enc_out_ii_min) enc_out_ii_min = stage_value;
+                    if (stage_value > enc_out_ii_max) enc_out_ii_max = stage_value;
+                    stage_value = infer_trace_distance_in_cycle[summary_i] - infer_trace_distance_in_cycle[summary_i - 1];
+                    dist_in_ii_sum = dist_in_ii_sum + stage_value;
+                    if (stage_value < dist_in_ii_min) dist_in_ii_min = stage_value;
+                    if (stage_value > dist_in_ii_max) dist_in_ii_max = stage_value;
+                    stage_value = infer_trace_distance_done_cycle[summary_i] - infer_trace_distance_done_cycle[summary_i - 1];
+                    dist_done_ii_sum = dist_done_ii_sum + stage_value;
+                    if (stage_value < dist_done_ii_min) dist_done_ii_min = stage_value;
+                    if (stage_value > dist_done_ii_max) dist_done_ii_max = stage_value;
+                    stage_value = infer_trace_response_cycle[summary_i] - infer_trace_response_cycle[summary_i - 1];
+                    rsp_ii_sum = rsp_ii_sum + stage_value;
+                    if (stage_value < rsp_ii_min) rsp_ii_min = stage_value;
+                    if (stage_value > rsp_ii_max) rsp_ii_max = stage_value;
+                end
+                if (summary_count > 1) begin
+                    $display("summary inference_service_interval samples=%0d top_accept min=%0d avg=%0d max=%0d encoder_input_accept min=%0d avg=%0d max=%0d encoder_output_accept min=%0d avg=%0d max=%0d ngram_output_accept min=%0d avg=%0d max=%0d distance_output_accept min=%0d avg=%0d max=%0d response_accept min=%0d avg=%0d max=%0d",
+                             summary_count,
+                             top_ii_min, top_ii_sum / (summary_count - 1), top_ii_max,
+                             enc_in_ii_min, enc_in_ii_sum / (summary_count - 1), enc_in_ii_max,
+                             enc_out_ii_min, enc_out_ii_sum / (summary_count - 1), enc_out_ii_max,
+                             dist_in_ii_min, dist_in_ii_sum / (summary_count - 1), dist_in_ii_max,
+                             dist_done_ii_min, dist_done_ii_sum / (summary_count - 1), dist_done_ii_max,
+                             rsp_ii_min, rsp_ii_sum / (summary_count - 1), rsp_ii_max);
+                    $display("summary measurement_note boundary_latency=input_fire_to_next_stage_fire service_interval=gap_between_successive_fires limited_to_first_%0d_inference_samples compute_done_and_output_backpressure_not_separated",
+                             summary_count);
                 end
                 print_dut_debug();
 
