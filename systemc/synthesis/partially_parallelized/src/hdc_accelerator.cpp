@@ -64,11 +64,11 @@ EncoderChannelPacket unpack_command_channel(command_channel_bits_t word) {
 
     packet.sample = 0;
     for (unsigned feature = 0; feature < NUM_FEATURES; ++feature) {
-        HLS_UNROLL_LOOP(OFF, "unpack-command-sample-loop");
-        low = COMMAND_KIND_BITS + CLASS_BITS + (feature * LEVEL_BITS);
-        high = low + LEVEL_BITS - 1u;
+        HLS_UNROLL_LOOP(ON, "unpack-command-sample-loop");
+        const unsigned sample_low = COMMAND_KIND_BITS + CLASS_BITS + (feature * LEVEL_BITS);
+        const unsigned sample_high = sample_low + LEVEL_BITS - 1u;
         level_t level = 0;
-        level = word.range(high, low);
+        level = word.range(sample_high, sample_low);
         set_sample_level(packet.sample, feature, level);
     }
 

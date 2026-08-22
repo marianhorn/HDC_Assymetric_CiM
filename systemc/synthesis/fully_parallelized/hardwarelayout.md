@@ -423,9 +423,20 @@ Stratus-generated P2P accelerator with 32-bit AXI4-Stream command and response
 interfaces. Command and response payloads are transferred least-significant
 32-bit beat first and `TLAST` marks the final beat.
 
-- Command packet: 166 bits in 6 beats.
+- Command packet: 198 bits in 7 beats for NUM_LEVELS=40.
 - Response packet: `RESPONSE_CHANNEL_BITS` in
   `ceil(RESPONSE_CHANNEL_BITS / 32)` beats.
 - Internal P2P channels and fully parallel compute stages are unchanged.
 - RTL trace simulation exercises AXI serialization and backpressure through a
   compatibility shim while retaining the established response checker.
+
+## Command Unpack Parallelization
+
+The AXI input remains a 32-bit stream, so a 40-level command still arrives in 7 AXI beats. After the packed command is complete, the HLS command path now unrolls the `unpack-command-sample-loop` across all 32 features. This targets the previous accelerator-side bottleneck where feature levels were extracted one feature per cycle before the spatial encoder could receive the packet.
+
+Expected effect:
+
+- AXI serialization is unchanged.
+- Packed-command to encoder-packet preparation should no longer cost about 32 cycles.
+- Command service interval should move closer to the remaining wrapper/core handshake and downstream pipeline limits.
+- Response packing is unchanged because it is only a small 2-beat packet and was not the measured bottleneck.
