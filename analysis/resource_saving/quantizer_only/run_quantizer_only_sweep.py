@@ -64,6 +64,12 @@ def build_missing_level40_dense_5k_to_10k_dimensions():
     return sorted(requested - already_present)
 
 
+def build_missing_level40_dense_1k_to_5k_dimensions():
+    requested = set(range(1000, 5001, 100))
+    already_present = set(range(1000, 5001, 500))
+    return sorted(requested - already_present)
+
+
 def build_num_levels():
     levels = list(range(5, 101))
     levels.extend(range(105, 201, 5))
@@ -331,12 +337,29 @@ def main():
             '5000..10000 step-100 grid. Existing step-500 points are skipped.'
         ),
     )
+    parser.add_argument(
+        '--dense-level40-1k-5k-missing',
+        action='store_true',
+        help=(
+            'Run only missing NUM_LEVELS=40 quantizer-only dimensions for a dense '
+            '1000..5000 step-100 grid. Existing step-500 points are skipped.'
+        ),
+    )
     args = parser.parse_args()
 
     selected_modes = parse_binning_modes(args.binning_modes)
     selected_seeds = parse_seeds(args.seeds)
-    if args.missing_levels_10000 and args.dense_level40_5k_10k_missing:
-        raise ValueError('Use only one of --missing-levels-10000 or --dense-level40-5k-10k-missing')
+    selected_sweeps = [
+        args.missing_levels_10000,
+        args.dense_level40_5k_10k_missing,
+        args.dense_level40_1k_5k_missing,
+    ]
+    if sum(1 for selected in selected_sweeps if selected) > 1:
+        raise ValueError(
+            'Use only one of --missing-levels-10000, '
+            '--dense-level40-5k-10k-missing, or '
+            '--dense-level40-1k-5k-missing'
+        )
     if args.missing_levels_10000:
         num_levels_values = build_missing_num_levels_for_dense_10000_plot()
         vector_dimensions = [10000]
@@ -344,6 +367,10 @@ def main():
     elif args.dense_level40_5k_10k_missing:
         num_levels_values = [40]
         vector_dimensions = build_missing_level40_dense_5k_to_10k_dimensions()
+        runs_dir = RUNS_DIR
+    elif args.dense_level40_1k_5k_missing:
+        num_levels_values = [40]
+        vector_dimensions = build_missing_level40_dense_1k_to_5k_dimensions()
         runs_dir = RUNS_DIR
     else:
         num_levels_values = build_num_levels()
