@@ -386,6 +386,12 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 infer_trace_enc_out_count < INFER_TRACE_LIMIT) begin
                 infer_trace_enc_out_cycle[infer_trace_enc_out_count] = cycle_count;
                 infer_trace_enc_out_count = infer_trace_enc_out_count + 1;
+            end
+            if (dut.m_encoder_out_m_chan_vld && !enc_out_prev_vld &&
+                dut.{enc_out_kind} == 4 &&
+                infer_trace_enc_compute_count < INFER_TRACE_LIMIT) begin
+                infer_trace_enc_compute_cycle[infer_trace_enc_compute_count] = cycle_count;
+                infer_trace_enc_compute_count = infer_trace_enc_compute_count + 1;
             end"""
         )
 
@@ -462,6 +468,19 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 "    integer training_bundler_train_invalid_fire;",
                 "    integer training_bundler_train_valid_fire;",
                 "    integer training_bundler_invalid_step_fire;",
+                "    integer train_accum_pending;",
+                "    integer train_accum_saw_busy;",
+                "    integer train_accum_start_cycle;",
+                "    integer train_accum_done_count;",
+                "    integer train_accum_latency_sum;",
+                "    integer train_accum_latency_min;",
+                "    integer train_accum_latency_max;",
+                "    integer train_accum_last_accept_cycle;",
+                "    integer train_accum_service_count;",
+                "    integer train_accum_service_sum;",
+                "    integer train_accum_service_min;",
+                "    integer train_accum_service_max;",
+                "    integer train_metric_value;",
             ]
         )
         inits.extend(
@@ -472,6 +491,19 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 "        training_bundler_train_invalid_fire = 0;",
                 "        training_bundler_train_valid_fire = 0;",
                 "        training_bundler_invalid_step_fire = 0;",
+                "        train_accum_pending = 0;",
+                "        train_accum_saw_busy = 0;",
+                "        train_accum_start_cycle = -1;",
+                "        train_accum_done_count = 0;",
+                "        train_accum_latency_sum = 0;",
+                "        train_accum_latency_min = 2147483647;",
+                "        train_accum_latency_max = 0;",
+                "        train_accum_last_accept_cycle = -1;",
+                "        train_accum_service_count = 0;",
+                "        train_accum_service_sum = 0;",
+                "        train_accum_service_min = 2147483647;",
+                "        train_accum_service_max = 0;",
+                "        train_metric_value = 0;",
             ]
         )
         bundler_fire = p2p_fire_condition("m_bundler_in")
@@ -505,12 +537,137 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                 if (dut.{bundler_kind} == 2 && dut.{bundler_valid_ngram}) begin
                     training_bundler_train_valid_fire =
                         training_bundler_train_valid_fire + 1;
+                    train_accum_pending = 1;
+                    train_accum_saw_busy = 0;
+                    train_accum_start_cycle = cycle_count;
+                    if (train_accum_last_accept_cycle >= 0) begin
+                        train_metric_value = cycle_count - train_accum_last_accept_cycle;
+                        train_accum_service_count = train_accum_service_count + 1;
+                        train_accum_service_sum = train_accum_service_sum + train_metric_value;
+                        if (train_metric_value < train_accum_service_min)
+                            train_accum_service_min = train_metric_value;
+                        if (train_metric_value > train_accum_service_max)
+                            train_accum_service_max = train_metric_value;
+                    end
+                    train_accum_last_accept_cycle = cycle_count;
                 end
                 if (dut.{bundler_kind} == 3) begin
                     training_bundler_invalid_step_fire =
                         training_bundler_invalid_step_fire + 1;
                 end
+            end
+            if (train_accum_pending && dut.m_bundler_in_m_chan_busy)
+                train_accum_saw_busy = 1;
+            if (train_accum_pending && train_accum_saw_busy &&
+                !dut.m_bundler_in_m_chan_busy) begin
+                train_metric_value = cycle_count - train_accum_start_cycle;
+                train_accum_done_count = train_accum_done_count + 1;
+                train_accum_latency_sum = train_accum_latency_sum + train_metric_value;
+                if (train_metric_value < train_accum_latency_min)
+                    train_accum_latency_min = train_metric_value;
+                if (train_metric_value > train_accum_latency_max)
+                    train_accum_latency_max = train_metric_value;
+                train_accum_pending = 0;
+                train_accum_saw_busy = 0;
             end"""
+        )
+        displays.append(
+            """            $display("summary training_accumulation accepted=%0d completed=%0d pending=%0d compute_min=%0d compute_avg=%0d compute_max=%0d output_wait_min=0 output_wait_avg=0 output_wait_max=0 service_samples=%0d service_min=%0d service_avg=%0d service_max=%0d",
+                     training_bundler_train_valid_fire, train_accum_done_count,
+                     train_accum_pending,
+                     (train_accum_done_count == 0) ? 0 : train_accum_latency_min,
+                     (train_accum_done_count == 0) ? 0 :
+                         (train_accum_latency_sum / train_accum_done_count),
+                     train_accum_latency_max, train_accum_service_count,
+                     (train_accum_service_count == 0) ? 0 : train_accum_service_min,
+                     (train_accum_service_count == 0) ? 0 :
+                         (train_accum_service_sum / train_accum_service_count),
+                     train_accum_service_max);
+            $display("summary training_accumulation_note compute_done=inferred_when_bundler_input_returns_ready no_output_channel_so_output_wait_is_zero");"""
+        )
+
+    if (
+        has_internal_signal(module_body, "m_bundler_in_m_chan_vld")
+        and has_internal_signal(module_body, bundler_kind)
+        and has_internal_signal(module_body, "m_train_control_done_m_chan_vld")
+    ):
+        finalize_filter = ""
+        if has_internal_signal(module_body, "m_current_class_valid"):
+            finalize_filter = " && dut.m_current_class_valid"
+        finalize_fire = p2p_fire_condition("m_bundler_in")
+        finalize_done_fire = p2p_fire_condition("m_train_control_done")
+        decls.extend(
+            [
+                "    integer train_finalize_start_cycles [0:15];",
+                "    integer train_finalize_compute_cycles [0:15];",
+                "    integer train_finalize_head;",
+                "    integer train_finalize_tail;",
+                "    integer train_finalize_done_head;",
+                "    integer train_finalize_done_tail;",
+                "    integer train_finalize_compute_sum;",
+                "    integer train_finalize_compute_min;",
+                "    integer train_finalize_compute_max;",
+                "    integer train_finalize_wait_sum;",
+                "    integer train_finalize_wait_min;",
+                "    integer train_finalize_wait_max;",
+            ]
+        )
+        inits.extend(
+            [
+                "        train_finalize_head = 0;",
+                "        train_finalize_tail = 0;",
+                "        train_finalize_done_head = 0;",
+                "        train_finalize_done_tail = 0;",
+                "        train_finalize_compute_sum = 0;",
+                "        train_finalize_compute_min = 2147483647;",
+                "        train_finalize_compute_max = 0;",
+                "        train_finalize_wait_sum = 0;",
+                "        train_finalize_wait_min = 2147483647;",
+                "        train_finalize_wait_max = 0;",
+            ]
+        )
+        updates.append(
+            f"""            if ({finalize_fire} && dut.{bundler_kind} == 3{finalize_filter} &&
+                train_finalize_tail < 16) begin
+                train_finalize_start_cycles[train_finalize_tail] = cycle_count;
+                train_finalize_tail = train_finalize_tail + 1;
+            end
+            if (dut.m_train_control_done_m_chan_vld && !train_control_done_prev_vld &&
+                train_finalize_head < train_finalize_tail) begin
+                train_metric_value = cycle_count - train_finalize_start_cycles[train_finalize_head];
+                train_finalize_compute_sum = train_finalize_compute_sum + train_metric_value;
+                if (train_metric_value < train_finalize_compute_min)
+                    train_finalize_compute_min = train_metric_value;
+                if (train_metric_value > train_finalize_compute_max)
+                    train_finalize_compute_max = train_metric_value;
+                train_finalize_compute_cycles[train_finalize_done_tail] = cycle_count;
+                train_finalize_done_tail = train_finalize_done_tail + 1;
+                train_finalize_head = train_finalize_head + 1;
+            end
+            if ({finalize_done_fire} && train_finalize_done_head < train_finalize_done_tail) begin
+                train_metric_value = cycle_count - train_finalize_compute_cycles[train_finalize_done_head];
+                train_finalize_wait_sum = train_finalize_wait_sum + train_metric_value;
+                if (train_metric_value < train_finalize_wait_min)
+                    train_finalize_wait_min = train_metric_value;
+                if (train_metric_value > train_finalize_wait_max)
+                    train_finalize_wait_max = train_metric_value;
+                train_finalize_done_head = train_finalize_done_head + 1;
+            end"""
+        )
+        displays.append(
+            """            $display("summary class_finalization starts=%0d compute_done=%0d accepted=%0d pending_compute=%0d pending_accept=%0d compute_min=%0d compute_avg=%0d compute_max=%0d wait_min=%0d wait_avg=%0d wait_max=%0d",
+                     train_finalize_tail, train_finalize_head,
+                     train_finalize_done_head,
+                     train_finalize_tail - train_finalize_head,
+                     train_finalize_done_tail - train_finalize_done_head,
+                     (train_finalize_head == 0) ? 0 : train_finalize_compute_min,
+                     (train_finalize_head == 0) ? 0 :
+                         (train_finalize_compute_sum / train_finalize_head),
+                     train_finalize_compute_max,
+                     (train_finalize_done_head == 0) ? 0 : train_finalize_wait_min,
+                     (train_finalize_done_head == 0) ? 0 :
+                         (train_finalize_wait_sum / train_finalize_done_head),
+                     train_finalize_wait_max);"""
         )
 
     if (
@@ -674,6 +831,11 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
                         ngram_infer_latency_max = ngram_latency_value;
                     end
                 end
+            end
+            if (dut.m_distance_in_m_chan_vld && !distance_in_prev_vld &&
+                infer_trace_ngram_compute_count < INFER_TRACE_LIMIT) begin
+                infer_trace_ngram_compute_cycle[infer_trace_ngram_compute_count] = cycle_count;
+                infer_trace_ngram_compute_count = infer_trace_ngram_compute_count + 1;
             end"""
         )
         displays.append(
@@ -698,7 +860,12 @@ def generate_p2p_counter_logic(module_body: str) -> Dict[str, str]:
     if has_internal_signal(module_body, "m_distance_done_m_chan_vld"):
         distance_done_fire = p2p_fire_condition("m_distance_done")
         updates.append(
-            f"""            if ({distance_done_fire} &&
+            f"""            if (dut.m_distance_done_m_chan_vld && !distance_done_prev_vld &&
+                infer_trace_distance_compute_count < INFER_TRACE_LIMIT) begin
+                infer_trace_distance_compute_cycle[infer_trace_distance_compute_count] = cycle_count;
+                infer_trace_distance_compute_count = infer_trace_distance_compute_count + 1;
+            end
+            if ({distance_done_fire} &&
                 infer_trace_distance_done_count < INFER_TRACE_LIMIT) begin
                 infer_trace_distance_done_cycle[infer_trace_distance_done_count] = cycle_count;
                 infer_trace_distance_done_count = infer_trace_distance_done_count + 1;
@@ -1084,21 +1251,36 @@ module hdc_accelerator_rtl_tb;
     integer infer_trace_axis_final_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_core_cmd_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_enc_in_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_enc_compute_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_enc_out_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_ngram_compute_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_distance_in_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_distance_compute_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_distance_done_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_response_compute_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_core_response_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_axis_rsp_first_cycle [0:INFER_TRACE_LIMIT-1];
+    integer infer_trace_axis_rsp_final_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_response_cycle [0:INFER_TRACE_LIMIT-1];
     integer infer_trace_top_accept_count;
     integer infer_trace_axis_first_count;
     integer infer_trace_axis_final_count;
     integer infer_trace_core_cmd_count;
     integer infer_trace_enc_in_count;
+    integer infer_trace_enc_compute_count;
     integer infer_trace_enc_out_count;
+    integer infer_trace_ngram_compute_count;
     integer infer_trace_distance_in_count;
+    integer infer_trace_distance_compute_count;
     integer infer_trace_distance_done_count;
+    integer infer_trace_response_compute_count;
+    integer infer_trace_core_response_count;
+    integer infer_trace_axis_rsp_first_count;
+    integer infer_trace_axis_rsp_final_count;
     integer infer_trace_response_count;
     integer counter_index;
     integer infer_trace_index;
+    integer axis_core_response_prev;
 {p2p_counter_logic["decls"]}
 
     always #5 clk = ~clk;
@@ -1255,6 +1437,59 @@ module hdc_accelerator_rtl_tb;
         end
     endtask
 
+    task print_inference_metric;
+        input integer metric_id;
+        input string metric_name;
+        input integer requested_count;
+        integer metric_index;
+        integer metric_start;
+        integer metric_end;
+        integer metric_value;
+        integer metric_count;
+        integer metric_sum;
+        integer metric_min;
+        integer metric_max;
+        begin
+            metric_count = 0;
+            metric_sum = 0;
+            metric_min = 2147483647;
+            metric_max = 0;
+            for (metric_index = 0; metric_index < requested_count &&
+                 metric_index < INFER_TRACE_LIMIT; metric_index = metric_index + 1) begin
+                metric_start = -1;
+                metric_end = -1;
+                case (metric_id)
+                    0: begin metric_start = infer_trace_enc_in_cycle[metric_index]; metric_end = infer_trace_enc_compute_cycle[metric_index]; end
+                    1: begin metric_start = infer_trace_enc_compute_cycle[metric_index]; metric_end = infer_trace_enc_out_cycle[metric_index]; end
+                    2: begin metric_start = infer_trace_enc_out_cycle[metric_index]; metric_end = infer_trace_ngram_compute_cycle[metric_index]; end
+                    3: begin metric_start = infer_trace_ngram_compute_cycle[metric_index]; metric_end = infer_trace_distance_in_cycle[metric_index]; end
+                    4: begin metric_start = infer_trace_distance_in_cycle[metric_index]; metric_end = infer_trace_distance_compute_cycle[metric_index]; end
+                    5: begin metric_start = infer_trace_distance_compute_cycle[metric_index]; metric_end = infer_trace_distance_done_cycle[metric_index]; end
+                    6: begin metric_start = infer_trace_distance_done_cycle[metric_index]; metric_end = infer_trace_response_compute_cycle[metric_index]; end
+                    7: begin metric_start = infer_trace_response_compute_cycle[metric_index]; metric_end = infer_trace_core_response_cycle[metric_index]; end
+                    8: begin metric_start = infer_trace_core_response_cycle[metric_index]; metric_end = infer_trace_axis_rsp_first_cycle[metric_index]; end
+                    9: begin metric_start = infer_trace_axis_rsp_first_cycle[metric_index]; metric_end = infer_trace_axis_rsp_final_cycle[metric_index]; end
+                    10: begin metric_start = infer_trace_axis_first_cycle[metric_index]; metric_end = infer_trace_axis_rsp_final_cycle[metric_index]; end
+                endcase
+                if (metric_start >= 0 && metric_end >= metric_start) begin
+                    metric_value = metric_end - metric_start;
+                    metric_count = metric_count + 1;
+                    metric_sum = metric_sum + metric_value;
+                    if (metric_value < metric_min) metric_min = metric_value;
+                    if (metric_value > metric_max) metric_max = metric_value;
+                end
+            end
+            if (metric_count > 0) begin
+                $display("summary inference_decomposition metric=%0s samples=%0d min=%0d avg=%0d max=%0d",
+                         metric_name, metric_count, metric_min,
+                         metric_sum / metric_count, metric_max);
+            end else begin
+                $display("summary inference_decomposition metric=%0s samples=0 unavailable=1",
+                         metric_name);
+            end
+        end
+    endtask
+
 {generate_debug_task(module_body, "cmd_vld", "!cmd_busy", "rsp_vld", "!rsp_busy", " top_first_accept=%0d top_last_accept=%0d top_max_accept_gap=%0d", ", cmd_first_accept_cycle, cmd_last_accept_cycle, cmd_max_accept_gap")}
 
     task finish_if_complete;
@@ -1352,6 +1587,14 @@ module hdc_accelerator_rtl_tb;
                          infer_trace_enc_in_count, infer_trace_enc_out_count,
                          infer_trace_distance_in_count, infer_trace_distance_done_count,
                          infer_trace_response_count);
+                $display("debug infer_compute_trace_counts enc_done=%0d ngram_done=%0d distance_done=%0d response_done=%0d core_response=%0d axis_rsp_first=%0d axis_rsp_last=%0d",
+                         infer_trace_enc_compute_count,
+                         infer_trace_ngram_compute_count,
+                         infer_trace_distance_compute_count,
+                         infer_trace_response_compute_count,
+                         infer_trace_core_response_count,
+                         infer_trace_axis_rsp_first_count,
+                         infer_trace_axis_rsp_final_count);
                 for (infer_trace_index = 0;
                      infer_trace_index < infer_sample_accept_count &&
                      infer_trace_index < INFER_TRACE_LIMIT;
@@ -1385,6 +1628,25 @@ module hdc_accelerator_rtl_tb;
                                  infer_trace_distance_in_cycle[infer_trace_index],
                              infer_trace_response_cycle[infer_trace_index] -
                                  infer_trace_distance_done_cycle[infer_trace_index]);
+                    $display("debug infer_compute_trace idx=%0d axis_cmd_first=%0d axis_cmd_last=%0d core_cmd_accept=%0d encoder_input_accept=%0d encoder_compute_done=%0d encoder_output_accept=%0d ngram_input_accept=%0d ngram_compute_done=%0d ngram_output_accept=%0d distance_input_accept=%0d distance_compute_done=%0d distance_output_accept=%0d response_input_accept=%0d response_compute_done=%0d core_response_accept=%0d axis_rsp_first=%0d axis_rsp_last=%0d",
+                             infer_trace_index,
+                             infer_trace_axis_first_cycle[infer_trace_index],
+                             infer_trace_axis_final_cycle[infer_trace_index],
+                             infer_trace_core_cmd_cycle[infer_trace_index],
+                             infer_trace_enc_in_cycle[infer_trace_index],
+                             infer_trace_enc_compute_cycle[infer_trace_index],
+                             infer_trace_enc_out_cycle[infer_trace_index],
+                             infer_trace_enc_out_cycle[infer_trace_index],
+                             infer_trace_ngram_compute_cycle[infer_trace_index],
+                             infer_trace_distance_in_cycle[infer_trace_index],
+                             infer_trace_distance_in_cycle[infer_trace_index],
+                             infer_trace_distance_compute_cycle[infer_trace_index],
+                             infer_trace_distance_done_cycle[infer_trace_index],
+                             infer_trace_distance_done_cycle[infer_trace_index],
+                             infer_trace_response_compute_cycle[infer_trace_index],
+                             infer_trace_core_response_cycle[infer_trace_index],
+                             infer_trace_axis_rsp_first_cycle[infer_trace_index],
+                             infer_trace_axis_rsp_final_cycle[infer_trace_index]);
                 end
 
                 summary_count = infer_sample_accept_count;
@@ -1502,9 +1764,22 @@ module hdc_accelerator_rtl_tb;
                              dist_in_ii_min, dist_in_ii_sum / (summary_count - 1), dist_in_ii_max,
                              dist_done_ii_min, dist_done_ii_sum / (summary_count - 1), dist_done_ii_max,
                              rsp_ii_min, rsp_ii_sum / (summary_count - 1), rsp_ii_max);
-                    $display("summary measurement_note boundary_latency=input_fire_to_next_stage_fire service_interval=gap_between_successive_fires limited_to_first_%0d_inference_samples compute_done_and_output_backpressure_not_separated",
+                    $display("summary measurement_note legacy_boundary_latency=input_fire_to_next_stage_fire service_interval=gap_between_successive_fires limited_to_first_%0d_inference_samples see_inference_decomposition_for_compute_and_output_wait",
                              summary_count);
                 end
+                print_inference_metric(0, "encoder_compute", summary_count);
+                print_inference_metric(1, "encoder_output_wait", summary_count);
+                print_inference_metric(2, "ngram_compute", summary_count);
+                print_inference_metric(3, "ngram_output_wait", summary_count);
+                print_inference_metric(4, "distance_compute", summary_count);
+                print_inference_metric(5, "distance_output_wait", summary_count);
+                print_inference_metric(6, "response_compute", summary_count);
+                print_inference_metric(7, "response_core_wait", summary_count);
+                print_inference_metric(8, "core_response_to_axis_first", summary_count);
+                print_inference_metric(9, "axis_response_serialization", summary_count);
+                print_inference_metric(10, "axis_visible_total", summary_count);
+                $display("summary inference_decomposition_note compute_done=producer_output_vld_rising output_accept=producer_output_vld_and_not_busy response_compute_done=core_response_vld_rising limited_to_first_%0d_inference_samples",
+                         summary_count);
                 print_dut_debug();
 
                 $fclose(command_fd);
@@ -1557,19 +1832,34 @@ module hdc_accelerator_rtl_tb;
         infer_trace_axis_final_count = 0;
         infer_trace_core_cmd_count = 0;
         infer_trace_enc_in_count = 0;
+        infer_trace_enc_compute_count = 0;
         infer_trace_enc_out_count = 0;
+        infer_trace_ngram_compute_count = 0;
         infer_trace_distance_in_count = 0;
+        infer_trace_distance_compute_count = 0;
         infer_trace_distance_done_count = 0;
+        infer_trace_response_compute_count = 0;
+        infer_trace_core_response_count = 0;
+        infer_trace_axis_rsp_first_count = 0;
+        infer_trace_axis_rsp_final_count = 0;
         infer_trace_response_count = 0;
+        axis_core_response_prev = 0;
         for (infer_trace_index = 0; infer_trace_index < INFER_TRACE_LIMIT; infer_trace_index = infer_trace_index + 1) begin
             infer_trace_top_accept_cycle[infer_trace_index] = -1;
             infer_trace_axis_first_cycle[infer_trace_index] = -1;
             infer_trace_axis_final_cycle[infer_trace_index] = -1;
             infer_trace_core_cmd_cycle[infer_trace_index] = -1;
             infer_trace_enc_in_cycle[infer_trace_index] = -1;
+            infer_trace_enc_compute_cycle[infer_trace_index] = -1;
             infer_trace_enc_out_cycle[infer_trace_index] = -1;
+            infer_trace_ngram_compute_cycle[infer_trace_index] = -1;
             infer_trace_distance_in_cycle[infer_trace_index] = -1;
+            infer_trace_distance_compute_cycle[infer_trace_index] = -1;
             infer_trace_distance_done_cycle[infer_trace_index] = -1;
+            infer_trace_response_compute_cycle[infer_trace_index] = -1;
+            infer_trace_core_response_cycle[infer_trace_index] = -1;
+            infer_trace_axis_rsp_first_cycle[infer_trace_index] = -1;
+            infer_trace_axis_rsp_final_cycle[infer_trace_index] = -1;
             infer_trace_response_cycle[infer_trace_index] = -1;
         end
         for (counter_index = 0; counter_index < 5; counter_index = counter_index + 1) begin
@@ -1633,6 +1923,27 @@ module hdc_accelerator_rtl_tb;
                 infer_trace_core_cmd_cycle[infer_trace_core_cmd_count] = cycle_count;
                 infer_trace_core_cmd_count = infer_trace_core_cmd_count + 1;
             end
+            if (dut.axis_core_response_valid && !axis_core_response_prev &&
+                infer_trace_response_compute_count < INFER_TRACE_LIMIT) begin
+                infer_trace_response_compute_cycle[infer_trace_response_compute_count] = cycle_count;
+                infer_trace_response_compute_count = infer_trace_response_compute_count + 1;
+            end
+            if (dut.axis_core_response_fire &&
+                infer_trace_core_response_count < INFER_TRACE_LIMIT) begin
+                infer_trace_core_response_cycle[infer_trace_core_response_count] = cycle_count;
+                infer_trace_core_response_count = infer_trace_core_response_count + 1;
+            end
+            if (dut.axis_response_first &&
+                infer_trace_axis_rsp_first_count < INFER_TRACE_LIMIT) begin
+                infer_trace_axis_rsp_first_cycle[infer_trace_axis_rsp_first_count] = cycle_count;
+                infer_trace_axis_rsp_first_count = infer_trace_axis_rsp_first_count + 1;
+            end
+            if (dut.axis_response_final &&
+                infer_trace_axis_rsp_final_count < INFER_TRACE_LIMIT) begin
+                infer_trace_axis_rsp_final_cycle[infer_trace_axis_rsp_final_count] = cycle_count;
+                infer_trace_axis_rsp_final_count = infer_trace_axis_rsp_final_count + 1;
+            end
+            axis_core_response_prev = dut.axis_core_response_valid;
 
             if (cmd_vld && !cmd_busy) begin
                 accepted_kind = cmd_data[0 +: COMMAND_KIND_BITS];

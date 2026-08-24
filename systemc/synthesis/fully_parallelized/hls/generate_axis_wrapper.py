@@ -198,6 +198,16 @@ module HDC_AcceleratorAxisTestShim (
                               s_axis_cmd_tready;
     wire axis_core_command_fire = axis_dut.core_cmd_vld &&
                                   !axis_dut.core_cmd_busy;
+    wire axis_core_response_valid = axis_dut.core_rsp_vld;
+    wire axis_core_response_fire = axis_dut.core_rsp_vld &&
+                                   !axis_dut.core_rsp_busy;
+    wire axis_response_first = m_axis_rsp_tvalid &&
+                               m_axis_rsp_tready &&
+                               (response_beat == 0);
+    wire axis_response_final = m_axis_rsp_tvalid &&
+                               m_axis_rsp_tready &&
+                               (m_axis_rsp_tlast ||
+                                response_beat == RESPONSE_BEATS - 1);
     wire [2:0] axis_command_start_kind = command_shift[2:0];
     wire [2:0] axis_command_final_kind = command_shift[2:0];
     wire [2:0] axis_core_command_kind = axis_dut.core_cmd_data[2:0];

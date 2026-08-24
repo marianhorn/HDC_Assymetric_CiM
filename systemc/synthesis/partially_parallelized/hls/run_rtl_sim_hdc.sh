@@ -84,6 +84,8 @@ sed -i 's/dut\./dut.axis_dut.core./g' "$TB_SV"
 sed -i 's/dut\.axis_dut\.core\.axis_command_start/dut.axis_command_start/g' "$TB_SV"
 sed -i 's/dut\.axis_dut\.core\.axis_command_final/dut.axis_command_final/g' "$TB_SV"
 sed -i 's/dut\.axis_dut\.core\.axis_core_command_/dut.axis_core_command_/g' "$TB_SV"
+sed -i 's/dut\.axis_dut\.core\.axis_core_response_/dut.axis_core_response_/g' "$TB_SV"
+sed -i 's/dut\.axis_dut\.core\.axis_response_/dut.axis_response_/g' "$TB_SV"
 
 SIM_RTL=()
 copy_with_timescale() {
