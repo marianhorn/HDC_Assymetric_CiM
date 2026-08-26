@@ -84,6 +84,10 @@ def build_num_levels_step10_to_500():
     return list(range(10, 501, 10))
 
 
+def build_level40_dimension_1024():
+    return [1024]
+
+
 def parse_seeds(text):
     requested = [part.strip() for part in text.split(",") if part.strip()]
     if not requested:
@@ -316,6 +320,11 @@ def main():
         action="store_true",
         help="Run baseline NUM_LEVELS=10..500 step 10 at VECTOR_DIMENSION=10000.",
     )
+    parser.add_argument(
+        "--level40-dim1024",
+        action="store_true",
+        help="Run only NUM_LEVELS=40 at VECTOR_DIMENSION=1024.",
+    )
     args = parser.parse_args()
 
     selected_seeds = parse_seeds(args.seeds)
@@ -324,12 +333,13 @@ def main():
         args.missing_levels_10000,
         args.dense_level40_5k_10k_missing,
         args.levels_step10_10000,
+        args.level40_dim1024,
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
         raise ValueError(
             "Use only one of --dense-level40-missing, "
             "--missing-levels-10000, --dense-level40-5k-10k-missing, "
-            "or --levels-step10-10000"
+            "--levels-step10-10000, or --level40-dim1024"
         )
     if args.dense_level40_missing:
         num_levels_values = [40]
@@ -343,6 +353,9 @@ def main():
     elif args.levels_step10_10000:
         num_levels_values = build_num_levels_step10_to_500()
         vector_dimensions = [10000]
+    elif args.level40_dim1024:
+        num_levels_values = [40]
+        vector_dimensions = build_level40_dimension_1024()
     else:
         num_levels_values = build_num_levels()
         vector_dimensions = build_vector_dimensions()

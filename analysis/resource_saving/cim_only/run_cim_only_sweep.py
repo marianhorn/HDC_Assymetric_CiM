@@ -56,6 +56,10 @@ def build_num_levels():
     return [6, 8, 12, 16, 24, 32, 48, 64, 96, 120, 160, 200]
 
 
+def build_level40_dimension_1024():
+    return [1024]
+
+
 def parse_seeds(text):
     requested = [part.strip() for part in text.split(",") if part.strip()]
     if not requested:
@@ -250,12 +254,29 @@ def main():
             "excluding already measured 1000..5000 step 500."
         ),
     )
+    parser.add_argument(
+        "--level40-dim1024",
+        action="store_true",
+        help="Run GA-only NUM_LEVELS=40 at VECTOR_DIMENSION=1024.",
+    )
     args = parser.parse_args()
 
     selected_seeds = parse_seeds(args.seeds)
+    selected_modes = [
+        args.level40_dense_dimensions_missing,
+        args.level40_dim1024,
+    ]
+    if sum(1 for selected in selected_modes if selected) > 1:
+        raise ValueError(
+            "Use only one of --level40-dense-dimensions-missing "
+            "or --level40-dim1024"
+        )
     if args.level40_dense_dimensions_missing:
         num_levels_values = [40]
         vector_dimensions = build_missing_level40_dense_dimensions()
+    elif args.level40_dim1024:
+        num_levels_values = [40]
+        vector_dimensions = build_level40_dimension_1024()
     else:
         num_levels_values = build_num_levels()
         vector_dimensions = build_vector_dimensions()
