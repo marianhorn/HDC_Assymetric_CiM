@@ -13,6 +13,7 @@ from pathlib import Path
 
 try:
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import MultipleLocator
     from matplotlib.ticker import PercentFormatter
 except ImportError as exc:
     raise RuntimeError(
@@ -290,6 +291,21 @@ def dataset_label(dataset: int) -> str:
     return "dataset average" if dataset < 0 else str(dataset)
 
 
+def phase_label(phase: str) -> str:
+    return {
+        "preopt": "Baseline model",
+        "postopt": "GA-optimized model",
+    }.get(phase, phase)
+
+
+def reference_label(args: argparse.Namespace) -> str:
+    dimension = f"{args.reference_dimension:,}".replace(",", "{,}")
+    return (
+        "Reference accuracy of baseline model "
+        f"with $D={dimension}$ and $L={args.num_levels}$"
+    )
+
+
 def print_configurations(
     averaged: list[dict[str, object]],
     args: argparse.Namespace,
@@ -337,6 +353,60 @@ def print_configurations(
             )
 
 
+def print_main_results(
+    averaged: list[dict[str, object]],
+    references: dict[int, float],
+) -> None:
+    datasets = sorted({int(row["dataset"]) for row in averaged})
+
+    print()
+    print("Main results")
+    print(
+        "dataset endpoint_dim baseline_acc ga_acc ga_minus_baseline "
+        "reference_acc ga_minus_reference best_ga_dim best_ga_acc"
+    )
+
+    for dataset in datasets:
+        dataset_rows = [row for row in averaged if int(row["dataset"]) == dataset]
+        dimensions = sorted({int(row["vector_dimension"]) for row in dataset_rows})
+        endpoint = None
+        for dimension in reversed(dimensions):
+            phases = {
+                str(row["phase"]): float(row["mean"])
+                for row in dataset_rows
+                if int(row["vector_dimension"]) == dimension
+            }
+            if "preopt" in phases and "postopt" in phases:
+                endpoint = (dimension, phases)
+                break
+        if endpoint is None:
+            continue
+
+        endpoint_dimension, endpoint_phases = endpoint
+        postopt_rows = [row for row in dataset_rows if str(row["phase"]) == "postopt"]
+        best_ga = max(postopt_rows, key=lambda row: float(row["mean"]))
+        reference = references.get(dataset)
+
+        baseline_acc = endpoint_phases["preopt"]
+        ga_acc = endpoint_phases["postopt"]
+        reference_text = "" if reference is None else f"{100.0 * reference:.2f}%"
+        ga_minus_reference = (
+            "" if reference is None else f"{100.0 * (ga_acc - reference):+.2f}pp"
+        )
+
+        print(
+            f"{dataset_label(dataset):>15s} "
+            f"{endpoint_dimension:12d} "
+            f"{100.0 * baseline_acc:12.2f}% "
+            f"{100.0 * ga_acc:6.2f}% "
+            f"{100.0 * (ga_acc - baseline_acc):+17.2f}pp "
+            f"{reference_text:>13s} "
+            f"{ga_minus_reference:>18s} "
+            f"{int(best_ga['vector_dimension']):11d} "
+            f"{100.0 * float(best_ga['mean']):10.2f}%"
+        )
+
+
 def write_csv(path: Path, averaged: list[dict[str, object]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as output_file:
         writer = csv.DictWriter(
@@ -378,10 +448,15 @@ def write_html(
         for dataset in datasets
     }
     colors = {
-        "preopt": "#7f8c8d",
+        "preopt": "#0b3d91",
         "postopt": "#d62728",
-        "reference": "#1f77b4",
+        "reference": "#000000",
     }
+    labels = {
+        "preopt": "Baseline model",
+        "postopt": "GA-optimized model",
+    }
+    ref_label = reference_label(args)
     title = f"GA-only pre vs post test {args.metric.replace('_', ' ')} at {args.num_levels} levels"
     y_min = 0.0 if args.y_min is None else args.y_min
     y_max = 1.0 if args.y_max is None else args.y_max
@@ -393,7 +468,6 @@ def write_html(
   <title>{html.escape(title)}</title>
   <style>
     body {{ font-family: Segoe UI, Calibri, sans-serif; margin: 28px; color: #1f2933; background: #f8fafc; }}
-    h1 {{ font-size: 22px; margin: 0 0 4px; font-weight: 650; }}
     p {{ margin: 0 0 18px; color: #52606d; }}
     svg {{ background: white; border: 1px solid #d9e2ec; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08); margin-bottom: 22px; }}
     .grid {{ stroke: #d9e2ec; stroke-width: 1; }}
@@ -404,7 +478,6 @@ def write_html(
   </style>
 </head>
 <body>
-  <h1>{html.escape(title)}</h1>
   <p>Each subplot is one dataset; values are averaged over available seeds.</p>
   <div id="charts"></div>
   <script>
@@ -412,20 +485,27 @@ def write_html(
     const dimensions = {dimensions!r};
     const means = {means!r};
     const colors = {colors!r};
+    const labels = {labels!r};
     const references = {references!r};
     const referenceDimension = {args.reference_dimension!r};
     const referencePhase = {args.reference_phase!r};
+    const referenceLabel = {ref_label!r};
     const yMin = {y_min!r};
     const yMax = {y_max!r};
-    const width = 1050;
+        const width = 1050;
     const height = 420;
-    const margin = {{ left: 76, right: 145, top: 36, bottom: 62 }};
+        const margin = {{ left: 76, right: 145, top: 36, bottom: 62 }};
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
     const minDim = Math.min(...dimensions);
     const maxDim = Math.max(...dimensions);
     const xScale = x => margin.left + ((x - minDim) / Math.max(1, maxDim - minDim)) * plotWidth;
     const yScale = y => margin.top + ((yMax - y) / (yMax - yMin)) * plotHeight;
+    const tickStart = Math.ceil(minDim / 1000) * 1000;
+    const xTicks = [];
+    for (let tick = tickStart; tick <= maxDim; tick += 1000) xTicks.push(tick);
+    if (!xTicks.includes(minDim)) xTicks.unshift(minDim);
+    if (!xTicks.includes(maxDim)) xTicks.push(maxDim);
     const makeSvg = (svg, name, attrs, text) => {{
       const element = document.createElementNS("http://www.w3.org/2000/svg", name);
       for (const [key, value] of Object.entries(attrs || {{}})) element.setAttribute(key, value);
@@ -445,8 +525,6 @@ def write_html(
         makeSvg(svg, "line", {{ x1: margin.left, y1: py, x2: width - margin.right, y2: py, class: "grid" }});
         makeSvg(svg, "text", {{ x: margin.left - 10, y: py + 4, "text-anchor": "end", class: "tick" }}, `${{Math.round(y * 100)}}%`);
       }}
-      const xTicks = dimensions.filter((_, idx) => idx % Math.ceil(dimensions.length / 9) === 0);
-      if (!xTicks.includes(maxDim)) xTicks.push(maxDim);
       for (const x of xTicks) {{
         const px = xScale(x);
         makeSvg(svg, "line", {{ x1: px, y1: margin.top, x2: px, y2: height - margin.bottom, class: "grid" }});
@@ -466,26 +544,23 @@ def write_html(
           "stroke-dasharray": "3 5"
         }});
         makeSvg(svg, "text", {{
-          x: width - margin.right + 24,
-          y: refY + 4,
+          x: width - margin.right - 8,
+          y: refY - 6,
+          "text-anchor": "end",
           class: "tick",
           fill: colors.reference
-        }}, `baseline ${{referencePhase}} @ ${{referenceDimension}}`);
+        }}, referenceLabel);
       }}
+      const legendBaseY = dataset === 2 ? margin.top + 20 : height - margin.bottom - 42;
       ["preopt", "postopt"].forEach((phase, index) => {{
         const phasePoints = dimensions
           .filter(dimension => means[dataset][phase][dimension] !== undefined)
           .map(dimension => [xScale(dimension), yScale(means[dataset][phase][dimension]), dimension, means[dataset][phase][dimension]]);
         const pathData = phasePoints.map((point, pointIndex) => `${{pointIndex === 0 ? "M" : "L"}} ${{point[0].toFixed(2)}} ${{point[1].toFixed(2)}}`).join(" ");
         makeSvg(svg, "path", {{ d: pathData, stroke: colors[phase], class: "series", "stroke-dasharray": phase === "preopt" ? "7 4" : "" }});
-        for (const [px, py, dimension, value] of phasePoints) {{
-          const circle = makeSvg(svg, "circle", {{ cx: px, cy: py, r: 3.3, fill: colors[phase] }});
-          circle.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "title")).textContent =
-            `Dataset ${{dataset}}, ${{phase}}, dim ${{dimension}}: ${{(value * 100).toFixed(2)}}%`;
-        }}
-        const legendY = margin.top + 20 + index * 24;
+        const legendY = legendBaseY + index * 24;
         makeSvg(svg, "line", {{ x1: width - margin.right + 24, y1: legendY, x2: width - margin.right + 54, y2: legendY, stroke: colors[phase], "stroke-width": 3, "stroke-dasharray": phase === "preopt" ? "7 4" : "" }});
-        makeSvg(svg, "text", {{ x: width - margin.right + 64, y: legendY + 4, class: "tick" }}, phase);
+        makeSvg(svg, "text", {{ x: width - margin.right + 64, y: legendY + 4, class: "tick" }}, labels[phase]);
       }});
     }}
   </script>
@@ -510,7 +585,7 @@ def plot_results(
         squeeze=False,
     )
 
-    colors = {"preopt": "#7f8c8d", "postopt": "#d62728"}
+    colors = {"preopt": "#0b3d91", "postopt": "#d62728"}
     styles = {"preopt": "--", "postopt": "-"}
     for ax, dataset in zip(axes[:, 0], datasets):
         for phase in ["preopt", "postopt"]:
@@ -522,26 +597,24 @@ def plot_results(
             ax.plot(
                 [int(row["vector_dimension"]) for row in values],
                 [float(row["mean"]) for row in values],
-                marker="o",
-                markersize=3.2,
                 linewidth=1.7,
                 linestyle=styles[phase],
                 color=colors[phase],
-                label=phase,
+                label=phase_label(phase),
             )
         if dataset in references:
             ax.axhline(
                 references[dataset],
-                color="#1f77b4",
+                color="#000000",
                 linestyle=":",
                 linewidth=1.8,
-                label=f"baseline {args.reference_phase} @ {args.reference_dimension}",
+                label=reference_label(args),
             )
         ax.set_title("Dataset average" if dataset < 0 else f"Dataset {dataset}")
-        ax.set_ylabel("Mean accuracy")
+        ax.set_ylabel("Accuracy")
         ax.yaxis.set_major_formatter(PercentFormatter(1.0))
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        ax.legend(loc="upper right" if dataset == 2 else "lower right")
 
     axes[-1, 0].set_xlabel("Vector dimension")
     for ax in axes[:, 0]:
@@ -553,10 +626,7 @@ def plot_results(
             args.y_min if args.y_min is not None else 0.0,
             args.y_max if args.y_max is not None else 1.0,
         )
-    fig.suptitle(
-        f"GA-only pre vs post test {args.metric.replace('_', ' ')} "
-        f"at {args.num_levels} levels"
-    )
+        ax.xaxis.set_major_locator(MultipleLocator(1000))
     fig.tight_layout()
     fig.savefig(path, dpi=220, bbox_inches="tight")
 
@@ -589,6 +659,7 @@ def main() -> None:
     references = reference_values(baseline_reference, args)
     averaged = sample_dimensions(full_averaged, args.sample_step)
     print_configurations(averaged, args, references)
+    print_main_results(averaged, references)
 
     output = args.output or (
         DEFAULT_PLOTS_DIR

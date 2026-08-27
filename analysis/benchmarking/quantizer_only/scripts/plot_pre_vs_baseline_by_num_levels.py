@@ -10,6 +10,7 @@ import re
 import statistics
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 try:
     import matplotlib.pyplot as plt
@@ -48,20 +49,20 @@ MODE_ALIASES = {
     "chimerge": "chimerge",
 }
 LABELS = {
-    "baseline": "uniform baseline",
-    "reference": "no-opt reference @ 10k/40",
-    "quantile": "quantile",
-    "kmeans_1d": "k-means 1D",
-    "decision_tree_1d": "decision tree 1D",
-    "chimerge": "ChiMerge",
+    "baseline": "Uniform binning",
+    "reference": "Reference accuracy of baseline model with $D=10{,}000$ and $L=40$",
+    "quantile": "Quantile binning",
+    "kmeans_1d": "k-means binning",
+    "decision_tree_1d": "Decision-tree binning",
+    "chimerge": "ChiMerge binning",
 }
 COLORS = {
-    "baseline": "#222222",
-    "reference": "#9467bd",
-    "quantile": "#1f77b4",
+    "baseline": "#0b3d91",
+    "reference": "#000000",
+    "quantile": "#d62728",
     "kmeans_1d": "#ff7f0e",
     "decision_tree_1d": "#2ca02c",
-    "chimerge": "#d62728",
+    "chimerge": "#9467bd",
 }
 
 
@@ -252,12 +253,169 @@ def sample_levels(rows: list[dict[str, object]], sample_step: int) -> list[dict[
     return sampled
 
 
+def keep_common_levels(rows: list[dict[str, object]], sources: list[str]) -> list[dict[str, object]]:
+    filtered = []
+    for dataset in sorted({int(row["dataset"]) for row in rows}):
+        dataset_rows = [row for row in rows if int(row["dataset"]) == dataset]
+        levels_by_source = {
+            source: {
+                int(row["num_levels"])
+                for row in dataset_rows
+                if str(row["source"]) == source
+            }
+            for source in sources
+        }
+        if any(not levels for levels in levels_by_source.values()):
+            continue
+        common_levels = set.intersection(*levels_by_source.values())
+        filtered.extend(
+            row
+            for row in dataset_rows
+            if int(row["num_levels"]) in common_levels
+        )
+    return sorted(
+        filtered,
+        key=lambda row: (
+            int(row["dataset"]) if int(row["dataset"]) >= 0 else 999,
+            str(row["source"]),
+            int(row["num_levels"]),
+        ),
+    )
+
+
 def reference_values(rows: list[dict[str, object]]) -> dict[int, float]:
     return {
         int(row["dataset"]): float(row["mean"])
         for row in rows
         if str(row["source"]) == "reference"
     }
+
+
+def dataset_label(dataset: int) -> str:
+    return "Dataset average" if dataset < 0 else f"Dataset {dataset}"
+
+
+def format_percent(value: Optional[float]) -> str:
+    if value is None:
+        return ""
+    return f"{100.0 * value:.2f}%"
+
+
+def format_pp(value: Optional[float]) -> str:
+    if value is None:
+        return ""
+    return f"{100.0 * value:+.2f}pp"
+
+
+def summarize_grid(values: list[int]) -> str:
+    if not values:
+        return "n/a"
+    if len(values) == 1:
+        return str(values[0])
+
+    ranges = []
+    start = values[0]
+    prev = values[0]
+    step = None
+    for current in values[1:]:
+        current_step = current - prev
+        if step is None:
+            step = current_step
+        elif current_step != step:
+            ranges.append((start, prev, step))
+            start = prev
+            step = current_step
+        prev = current
+    ranges.append((start, prev, step))
+
+    parts = []
+    for lo, hi, interval in ranges:
+        if lo == hi:
+            parts.append(str(lo))
+        else:
+            parts.append(f"{lo}..{hi} step {interval}")
+    return "; ".join(parts)
+
+
+def print_level_grid(rows: list[dict[str, object]], args: argparse.Namespace) -> None:
+    print()
+    print("NUM_LEVELS grid by plotted source after common-level filtering")
+    print("source levels range_summary")
+    ordered_sources = ["baseline"] + args.binning_modes
+    for source in ordered_sources:
+        levels = sorted(
+            {
+                int(row["num_levels"])
+                for row in rows
+                if str(row["source"]) == source and int(row["dataset"]) >= 0
+            }
+        )
+        print(
+            f"{LABELS.get(source, source):>22s} "
+            f"{len(levels):6d} "
+            f"{summarize_grid(levels)}"
+        )
+
+
+def print_main_results(
+    rows: list[dict[str, object]],
+    references: dict[int, float],
+    args: argparse.Namespace,
+) -> None:
+    print()
+    print("Main results")
+    print(
+        "dataset source endpoint_levels endpoint_acc diff_to_uniform "
+        "reference_acc diff_to_reference best_levels best_acc"
+    )
+
+    sources = ["baseline"] + args.binning_modes
+    datasets = sorted({int(row["dataset"]) for row in rows})
+    for dataset in datasets:
+        dataset_rows = [row for row in rows if int(row["dataset"]) == dataset]
+        endpoint_levels = max(int(row["num_levels"]) for row in dataset_rows)
+        baseline_endpoint = next(
+            (
+                float(row["mean"])
+                for row in dataset_rows
+                if str(row["source"]) == "baseline"
+                and int(row["num_levels"]) == endpoint_levels
+            ),
+            None,
+        )
+        reference = references.get(dataset)
+
+        for source in sources:
+            source_rows = [row for row in dataset_rows if str(row["source"]) == source]
+            if not source_rows:
+                continue
+            endpoint_row = next(
+                (
+                    row
+                    for row in source_rows
+                    if int(row["num_levels"]) == endpoint_levels
+                ),
+                max(source_rows, key=lambda row: int(row["num_levels"])),
+            )
+            endpoint_acc = float(endpoint_row["mean"])
+            best_row = max(source_rows, key=lambda row: float(row["mean"]))
+            diff_to_uniform = (
+                None
+                if baseline_endpoint is None
+                else endpoint_acc - baseline_endpoint
+            )
+            diff_to_reference = None if reference is None else endpoint_acc - reference
+            print(
+                f"{dataset_label(dataset):>15s} "
+                f"{LABELS.get(source, source):>22s} "
+                f"{int(endpoint_row['num_levels']):15d} "
+                f"{format_percent(endpoint_acc):>12s} "
+                f"{format_pp(diff_to_uniform):>15s} "
+                f"{format_percent(reference):>13s} "
+                f"{format_pp(diff_to_reference):>17s} "
+                f"{int(best_row['num_levels']):11d} "
+                f"{format_percent(float(best_row['mean'])):>9s}"
+            )
 
 
 def print_configurations(rows: list[dict[str, object]], args: argparse.Namespace) -> None:
@@ -271,7 +429,10 @@ def print_configurations(rows: list[dict[str, object]], args: argparse.Namespace
     print("  phase: preopt-test")
     print(f"  metric: {args.metric}")
     print(f"  sources: {', '.join(LABELS.get(source, source) for source in sources)}")
-    print(f"  reference: no optimization preopt-test at dim={REFERENCE_DIMENSION}, levels={REFERENCE_NUM_LEVELS}")
+    print(
+        "  reference: baseline model preopt-test at "
+        f"D={REFERENCE_DIMENSION}, L={REFERENCE_NUM_LEVELS}"
+    )
     dataset_text = ", ".join("average" if dataset < 0 else str(dataset) for dataset in datasets)
     print(f"  datasets: {dataset_text}")
     print(f"  seeds: {', '.join(map(str, seeds))}")
@@ -340,10 +501,8 @@ def plot_png(
             ax.plot(
                 [int(row["num_levels"]) for row in values],
                 [float(row["mean"]) for row in values],
-                marker="o" if source != "baseline" else None,
-                markersize=3.0,
                 linewidth=1.8,
-                linestyle=":" if source == "baseline" else "-",
+                linestyle="--" if source == "baseline" else "-",
                 color=COLORS.get(source),
                 label=LABELS.get(source, source),
             )
@@ -351,15 +510,15 @@ def plot_png(
             ax.axhline(
                 references[dataset],
                 color=COLORS["reference"],
-                linestyle="-",
-                linewidth=1.3,
+                linestyle=":",
+                linewidth=1.8,
                 label=LABELS["reference"],
             )
         ax.set_title("Dataset average" if dataset < 0 else f"Dataset {dataset}")
-        ax.set_ylabel("Mean accuracy")
+        ax.set_ylabel("Accuracy")
         ax.yaxis.set_major_formatter(PercentFormatter(1.0))
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        ax.legend(loc="upper right" if dataset == 2 else "lower right")
 
     for ax in axes[:, 0]:
         ax.set_xlim(
@@ -370,11 +529,7 @@ def plot_png(
             args.y_min if args.y_min is not None else 0.0,
             args.y_max if args.y_max is not None else 1.0,
         )
-    axes[-1, 0].set_xlabel("NUM_LEVELS")
-    fig.suptitle(
-        f"Quantizer-only vs uniform baseline test {args.metric.replace('_', ' ')} "
-        f"at dimension {args.vector_dimension}"
-    )
+    axes[-1, 0].set_xlabel("Number of levels")
     fig.tight_layout()
     fig.savefig(path, dpi=220, bbox_inches="tight")
     if not args.no_show:
@@ -402,10 +557,7 @@ def write_html(
         }
         for dataset in datasets
     }
-    title = (
-        f"Quantizer-only vs uniform baseline test {args.metric.replace('_', ' ')} "
-        f"at dimension {args.vector_dimension}"
-    )
+    title = f"Quantizer-only comparison at dimension {args.vector_dimension}"
     y_min = 0.0 if args.y_min is None else args.y_min
     y_max = 1.0 if args.y_max is None else args.y_max
     html_text = f"""<!doctype html>
@@ -416,7 +568,6 @@ def write_html(
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
-  <h1>{html.escape(title)}</h1>
   <div id="plot" style="width: 1200px; height: {max(420, 300 * len(datasets))}px;"></div>
   <script>
     const datasets = {datasets!r};
@@ -434,12 +585,11 @@ def write_html(
         traces.push({{
           x,
           y: x.map(level => means[dataset][source][level]),
-          mode: source === "baseline" ? "lines" : "lines+markers",
+          mode: "lines",
           name: `${{labels[source] || source}} / ${{dataset < 0 ? "dataset average" : "dataset " + dataset}}`,
           xaxis: `x${{datasetIndex + 1}}`,
           yaxis: `y${{datasetIndex + 1}}`,
-          line: {{ color: colors[source], dash: source === "baseline" ? "dot" : "solid" }},
-          marker: {{ size: 5 }}
+          line: {{ color: colors[source], dash: source === "baseline" ? "dash" : "solid" }}
         }});
       }});
       if (references[dataset] !== undefined) {{
@@ -450,7 +600,7 @@ def write_html(
           name: `${{labels.reference}} / ${{dataset < 0 ? "dataset average" : "dataset " + dataset}}`,
           xaxis: `x${{datasetIndex + 1}}`,
           yaxis: `y${{datasetIndex + 1}}`,
-          line: {{ color: colors.reference, dash: "solid", width: 1.3 }}
+          line: {{ color: colors.reference, dash: "dot", width: 1.8 }}
         }});
       }}
     }});
@@ -461,8 +611,8 @@ def write_html(
     }};
     datasets.forEach((dataset, idx) => {{
       const suffix = idx === 0 ? "" : String(idx + 1);
-      layout[`xaxis${{suffix}}`] = {{ title: idx === datasets.length - 1 ? "NUM_LEVELS" : "" }};
-      layout[`yaxis${{suffix}}`] = {{ title: dataset < 0 ? "Dataset average" : `Dataset ${{dataset}}`, tickformat: ".0%", range: [{y_min}, {y_max}] }};
+      layout[`xaxis${{suffix}}`] = {{ title: idx === datasets.length - 1 ? "Number of levels" : "" }};
+      layout[`yaxis${{suffix}}`] = {{ title: "Accuracy", tickformat: ".0%", range: [{y_min}, {y_max}] }};
     }});
     Plotly.newPlot("plot", traces, layout);
   </script>
@@ -504,9 +654,14 @@ def main() -> None:
     if not rows:
         raise RuntimeError("No rows selected")
 
-    averaged = sample_levels(add_dataset_average(aggregate(rows)), args.sample_step)
+    sources = ["baseline"] + args.binning_modes
+    averaged = add_dataset_average(aggregate(rows))
+    averaged = keep_common_levels(averaged, sources)
+    averaged = sample_levels(averaged, args.sample_step)
     references = reference_values(add_dataset_average(aggregate(reference_rows)))
     print_configurations(averaged, args)
+    print_level_grid(averaged, args)
+    print_main_results(averaged, references, args)
 
     suffix = output_suffix(args)
     output = args.output or DEFAULT_PLOTS_DIR / f"quantizer_only_vs_baseline_by_levels_{suffix}.png"

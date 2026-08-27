@@ -26,6 +26,12 @@ endif
 ifdef ITEM_MEM_SEED
 	CFLAGS += -DITEM_MEM_SEED=$(ITEM_MEM_SEED)
 endif
+ifdef DATASET_START
+	CFLAGS += -DDATASET_START=$(DATASET_START)
+endif
+ifdef DATASET_END
+	CFLAGS += -DDATASET_END=$(DATASET_END)
+endif
 
 # Optional config overrides (set VAR=value)
 ifdef VECTOR_DIMENSION
@@ -166,6 +172,12 @@ endif
 ifdef GA_MUTATION_BETA
 	CFLAGS += -DGA_MUTATION_BETA=$(GA_MUTATION_BETA)
 endif
+ifdef GA_CIM_EXPORT_ENABLED
+	CFLAGS += -DGA_CIM_EXPORT_ENABLED=$(GA_CIM_EXPORT_ENABLED)
+endif
+ifdef GA_CIM_EXPORT_LABEL
+	CFLAGS += -DGA_CIM_EXPORT_LABEL=\"$(GA_CIM_EXPORT_LABEL)\"
+endif
 ifdef VALIDATION_RATIO
 	CFLAGS += -DVALIDATION_RATIO=$(VALIDATION_RATIO)
 endif
@@ -191,6 +203,8 @@ DEPS_CUSTOM = $(wildcard $(SRCDIR_CUSTOM)/*.h) $(wildcard $(INCDIR_INFRA)/*.h)
 # Targets
 TARGET_FOOT = modelFoot
 TARGET_CUSTOM = modelCustom
+TARGET_EXPORT_NAIVE_CIM = export_naive_precomp_cim
+TARGET_EVALUATE_FINAL_CIMS = evaluate_final_generation_cims
 
 # Build foot EMG model
 .PHONY: foot
@@ -205,6 +219,18 @@ custom: clean $(TARGET_CUSTOM)
 
 $(TARGET_CUSTOM): $(OBJFILES_CUSTOM)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+.PHONY: export_naive_cim
+export_naive_cim: clean $(TARGET_EXPORT_NAIVE_CIM)
+
+$(TARGET_EXPORT_NAIVE_CIM): tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(DEPS_FOOT)
+	$(CC) $(CFLAGS) -DFOOT_EMG -o $@ tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(LDFLAGS)
+
+.PHONY: evaluate_final_cims
+evaluate_final_cims: $(TARGET_EVALUATE_FINAL_CIMS)
+
+$(TARGET_EVALUATE_FINAL_CIMS): tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/preprocessor.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(DEPS_FOOT)
+	$(CC) $(CFLAGS) -DFOOT_EMG -o $@ tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/preprocessor.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(LDFLAGS)
 
 # Object file compilation for foot and infrastructure
 $(BINDIR)/foot_%.o: $(SRCDIR_FOOT)/%.c $(DEPS_FOOT)
@@ -228,4 +254,4 @@ $(BINDIR)/custom_infra_%.o: $(INCDIR_INFRA)/%.c $(DEPS_CUSTOM)
 
 .PHONY: clean
 clean:
-	rm -f $(BINDIR)/*.o $(TARGET_FOOT) $(TARGET_CUSTOM)
+	rm -f $(BINDIR)/*.o $(TARGET_FOOT) $(TARGET_CUSTOM) $(TARGET_EXPORT_NAIVE_CIM) $(TARGET_EVALUATE_FINAL_CIMS)

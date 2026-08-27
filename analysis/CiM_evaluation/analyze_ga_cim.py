@@ -14,7 +14,6 @@ REPO_ROOT = BASE_DIR.parent.parent
 CIMS_ROOT = REPO_ROOT / 'CiMs'
 OUTPUT_DIR = BASE_DIR / 'plots'
 
-FORCE_BINARY_MODE = None
 ALL_FEATURE_ALPHA = 0.18
 ALL_FEATURE_LINEWIDTH = 0.9
 
@@ -50,7 +49,17 @@ def parse_csv_header(path: Path):
 def list_run_dirs():
     if not CIMS_ROOT.exists():
         raise FileNotFoundError(f'Missing CiMs root: {CIMS_ROOT}')
-    runs = sorted([p for p in CIMS_ROOT.iterdir() if p.is_dir()])
+    runs = sorted(
+        [
+            p
+            for p in CIMS_ROOT.iterdir()
+            if p.is_dir()
+            and any(
+                child.is_dir() and child.name.startswith('generation_')
+                for child in p.iterdir()
+            )
+        ]
+    )
     if not runs:
         raise RuntimeError(f'No GA CiM runs found in {CIMS_ROOT}')
     return runs
@@ -116,76 +125,103 @@ def load_cim(path: Path):
     return header, mode, V
 
 
-def cosine_similarity_matrix(V):
-    norms = np.linalg.norm(V, axis=1, keepdims=True) + 1e-12
-    Vn = V / norms
-    return Vn @ Vn.T
-
-
-def hamming_similarity_matrix(V):
-    diff = V[:, None, :] != V[None, :, :]
-    dist = diff.mean(axis=2)
-    return 1.0 - dist
-
-
-def consecutive_cosine_distances(V):
-    norms = np.linalg.norm(V, axis=1) + 1e-12
-    dots = np.sum(V[:-1] * V[1:], axis=1)
-    cos = dots / (norms[:-1] * norms[1:] + 1e-12)
-    return 1.0 - cos
-
-
 def consecutive_hamming_distances(V):
     return (V[:-1] != V[1:]).mean(axis=1)
 
 
-def classical_mds_from_distance(D, out_dim=2):
-    n = D.shape[0]
-    D2 = D ** 2
-    J = np.eye(n) - np.ones((n, n)) / n
-    B = -0.5 * J @ D2 @ J
-    eigvals, eigvecs = np.linalg.eigh(B)
-    idx = np.argsort(eigvals)[::-1]
-    eigvals = eigvals[idx]
-    eigvecs = eigvecs[:, idx]
-    eigvals = np.clip(eigvals[:out_dim], a_min=0.0, a_max=None)
-    return eigvecs[:, :out_dim] * np.sqrt(eigvals + 1e-12)
+def adjacent_bitflips_by_feature(V):
+    num_levels, num_features, dimension = V.shape
+    adjacent_all = np.zeros((num_features, num_levels - 1), dtype=float)
+    for feature in range(num_features):
+        adjacent_all[feature] = consecutive_hamming_distances(V[:, feature, :])
+    return adjacent_all * float(dimension)
 
 
-def similarity_matrix(V, binary_mode):
-    return hamming_similarity_matrix(V) if binary_mode else cosine_similarity_matrix(V)
+def print_bitflip_summary(adjacent_bitflips_all, reference_bitflips=None):
+    transition_mean = adjacent_bitflips_all.mean(axis=0)
+    transition_min = adjacent_bitflips_all.min(axis=0)
+    transition_max = adjacent_bitflips_all.max(axis=0)
+    transition_std = adjacent_bitflips_all.std(axis=0)
+    feature_mean = adjacent_bitflips_all.mean(axis=1)
+    feature_min = adjacent_bitflips_all.min(axis=1)
+    feature_max = adjacent_bitflips_all.max(axis=1)
+    all_values = adjacent_bitflips_all.reshape(-1)
+
+    print()
+    print('Characteristic bitflip metrics:')
+    print(f'  all_feature_transition_mean={all_values.mean():.3f}')
+    print(f'  all_feature_transition_std={all_values.std():.3f}')
+    print(f'  all_feature_transition_min={all_values.min():.3f}')
+    print(f'  all_feature_transition_max={all_values.max():.3f}')
+    print(f'  transition_mean_min={transition_mean.min():.3f}')
+    print(f'  transition_mean_max={transition_mean.max():.3f}')
+    print(f'  transition_mean_avg={transition_mean.mean():.3f}')
+    print(f'  feature_mean_min={feature_mean.min():.3f}')
+    print(f'  feature_mean_max={feature_mean.max():.3f}')
+    print(f'  feature_mean_avg={feature_mean.mean():.3f}')
+    print(f'  feature_range_max={(feature_max - feature_min).max():.3f}')
+    if reference_bitflips is not None:
+        print(f'  reference_mean={reference_bitflips.mean():.3f}')
+        print(f'  reference_std={reference_bitflips.std():.3f}')
+        print(f'  reference_min={reference_bitflips.min():.3f}')
+        print(f'  reference_max={reference_bitflips.max():.3f}')
+        print(f'  optimized_minus_reference_mean={(transition_mean - reference_bitflips).mean():.3f}')
+        print(f'  optimized_minus_reference_min={(transition_mean - reference_bitflips).min():.3f}')
+        print(f'  optimized_minus_reference_max={(transition_mean - reference_bitflips).max():.3f}')
+
+    print()
+    if reference_bitflips is None:
+        print('Per-transition bitflips across features:')
+        print('transition,mean,min,max,std')
+        for transition in range(adjacent_bitflips_all.shape[1]):
+            print(
+                f'{transition},'
+                f'{transition_mean[transition]:.3f},'
+                f'{transition_min[transition]:.3f},'
+                f'{transition_max[transition]:.3f},'
+                f'{transition_std[transition]:.3f}'
+            )
+    else:
+        print('Per-transition bitflips across features:')
+        print('transition,mean,min,max,std,reference,mean_minus_reference')
+        for transition in range(adjacent_bitflips_all.shape[1]):
+            print(
+                f'{transition},'
+                f'{transition_mean[transition]:.3f},'
+                f'{transition_min[transition]:.3f},'
+                f'{transition_max[transition]:.3f},'
+                f'{transition_std[transition]:.3f},'
+                f'{reference_bitflips[transition]:.3f},'
+                f'{transition_mean[transition] - reference_bitflips[transition]:.3f}'
+            )
 
 
-def consecutive_distances(V, binary_mode):
-    return consecutive_hamming_distances(V) if binary_mode else consecutive_cosine_distances(V)
-
-
-def plot_cim_analysis(run_dir: Path, cim_path: Path, header, mode, V, show: bool):
+def plot_cim_analysis(run_dir: Path, cim_path: Path, header, mode, V, show: bool, reference_cim: Path | None):
     if plt is None:
         raise RuntimeError('matplotlib is not installed. Install with: pip install matplotlib')
 
-    binary_mode = bool(FORCE_BINARY_MODE) if FORCE_BINARY_MODE is not None else is_binary_vectors(V)
-    num_levels, num_features, _ = V.shape
+    if not is_binary_vectors(V):
+        raise ValueError('This analysis expects binary CCIM vectors containing only 0/1 values.')
+    num_levels, num_features, dimension = V.shape
 
-    distance_label = 'Hamming distance' if binary_mode else '1 - cosine similarity'
-    similarity_label = 'Hamming similarity' if binary_mode else 'cosine similarity'
-    metric_name = 'Hamming' if binary_mode else 'cosine'
+    line_distance_label = 'Bitflips'
+    heatmap_distance_label = 'Hamming distance'
+    metric_name = 'Hamming'
 
-    adjacent_all = np.zeros((num_features, num_levels - 1), dtype=float)
-    similarity_sum = np.zeros((num_levels, num_levels), dtype=float)
-    density = np.zeros((num_features, num_levels), dtype=float)
+    adjacent_bitflips_all = adjacent_bitflips_by_feature(V)
+    adjacent_all = adjacent_bitflips_all / float(dimension)
+    adjacent_bitflips_mean = adjacent_bitflips_all.mean(axis=0)
+    adjacent_bitflips_std = adjacent_bitflips_all.std(axis=0)
+    reference_bitflips = None
+    if reference_cim is not None:
+        _, _, reference_vectors = load_cim(reference_cim)
+        if not is_binary_vectors(reference_vectors):
+            raise ValueError(f'Reference CIM is not binary: {reference_cim}')
+        if reference_vectors.shape != V.shape:
+            raise ValueError(f'Reference CIM shape {reference_vectors.shape} does not match GA CIM shape {V.shape}')
+        reference_bitflips = adjacent_bitflips_by_feature(reference_vectors)[0]
 
-    for feature in range(num_features):
-        Vf = V[:, feature, :]
-        adjacent_all[feature] = consecutive_distances(Vf, binary_mode)
-        similarity_sum += similarity_matrix(Vf, binary_mode)
-        density[feature] = Vf.mean(axis=1)
-
-    adjacent_mean = adjacent_all.mean(axis=0)
-    adjacent_std = adjacent_all.std(axis=0)
-    similarity_mean = similarity_sum / float(num_features)
-    distance_mean = 1.0 - similarity_mean
-    embedding = classical_mds_from_distance(distance_mean, out_dim=2)
+    print_bitflip_summary(adjacent_bitflips_all, reference_bitflips)
 
     run_name = run_dir.name
     generation = int(header.get('generation', -1))
@@ -200,12 +236,41 @@ def plot_cim_analysis(run_dir: Path, cim_path: Path, header, mode, V, show: bool
     fig, ax = plt.subplots(figsize=(10.0, 5.6))
     x = np.arange(num_levels - 1)
     for feature in range(num_features):
-        ax.plot(x, adjacent_all[feature], color='#1f77b4', alpha=ALL_FEATURE_ALPHA, linewidth=ALL_FEATURE_LINEWIDTH)
-    ax.plot(x, adjacent_mean, color='#d62728', linewidth=2.4, label='Mean')
-    ax.fill_between(x, adjacent_mean - adjacent_std, adjacent_mean + adjacent_std, color='#d62728', alpha=0.18, label='Mean +/- std')
-    ax.set_title(f'{run_name} | generation {generation} | individual {candidate}\nAdjacent level {metric_name} distance across features')
-    ax.set_xlabel('Level l (distance between l and l+1)')
-    ax.set_ylabel(distance_label)
+        ax.plot(
+            x,
+            adjacent_bitflips_all[feature],
+            color='#0b3d91',
+            alpha=0.45,
+            linewidth=ALL_FEATURE_LINEWIDTH,
+            label='GA-optimized flip counts per feature' if feature == 0 else None,
+        )
+    ax.plot(
+        x,
+        adjacent_bitflips_mean,
+        color='#d62728',
+        linewidth=2.4,
+        label='GA-optimized flip counts - mean across features',
+    )
+    ax.fill_between(
+        x,
+        adjacent_bitflips_mean - adjacent_bitflips_std,
+        adjacent_bitflips_mean + adjacent_bitflips_std,
+        color='#d62728',
+        alpha=0.18,
+        label=r'GA-optimized flip counts - standard deviation',
+    )
+    if reference_bitflips is not None:
+        ax.plot(
+            x,
+            reference_bitflips,
+            color='black',
+            linestyle='--',
+            linewidth=2.0,
+            label='Equally distributed flip counts (baseline)',
+        )
+    ax.set_xlabel(r'Level transition index $i$')
+    ax.set_ylabel(r'Number of bit flips $b_i^f$')
+    ax.set_xlim(0, 38)
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
@@ -214,41 +279,17 @@ def plot_cim_analysis(run_dir: Path, cim_path: Path, header, mode, V, show: bool
         plt.show()
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(6.8, 5.8))
-    im = ax.imshow(similarity_mean, aspect='auto', origin='lower')
-    ax.set_title(f'{run_name} | generation {generation} | individual {candidate}\nMean level {similarity_label} matrix')
-    ax.set_xlabel('Level')
-    ax.set_ylabel('Level')
-    fig.colorbar(im, ax=ax, label=similarity_label)
-    fig.tight_layout()
-    fig.savefig(out_dir / 'similarity_heatmap.png', dpi=180)
-    if show:
-        plt.show()
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(6.8, 5.8))
-    ax.plot(embedding[:, 0], embedding[:, 1], marker='o')
-    for level in range(num_levels):
-        if level % max(1, num_levels // 10) == 0 or level == num_levels - 1:
-            ax.text(embedding[level, 0], embedding[level, 1], str(level), fontsize=8)
-    ax.set_title(f'{run_name} | generation {generation} | individual {candidate}\nClassical MDS of mean level distance')
-    ax.set_xlabel('MDS dimension 1')
-    ax.set_ylabel('MDS dimension 2')
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(out_dir / 'mds_levels.png', dpi=180)
-    if show:
-        plt.show()
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(8.4, 5.8))
-    im = ax.imshow(density, aspect='auto', origin='lower')
-    ax.set_title(f'{run_name} | generation {generation} | individual {candidate}\nMean vector density per feature and level')
-    ax.set_xlabel('Level')
+    fig, ax = plt.subplots(figsize=(9.0, 7.2))
+    im = ax.imshow(adjacent_all, aspect='auto', origin='lower', cmap='viridis')
+    ax.set_title(
+        f'{run_name} | generation {generation} | individual {candidate}\n'
+        f'Adjacent level {metric_name} distance per feature'
+    )
+    ax.set_xlabel('Level transition l -> l+1')
     ax.set_ylabel('Feature')
-    fig.colorbar(im, ax=ax, label='Mean bit value')
+    fig.colorbar(im, ax=ax, label=heatmap_distance_label)
     fig.tight_layout()
-    fig.savefig(out_dir / 'feature_level_density.png', dpi=180)
+    fig.savefig(out_dir / 'adjacent_distance_heatmap.png', dpi=180)
     if show:
         plt.show()
     plt.close(fig)
@@ -265,10 +306,16 @@ def plot_cim_analysis(run_dir: Path, cim_path: Path, header, mode, V, show: bool
             f.write(f'accuracy={accuracy}\n')
         if similarity is not None:
             f.write(f'similarity={similarity}\n')
-        f.write(f'binary_mode={binary_mode}\n')
-        f.write(f'adjacent_mean_min={adjacent_mean.min():.10f}\n')
-        f.write(f'adjacent_mean_max={adjacent_mean.max():.10f}\n')
-        f.write(f'adjacent_mean_avg={adjacent_mean.mean():.10f}\n')
+        f.write('binary_mode=True\n')
+        if reference_cim is not None:
+            f.write(f'reference_cim={reference_cim}\n')
+        f.write(f'adjacent_bitflips_mean_min={adjacent_bitflips_mean.min():.10f}\n')
+        f.write(f'adjacent_bitflips_mean_max={adjacent_bitflips_mean.max():.10f}\n')
+        f.write(f'adjacent_bitflips_mean_avg={adjacent_bitflips_mean.mean():.10f}\n')
+        if reference_bitflips is not None:
+            f.write(f'reference_adjacent_bitflips_min={reference_bitflips.min():.10f}\n')
+            f.write(f'reference_adjacent_bitflips_max={reference_bitflips.max():.10f}\n')
+            f.write(f'reference_adjacent_bitflips_avg={reference_bitflips.mean():.10f}\n')
 
     print(f'Loaded: {cim_path}')
     if accuracy is not None and similarity is not None:
@@ -285,13 +332,14 @@ def main():
     parser.add_argument('--run', default='latest', help='GA run folder name under CiMs, or "latest" (default).')
     parser.add_argument('--generation', type=int, default=0, help='Generation index to inspect (default: 0).')
     parser.add_argument('--individual', type=int, default=0, help='Individual index to inspect (default: 0).')
+    parser.add_argument('--reference-cim', type=Path, help='Optional real naive/reference CIM CSV to overlay.')
     parser.add_argument('--show', action='store_true', help='Show plots interactively in addition to saving them.')
     args = parser.parse_args()
 
     run_dir = resolve_run_dir(args.run)
     cim_path = resolve_cim_path(run_dir, args.generation, args.individual)
     header, mode, V = load_cim(cim_path)
-    plot_cim_analysis(run_dir, cim_path, header, mode, V, args.show)
+    plot_cim_analysis(run_dir, cim_path, header, mode, V, args.show, args.reference_cim)
 
 
 if __name__ == '__main__':

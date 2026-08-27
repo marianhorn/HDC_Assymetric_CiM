@@ -68,6 +68,7 @@ analysis/GA_evaluation/crossMutRatesOptimization/results.csv
 analysis/GA_evaluation/crossMutRatesOptimization/run_manifest.csv
 analysis/GA_evaluation/crossMutRatesOptimization/analysis_outputs/
 analysis/CiM_evaluation/plots/
+analysis/ngram_size_sweep/logs/
 CiMs/
 __pycache__/
 systemc_hdc/build/

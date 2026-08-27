@@ -1,0 +1,9 @@
+num_levels,num_features,vector_dimension,binning_mode,bipolar_mode,precomputed_item_memory,use_genetic_item_memory,ga_selection_mode,ga_mutation_rate,n_gram_size,window,downsample,validation_ratio,overall_accuracy,class_average_accuracy,class_vector_similarity,correct,not_correct,transition_error,total,info
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.95069337,0.95058509,0.35548000,1234,62,2,1298,"model=mine,scope=dataset,dataset=3,phase=preopt-validation"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.96198157,0.96185636,0.35548000,835,32,1,868,"model=mine,scope=dataset,dataset=3,phase=preopt-test"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.97534669,0.97529255,0.36848000,1266,31,1,1298,"model=mine,scope=dataset,dataset=3,phase=postopt-validation"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.97695853,0.97687861,0.36848000,848,20,0,868,"model=mine,scope=dataset,dataset=3,phase=postopt-test"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.95069337,0.00000000,0.00000000,0,0,0,0,"model=mine,scope=overall,phase=preopt-validation"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.96198157,0.00000000,0.00000000,0,0,0,0,"model=mine,scope=overall,phase=preopt-test"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.97534669,0.00000000,0.00000000,0,0,0,0,"model=mine,scope=overall,phase=postopt-validation"
+40,32,10000,0,0,1,1,0,0.200000,3,100,1,0.300000,0.97695853,0.00000000,0.00000000,0,0,0,0,"model=mine,scope=overall,phase=postopt-test"

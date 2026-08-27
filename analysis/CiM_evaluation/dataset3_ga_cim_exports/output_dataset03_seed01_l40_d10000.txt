@@ -1,0 +1,546 @@
+=== dataset 3 GA-CIM export run ===
+seed=1
+NUM_LEVELS=40
+VECTOR_DIMENSION=10000
+GA_DEFAULT_POPULATION_SIZE=128
+GA_DEFAULT_GENERATIONS=64
+
+rm -f build/*.o modelFoot modelCustom
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_dataReaderFootEMG.o foot/dataReaderFootEMG.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_modelFoot.o foot/modelFoot.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_ResultManager.o hdc_infrastructure/ResultManager.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_assoc_mem.o hdc_infrastructure/assoc_mem.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_asymItemMemory.o hdc_infrastructure/asymItemMemory.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_encoder.o hdc_infrastructure/encoder.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_evaluator.o hdc_infrastructure/evaluator.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_item_mem.o hdc_infrastructure/item_mem.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_online_classifier.o hdc_infrastructure/online_classifier.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_operations.o hdc_infrastructure/operations.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_preprocessor.o hdc_infrastructure/preprocessor.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_quantizer.o hdc_infrastructure/quantizer.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_trainer.o hdc_infrastructure/trainer.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -DFOOT_EMG -c -o build/foot_infra_vector.o hdc_infrastructure/vector.c
+gcc -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG -fopenmp -DRESULT_CSV_PATH=\"analysis/CiM_evaluation/dataset3_ga_cim_exports/results_dataset03_seed01_l40_d10000.csv\" -DITEM_MEM_SEED=1 -DDATASET_START=3 -DDATASET_END=3 -DVECTOR_DIMENSION=10000 -DNUM_LEVELS=40 -DUSE_GENETIC_ITEM_MEMORY=1 -DOUTPUT_MODE=2 -DGA_DEFAULT_POPULATION_SIZE=128 -DGA_DEFAULT_GENERATIONS=64 -DGA_DEFAULT_SEED=1 -DBINNING_MODE=0 -DGA_CIM_EXPORT_ENABLED=1 -o modelFoot build/foot_dataReaderFootEMG.o build/foot_modelFoot.o build/foot_infra_ResultManager.o build/foot_infra_assoc_mem.o build/foot_infra_asymItemMemory.o build/foot_infra_encoder.o build/foot_infra_evaluator.o build/foot_infra_item_mem.o build/foot_infra_online_classifier.o build/foot_infra_operations.o build/foot_infra_preprocessor.o build/foot_infra_quantizer.o build/foot_infra_trainer.o build/foot_infra_vector.o -lm -flto -fopenmp
+
+HDC-classification for EMG-signals:
+
+
+Model for dataset #3
+Initializing precomputed item memory with 40 levels for 32 features.
+Initializing associative memory for 5 classes.
+Reading data.
+Loaded data: training 3040 x 32, validation 1300 x 32, testing 870 x 32
+Training HDC-Model for 3040 training samples.
+Evaluating HDC-Model for 1300 testing samples.
+Testing accuracy: 94.145%
+Accuracy excluding gesture transitions: 94.299%
+Class-average accuracy: 94.132%
+Class vector similarity: 0.368
+Total: 1222 of 1298 ngrams correctly classified
+Transition error: 2
+Evaluating HDC-Model for 870 testing samples.
+Testing accuracy: 95.507%
+Accuracy excluding gesture transitions: 95.622%
+Class-average accuracy: 95.492%
+Class vector similarity: 0.368
+Total: 829 of 868 ngrams correctly classified
+Transition error: 1
+  Pre-Optimization
+    validation accuracy: 94.14%
+    test accuracy: 95.51%
+GA CiM export root: CiMs/ga_run_20260811_115932_01_final_precomputed_ga
+GA evaluating with 16 threads
+GA generation 1/64
+  individual 1/128 accuracy: 92.820%, similarity: 0.352
+  individual 2/128 accuracy: 92.048%, similarity: 0.346
+  individual 3/128 accuracy: 93.051%, similarity: 0.347
+  individual 4/128 accuracy: 95.986%, similarity: 0.352
+  individual 5/128 accuracy: 95.444%, similarity: 0.349
+  individual 6/128 accuracy: 94.906%, similarity: 0.359
+  individual 7/128 accuracy: 94.518%, similarity: 0.339
+  individual 8/128 accuracy: 94.749%, similarity: 0.362
+  individual 9/128 accuracy: 93.901%, similarity: 0.344
+  individual 10/128 accuracy: 93.669%, similarity: 0.364
+  individual 11/128 accuracy: 92.588%, similarity: 0.363
+  individual 12/128 accuracy: 93.593%, similarity: 0.362
+  individual 13/128 accuracy: 92.742%, similarity: 0.373
+  individual 14/128 accuracy: 94.981%, similarity: 0.352
+  individual 15/128 accuracy: 93.437%, similarity: 0.351
+  individual 16/128 accuracy: 96.063%, similarity: 0.356
+  individual 17/128 accuracy: 92.896%, similarity: 0.364
+  individual 18/128 accuracy: 95.135%, similarity: 0.340
+  individual 19/128 accuracy: 96.294%, similarity: 0.369
+  individual 20/128 accuracy: 95.214%, similarity: 0.355
+  individual 21/128 accuracy: 92.433%, similarity: 0.356
+  individual 22/128 accuracy: 95.600%, similarity: 0.351
+  individual 23/128 accuracy: 93.978%, similarity: 0.347
+  individual 24/128 accuracy: 95.059%, similarity: 0.350
+  individual 25/128 accuracy: 93.901%, similarity: 0.352
+  individual 26/128 accuracy: 94.982%, similarity: 0.344
+  individual 27/128 accuracy: 92.665%, similarity: 0.342
+  individual 28/128 accuracy: 92.587%, similarity: 0.352
+  individual 29/128 accuracy: 95.213%, similarity: 0.350
+  individual 30/128 accuracy: 94.132%, similarity: 0.360
+  individual 31/128 accuracy: 93.515%, similarity: 0.348
+  individual 32/128 accuracy: 95.060%, similarity: 0.352
+  individual 33/128 accuracy: 94.056%, similarity: 0.349
+  individual 34/128 accuracy: 91.274%, similarity: 0.372
+  individual 35/128 accuracy: 94.286%, similarity: 0.339
+  individual 36/128 accuracy: 95.214%, similarity: 0.334
+  individual 37/128 accuracy: 94.365%, similarity: 0.362
+  individual 38/128 accuracy: 94.595%, similarity: 0.374
+  individual 39/128 accuracy: 95.985%, similarity: 0.351
+  individual 40/128 accuracy: 95.521%, similarity: 0.357
+  individual 41/128 accuracy: 93.283%, similarity: 0.370
+  individual 42/128 accuracy: 94.903%, similarity: 0.366
+  individual 43/128 accuracy: 94.286%, similarity: 0.363
+  individual 44/128 accuracy: 96.062%, similarity: 0.352
+  individual 45/128 accuracy: 95.212%, similarity: 0.345
+  individual 46/128 accuracy: 92.047%, similarity: 0.332
+  individual 47/128 accuracy: 92.356%, similarity: 0.361
+  individual 48/128 accuracy: 96.681%, similarity: 0.359
+  individual 49/128 accuracy: 94.286%, similarity: 0.344
+  individual 50/128 accuracy: 93.282%, similarity: 0.346
+  individual 51/128 accuracy: 94.440%, similarity: 0.363
+  individual 52/128 accuracy: 93.437%, similarity: 0.345
+  individual 53/128 accuracy: 94.519%, similarity: 0.352
+  individual 54/128 accuracy: 94.673%, similarity: 0.354
+  individual 55/128 accuracy: 92.201%, similarity: 0.348
+  individual 56/128 accuracy: 95.444%, similarity: 0.336
+  individual 57/128 accuracy: 95.522%, similarity: 0.349
+  individual 58/128 accuracy: 91.894%, similarity: 0.367
+  individual 59/128 accuracy: 94.440%, similarity: 0.347
+  individual 60/128 accuracy: 92.433%, similarity: 0.344
+  individual 61/128 accuracy: 92.202%, similarity: 0.357
+  individual 62/128 accuracy: 93.592%, similarity: 0.356
+  individual 63/128 accuracy: 94.287%, similarity: 0.341
+  individual 64/128 accuracy: 92.435%, similarity: 0.348
+  individual 65/128 accuracy: 93.593%, similarity: 0.354
+  individual 66/128 accuracy: 93.359%, similarity: 0.353
+  individual 67/128 accuracy: 94.209%, similarity: 0.325
+  individual 68/128 accuracy: 92.201%, similarity: 0.360
+  individual 69/128 accuracy: 94.982%, similarity: 0.370
+  individual 70/128 accuracy: 94.595%, similarity: 0.344
+  individual 71/128 accuracy: 95.910%, similarity: 0.352
+  individual 72/128 accuracy: 94.595%, similarity: 0.365
+  individual 73/128 accuracy: 95.136%, similarity: 0.355
+  individual 74/128 accuracy: 93.823%, similarity: 0.359
+  individual 75/128 accuracy: 96.372%, similarity: 0.364
+  individual 76/128 accuracy: 92.590%, similarity: 0.353
+  individual 77/128 accuracy: 94.827%, similarity: 0.372
+  individual 78/128 accuracy: 96.603%, similarity: 0.356
+  individual 79/128 accuracy: 94.132%, similarity: 0.359
+  individual 80/128 accuracy: 94.981%, similarity: 0.349
+  individual 81/128 accuracy: 91.969%, similarity: 0.354
+  individual 82/128 accuracy: 90.272%, similarity: 0.355
+  individual 83/128 accuracy: 92.356%, similarity: 0.340
+  individual 84/128 accuracy: 94.364%, similarity: 0.337
+  individual 85/128 accuracy: 93.437%, similarity: 0.362
+  individual 86/128 accuracy: 93.979%, similarity: 0.354
+  individual 87/128 accuracy: 93.977%, similarity: 0.366
+  individual 88/128 accuracy: 94.440%, similarity: 0.338
+  individual 89/128 accuracy: 94.133%, similarity: 0.336
+  individual 90/128 accuracy: 96.294%, similarity: 0.340
+  individual 91/128 accuracy: 93.592%, similarity: 0.358
+  individual 92/128 accuracy: 94.132%, similarity: 0.337
+  individual 93/128 accuracy: 95.522%, similarity: 0.354
+  individual 94/128 accuracy: 93.900%, similarity: 0.366
+  individual 95/128 accuracy: 94.904%, similarity: 0.365
+  individual 96/128 accuracy: 94.519%, similarity: 0.356
+  individual 97/128 accuracy: 94.749%, similarity: 0.365
+  individual 98/128 accuracy: 95.135%, similarity: 0.364
+  individual 99/128 accuracy: 94.286%, similarity: 0.345
+  individual 100/128 accuracy: 94.751%, similarity: 0.342
+  individual 101/128 accuracy: 93.128%, similarity: 0.354
+  individual 102/128 accuracy: 94.443%, similarity: 0.366
+  individual 103/128 accuracy: 93.282%, similarity: 0.365
+  individual 104/128 accuracy: 94.518%, similarity: 0.346
+  individual 105/128 accuracy: 94.287%, similarity: 0.329
+  individual 106/128 accuracy: 94.672%, similarity: 0.346
+  individual 107/128 accuracy: 92.510%, similarity: 0.345
+  individual 108/128 accuracy: 94.287%, similarity: 0.355
+  individual 109/128 accuracy: 95.213%, similarity: 0.361
+  individual 110/128 accuracy: 90.735%, similarity: 0.343
+  individual 111/128 accuracy: 94.440%, similarity: 0.351
+  individual 112/128 accuracy: 94.595%, similarity: 0.362
+  individual 113/128 accuracy: 90.966%, similarity: 0.348
+  individual 114/128 accuracy: 95.985%, similarity: 0.366
+  individual 115/128 accuracy: 94.440%, similarity: 0.362
+  individual 116/128 accuracy: 94.443%, similarity: 0.352
+  individual 117/128 accuracy: 95.832%, similarity: 0.347
+  individual 118/128 accuracy: 95.213%, similarity: 0.337
+  individual 119/128 accuracy: 92.819%, similarity: 0.368
+  individual 120/128 accuracy: 92.896%, similarity: 0.347
+  individual 121/128 accuracy: 91.894%, similarity: 0.378
+  individual 122/128 accuracy: 92.897%, similarity: 0.343
+  individual 123/128 accuracy: 94.442%, similarity: 0.332
+  individual 124/128 accuracy: 94.672%, similarity: 0.345
+  individual 125/128 accuracy: 90.969%, similarity: 0.373
+  individual 126/128 accuracy: 93.515%, similarity: 0.359
+  individual 127/128 accuracy: 94.981%, similarity: 0.366
+  individual 128/128 accuracy: 95.985%, similarity: 0.329
+  new selected individuals: 84/128
+GA generation 2/64
+  individual 1/128 accuracy: 94.209%, similarity: 0.325
+  individual 2/128 accuracy: 96.294%, similarity: 0.340
+  individual 3/128 accuracy: 95.985%, similarity: 0.329
+  individual 4/128 accuracy: 95.367%, similarity: 0.327
+  individual 5/128 accuracy: 96.834%, similarity: 0.355
+  individual 6/128 accuracy: 96.140%, similarity: 0.338
+  individual 7/128 accuracy: 96.217%, similarity: 0.346
+  individual 8/128 accuracy: 95.444%, similarity: 0.336
+  individual 9/128 accuracy: 95.214%, similarity: 0.334
+  individual 10/128 accuracy: 94.056%, similarity: 0.327
+  individual 11/128 accuracy: 95.213%, similarity: 0.333
+  individual 12/128 accuracy: 94.518%, similarity: 0.331
+  individual 13/128 accuracy: 94.287%, similarity: 0.328
+  individual 14/128 accuracy: 96.681%, similarity: 0.359
+  individual 15/128 accuracy: 96.603%, similarity: 0.356
+  individual 16/128 accuracy: 95.985%, similarity: 0.341
+  individual 17/128 accuracy: 96.062%, similarity: 0.352
+  individual 18/128 accuracy: 95.291%, similarity: 0.339
+  individual 19/128 accuracy: 95.213%, similarity: 0.337
+  individual 20/128 accuracy: 94.981%, similarity: 0.336
+  individual 21/128 accuracy: 94.442%, similarity: 0.332
+  individual 22/128 accuracy: 94.287%, similarity: 0.329
+  individual 23/128 accuracy: 96.063%, similarity: 0.356
+  individual 24/128 accuracy: 96.372%, similarity: 0.364
+  individual 25/128 accuracy: 95.985%, similarity: 0.351
+  individual 26/128 accuracy: 95.600%, similarity: 0.344
+  individual 27/128 accuracy: 95.368%, similarity: 0.341
+  individual 28/128 accuracy: 95.908%, similarity: 0.346
+  individual 29/128 accuracy: 95.986%, similarity: 0.352
+  individual 30/128 accuracy: 95.213%, similarity: 0.339
+  individual 31/128 accuracy: 95.059%, similarity: 0.338
+  individual 32/128 accuracy: 94.827%, similarity: 0.337
+  individual 33/128 accuracy: 94.750%, similarity: 0.337
+  individual 34/128 accuracy: 94.364%, similarity: 0.335
+  individual 35/128 accuracy: 93.514%, similarity: 0.334
+  individual 36/128 accuracy: 93.361%, similarity: 0.330
+  individual 37/128 accuracy: 96.294%, similarity: 0.369
+  individual 38/128 accuracy: 95.985%, similarity: 0.352
+  individual 39/128 accuracy: 95.368%, similarity: 0.342
+  individual 40/128 accuracy: 95.832%, similarity: 0.347
+  individual 41/128 accuracy: 95.135%, similarity: 0.340
+  individual 42/128 accuracy: 95.213%, similarity: 0.340
+  individual 43/128 accuracy: 95.058%, similarity: 0.338
+  individual 44/128 accuracy: 94.440%, similarity: 0.338
+  individual 45/128 accuracy: 94.749%, similarity: 0.338
+  individual 46/128 accuracy: 94.364%, similarity: 0.337
+  individual 47/128 accuracy: 94.286%, similarity: 0.335
+  individual 48/128 accuracy: 92.047%, similarity: 0.332
+  individual 49/128 accuracy: 95.910%, similarity: 0.352
+  individual 50/128 accuracy: 95.985%, similarity: 0.366
+  individual 51/128 accuracy: 95.907%, similarity: 0.352
+  individual 52/128 accuracy: 95.367%, similarity: 0.345
+  individual 53/128 accuracy: 95.291%, similarity: 0.345
+  individual 54/128 accuracy: 95.290%, similarity: 0.344
+  individual 55/128 accuracy: 95.444%, similarity: 0.349
+  individual 56/128 accuracy: 95.753%, similarity: 0.350
+  individual 57/128 accuracy: 95.600%, similarity: 0.349
+  individual 58/128 accuracy: 94.982%, similarity: 0.339
+  individual 59/128 accuracy: 94.518%, similarity: 0.339
+  individual 60/128 accuracy: 94.363%, similarity: 0.337
+  individual 61/128 accuracy: 94.133%, similarity: 0.336
+  individual 62/128 accuracy: 95.908%, similarity: 0.369
+  individual 63/128 accuracy: 95.367%, similarity: 0.345
+  individual 64/128 accuracy: 95.600%, similarity: 0.351
+  individual 65/128 accuracy: 95.522%, similarity: 0.349
+  individual 66/128 accuracy: 95.599%, similarity: 0.350
+  individual 67/128 accuracy: 95.367%, similarity: 0.349
+  individual 68/128 accuracy: 94.982%, similarity: 0.344
+  individual 69/128 accuracy: 94.905%, similarity: 0.340
+  individual 70/128 accuracy: 94.904%, similarity: 0.339
+  individual 71/128 accuracy: 94.518%, similarity: 0.339
+  individual 72/128 accuracy: 94.286%, similarity: 0.339
+  individual 73/128 accuracy: 94.132%, similarity: 0.337
+  individual 74/128 accuracy: 95.212%, similarity: 0.345
+  individual 75/128 accuracy: 95.367%, similarity: 0.346
+  individual 76/128 accuracy: 95.600%, similarity: 0.358
+  individual 77/128 accuracy: 95.522%, similarity: 0.354
+  individual 78/128 accuracy: 95.444%, similarity: 0.353
+  individual 79/128 accuracy: 95.599%, similarity: 0.355
+  individual 80/128 accuracy: 95.367%, similarity: 0.353
+  individual 81/128 accuracy: 94.981%, similarity: 0.345
+  individual 82/128 accuracy: 94.751%, similarity: 0.342
+  individual 83/128 accuracy: 94.904%, similarity: 0.344
+  individual 84/128 accuracy: 94.597%, similarity: 0.341
+  individual 85/128 accuracy: 94.673%, similarity: 0.341
+  individual 86/128 accuracy: 94.751%, similarity: 0.341
+  individual 87/128 accuracy: 94.518%, similarity: 0.340
+  individual 88/128 accuracy: 94.286%, similarity: 0.339
+  individual 89/128 accuracy: 93.901%, similarity: 0.338
+  individual 90/128 accuracy: 95.136%, similarity: 0.347
+  individual 91/128 accuracy: 95.214%, similarity: 0.348
+  individual 92/128 accuracy: 95.521%, similarity: 0.357
+  individual 93/128 accuracy: 95.446%, similarity: 0.356
+  individual 94/128 accuracy: 95.599%, similarity: 0.360
+  individual 95/128 accuracy: 95.214%, similarity: 0.355
+  individual 96/128 accuracy: 94.905%, similarity: 0.346
+  individual 97/128 accuracy: 94.904%, similarity: 0.345
+  individual 98/128 accuracy: 94.672%, similarity: 0.341
+  individual 99/128 accuracy: 92.356%, similarity: 0.340
+  individual 100/128 accuracy: 95.213%, similarity: 0.350
+  individual 101/128 accuracy: 95.136%, similarity: 0.349
+  individual 102/128 accuracy: 95.213%, similarity: 0.351
+  individual 103/128 accuracy: 95.290%, similarity: 0.360
+  individual 104/128 accuracy: 95.369%, similarity: 0.362
+  individual 105/128 accuracy: 94.751%, similarity: 0.346
+  individual 106/128 accuracy: 94.827%, similarity: 0.346
+  individual 107/128 accuracy: 94.287%, similarity: 0.341
+  individual 108/128 accuracy: 94.133%, similarity: 0.341
+  individual 109/128 accuracy: 94.672%, similarity: 0.344
+  individual 110/128 accuracy: 95.213%, similarity: 0.351
+  individual 111/128 accuracy: 95.059%, similarity: 0.350
+  individual 112/128 accuracy: 94.981%, similarity: 0.349
+  individual 113/128 accuracy: 95.213%, similarity: 0.361
+  individual 114/128 accuracy: 95.290%, similarity: 0.365
+  individual 115/128 accuracy: 95.214%, similarity: 0.365
+  individual 116/128 accuracy: 94.673%, similarity: 0.346
+  individual 117/128 accuracy: 93.052%, similarity: 0.341
+  individual 118/128 accuracy: 93.901%, similarity: 0.342
+  individual 119/128 accuracy: 94.595%, similarity: 0.344
+  individual 120/128 accuracy: 94.672%, similarity: 0.345
+  individual 121/128 accuracy: 94.672%, similarity: 0.346
+  individual 122/128 accuracy: 94.054%, similarity: 0.344
+  individual 123/128 accuracy: 95.213%, similarity: 0.357
+  individual 124/128 accuracy: 95.060%, similarity: 0.352
+  individual 125/128 accuracy: 95.136%, similarity: 0.355
+  individual 126/128 accuracy: 95.058%, similarity: 0.352
+  individual 127/128 accuracy: 94.904%, similarity: 0.350
+  individual 128/128 accuracy: 95.213%, similarity: 0.376
+  new selected individuals: 60/128
+GA generation 3/64
+  individual 1/128 accuracy: 96.294%, similarity: 0.340
+  individual 2/128 accuracy: 95.985%, similarity: 0.329
+  individual 3/128 accuracy: 95.367%, similarity: 0.327
+  individual 4/128 accuracy: 96.834%, similarity: 0.355
+  individual 5/128 accuracy: 96.140%, similarity: 0.338
+  individual 6/128 accuracy: 95.986%, similarity: 0.334
+  individual 7/128 accuracy: 94.981%, similarity: 0.324
+  individual 8/128 accuracy: 93.978%, similarity: 0.321
+  individual 9/128 accuracy: 96.217%, similarity: 0.346
+  individual 10/128 accuracy: 96.294%, similarity: 0.352
+  individual 11/128 accuracy: 95.444%, similarity: 0.333
+  individual 12/128 accuracy: 95.058%, similarity: 0.329
+  individual 13/128 accuracy: 95.214%, similarity: 0.329
+  individual 14/128 accuracy: 96.681%, similarity: 0.359
+  individual 15/128 accuracy: 96.603%, similarity: 0.356
+  individual 16/128 accuracy: 95.985%, similarity: 0.340
+  individual 17/128 accuracy: 94.209%, similarity: 0.325
+  individual 18/128 accuracy: 94.905%, similarity: 0.328
+  individual 19/128 accuracy: 96.062%, similarity: 0.352
+  individual 20/128 accuracy: 95.444%, similarity: 0.336
+  individual 21/128 accuracy: 95.214%, similarity: 0.334
+  individual 22/128 accuracy: 95.213%, similarity: 0.333
+  individual 23/128 accuracy: 95.135%, similarity: 0.333
+  individual 24/128 accuracy: 96.063%, similarity: 0.356
+  individual 25/128 accuracy: 96.449%, similarity: 0.359
+  individual 26/128 accuracy: 95.985%, similarity: 0.341
+  individual 27/128 accuracy: 95.600%, similarity: 0.340
+  individual 28/128 accuracy: 95.753%, similarity: 0.341
+  individual 29/128 accuracy: 94.056%, similarity: 0.327
+  individual 30/128 accuracy: 94.287%, similarity: 0.328
+  individual 31/128 accuracy: 94.673%, similarity: 0.332
+  individual 32/128 accuracy: 94.519%, similarity: 0.329
+  individual 33/128 accuracy: 95.986%, similarity: 0.352
+  individual 34/128 accuracy: 95.291%, similarity: 0.339
+  individual 35/128 accuracy: 95.291%, similarity: 0.337
+  individual 36/128 accuracy: 95.213%, similarity: 0.337
+  individual 37/128 accuracy: 95.136%, similarity: 0.336
+  individual 38/128 accuracy: 95.058%, similarity: 0.333
+  individual 39/128 accuracy: 96.372%, similarity: 0.364
+  individual 40/128 accuracy: 96.139%, similarity: 0.362
+  individual 41/128 accuracy: 95.985%, similarity: 0.351
+  individual 42/128 accuracy: 95.908%, similarity: 0.346
+  individual 43/128 accuracy: 95.831%, similarity: 0.346
+  individual 44/128 accuracy: 95.600%, similarity: 0.344
+  individual 45/128 accuracy: 95.368%, similarity: 0.341
+  individual 46/128 accuracy: 95.598%, similarity: 0.343
+  individual 47/128 accuracy: 94.287%, similarity: 0.329
+  individual 48/128 accuracy: 94.518%, similarity: 0.331
+  individual 49/128 accuracy: 95.213%, similarity: 0.339
+  individual 50/128 accuracy: 95.059%, similarity: 0.338
+  individual 51/128 accuracy: 94.981%, similarity: 0.336
+  individual 52/128 accuracy: 94.906%, similarity: 0.334
+  individual 53/128 accuracy: 94.826%, similarity: 0.334
+  individual 54/128 accuracy: 96.294%, similarity: 0.369
+  individual 55/128 accuracy: 95.985%, similarity: 0.363
+  individual 56/128 accuracy: 95.985%, similarity: 0.352
+  individual 57/128 accuracy: 95.832%, similarity: 0.347
+  individual 58/128 accuracy: 95.907%, similarity: 0.350
+  individual 59/128 accuracy: 95.368%, similarity: 0.342
+  individual 60/128 accuracy: 95.290%, similarity: 0.342
+  individual 61/128 accuracy: 95.445%, similarity: 0.344
+  individual 62/128 accuracy: 93.361%, similarity: 0.330
+  individual 63/128 accuracy: 94.442%, similarity: 0.332
+  individual 64/128 accuracy: 94.518%, similarity: 0.333
+  individual 65/128 accuracy: 95.135%, similarity: 0.340
+  individual 66/128 accuracy: 95.213%, similarity: 0.340
+  individual 67/128 accuracy: 95.058%, similarity: 0.338
+  individual 68/128 accuracy: 94.981%, similarity: 0.337
+  individual 69/128 accuracy: 95.910%, similarity: 0.352
+  individual 70/128 accuracy: 95.985%, similarity: 0.353
+  individual 71/128 accuracy: 95.830%, similarity: 0.348
+  individual 72/128 accuracy: 95.599%, similarity: 0.348
+  individual 73/128 accuracy: 95.907%, similarity: 0.352
+  individual 74/128 accuracy: 95.290%, similarity: 0.344
+  individual 75/128 accuracy: 95.213%, similarity: 0.342
+  individual 76/128 accuracy: 95.367%, similarity: 0.345
+  individual 77/128 accuracy: 95.291%, similarity: 0.345
+  individual 78/128 accuracy: 92.047%, similarity: 0.332
+  individual 79/128 accuracy: 93.051%, similarity: 0.333
+  individual 80/128 accuracy: 93.514%, similarity: 0.334
+  individual 81/128 accuracy: 93.901%, similarity: 0.334
+  individual 82/128 accuracy: 94.440%, similarity: 0.334
+  individual 83/128 accuracy: 95.213%, similarity: 0.341
+  individual 84/128 accuracy: 94.982%, similarity: 0.339
+  individual 85/128 accuracy: 94.827%, similarity: 0.337
+  individual 86/128 accuracy: 94.750%, similarity: 0.337
+  individual 87/128 accuracy: 94.904%, similarity: 0.338
+  individual 88/128 accuracy: 95.908%, similarity: 0.359
+  individual 89/128 accuracy: 95.985%, similarity: 0.362
+  individual 90/128 accuracy: 95.753%, similarity: 0.350
+  individual 91/128 accuracy: 95.754%, similarity: 0.351
+  individual 92/128 accuracy: 95.676%, similarity: 0.349
+  individual 93/128 accuracy: 95.445%, similarity: 0.348
+  individual 94/128 accuracy: 95.367%, similarity: 0.345
+  individual 95/128 accuracy: 94.364%, similarity: 0.335
+  individual 96/128 accuracy: 95.137%, similarity: 0.343
+  individual 97/128 accuracy: 95.059%, similarity: 0.342
+  individual 98/128 accuracy: 95.137%, similarity: 0.344
+  individual 99/128 accuracy: 94.905%, similarity: 0.340
+  individual 100/128 accuracy: 94.750%, similarity: 0.338
+  individual 101/128 accuracy: 94.597%, similarity: 0.337
+  individual 102/128 accuracy: 94.365%, similarity: 0.337
+  individual 103/128 accuracy: 94.904%, similarity: 0.339
+  individual 104/128 accuracy: 95.985%, similarity: 0.366
+  individual 105/128 accuracy: 95.677%, similarity: 0.361
+  individual 106/128 accuracy: 95.601%, similarity: 0.349
+  individual 107/128 accuracy: 95.444%, similarity: 0.349
+  individual 108/128 accuracy: 95.212%, similarity: 0.345
+  individual 109/128 accuracy: 95.367%, similarity: 0.346
+  individual 110/128 accuracy: 94.364%, similarity: 0.337
+  individual 111/128 accuracy: 94.286%, similarity: 0.335
+  individual 112/128 accuracy: 95.059%, similarity: 0.342
+  individual 113/128 accuracy: 95.058%, similarity: 0.342
+  individual 114/128 accuracy: 95.060%, similarity: 0.345
+  individual 115/128 accuracy: 94.904%, similarity: 0.340
+  individual 116/128 accuracy: 94.749%, similarity: 0.338
+  individual 117/128 accuracy: 94.440%, similarity: 0.338
+  individual 118/128 accuracy: 94.827%, similarity: 0.339
+  individual 119/128 accuracy: 94.828%, similarity: 0.340
+  individual 120/128 accuracy: 95.909%, similarity: 0.366
+  individual 121/128 accuracy: 95.600%, similarity: 0.349
+  individual 122/128 accuracy: 95.367%, similarity: 0.346
+  individual 123/128 accuracy: 94.363%, similarity: 0.337
+  individual 124/128 accuracy: 94.133%, similarity: 0.336
+  individual 125/128 accuracy: 95.908%, similarity: 0.369
+  individual 126/128 accuracy: 93.515%, similarity: 0.336
+  individual 127/128 accuracy: 95.600%, similarity: 0.351
+  individual 128/128 accuracy: 94.132%, similarity: 0.337
+  new selected individuals: 63/128
+GA generation 4/64
+  individual 1/128 accuracy: 95.985%, similarity: 0.329
+  individual 2/128 accuracy: 96.834%, similarity: 0.355
+  individual 3/128 accuracy: 95.986%, similarity: 0.334
+  individual 4/128 accuracy: 94.981%, similarity: 0.324
+  individual 5/128 accuracy: 96.526%, similarity: 0.353
+  individual 6/128 accuracy: 95.444%, similarity: 0.326
+  individual 7/128 accuracy: 96.526%, similarity: 0.334
+  individual 8/128 accuracy: 94.287%, similarity: 0.320
+  individual 9/128 accuracy: 95.213%, similarity: 0.324
+  individual 10/128 accuracy: 95.599%, similarity: 0.334
+  individual 11/128 accuracy: 96.681%, similarity: 0.359
+  individual 12/128 accuracy: 96.603%, similarity: 0.356
+  individual 13/128 accuracy: 95.367%, similarity: 0.327
+  individual 14/128 accuracy: 95.444%, similarity: 0.333
+  individual 15/128 accuracy: 95.368%, similarity: 0.333
+  individual 16/128 accuracy: 96.294%, similarity: 0.340
+  individual 17/128 accuracy: 96.140%, similarity: 0.338
+  individual 18/128 accuracy: 95.676%, similarity: 0.335
+  individual 19/128 accuracy: 95.908%, similarity: 0.337
+  individual 20/128 accuracy: 95.830%, similarity: 0.336
+  individual 21/128 accuracy: 93.978%, similarity: 0.321
+  individual 22/128 accuracy: 94.210%, similarity: 0.325
+  individual 23/128 accuracy: 96.449%, similarity: 0.359
+  individual 24/128 accuracy: 95.214%, similarity: 0.329
+  individual 25/128 accuracy: 94.905%, similarity: 0.328
+  individual 26/128 accuracy: 95.059%, similarity: 0.328
+  individual 27/128 accuracy: 95.214%, similarity: 0.334
+  individual 28/128 accuracy: 96.217%, similarity: 0.346
+  individual 29/128 accuracy: 96.294%, similarity: 0.352
+  individual 30/128 accuracy: 96.062%, similarity: 0.339
+  individual 31/128 accuracy: 95.444%, similarity: 0.335
+  individual 32/128 accuracy: 95.831%, similarity: 0.338
+  individual 33/128 accuracy: 95.830%, similarity: 0.337
+  individual 34/128 accuracy: 95.522%, similarity: 0.337
+  individual 35/128 accuracy: 94.209%, similarity: 0.325
+  individual 36/128 accuracy: 96.372%, similarity: 0.364
+  individual 37/128 accuracy: 95.213%, similarity: 0.333
+  individual 38/128 accuracy: 95.137%, similarity: 0.329
+  individual 39/128 accuracy: 94.287%, similarity: 0.328
+  individual 40/128 accuracy: 95.059%, similarity: 0.328
+  individual 41/128 accuracy: 94.982%, similarity: 0.328
+  individual 42/128 accuracy: 96.140%, similarity: 0.351
+  individual 43/128 accuracy: 96.217%, similarity: 0.351
+  individual 44/128 accuracy: 95.985%, similarity: 0.340
+  individual 45/128 accuracy: 96.062%, similarity: 0.349
+  individual 46/128 accuracy: 95.444%, similarity: 0.336
+  individual 47/128 accuracy: 95.522%, similarity: 0.338
+  individual 48/128 accuracy: 95.677%, similarity: 0.339
+  individual 49/128 accuracy: 94.056%, similarity: 0.327
+  individual 50/128 accuracy: 96.294%, similarity: 0.369
+  individual 51/128 accuracy: 95.137%, similarity: 0.333
+  individual 52/128 accuracy: 95.213%, similarity: 0.335
+  individual 53/128 accuracy: 95.136%, similarity: 0.332
+  individual 54/128 accuracy: 95.058%, similarity: 0.329
+  individual 55/128 accuracy: 96.063%, similarity: 0.356
+  individual 56/128 accuracy: 96.139%, similarity: 0.362
+  individual 57/128 accuracy: 95.985%, similarity: 0.341
+  individual 58/128 accuracy: 95.908%, similarity: 0.340
+  individual 59/128 accuracy: 95.831%, similarity: 0.340
+  individual 60/128 accuracy: 96.062%, similarity: 0.352
+  individual 61/128 accuracy: 95.291%, similarity: 0.337
+  individual 62/128 accuracy: 95.213%, similarity: 0.337
+  individual 63/128 accuracy: 95.367%, similarity: 0.337
+  individual 64/128 accuracy: 95.676%, similarity: 0.339
+  individual 65/128 accuracy: 95.135%, similarity: 0.333
+  individual 66/128 accuracy: 95.136%, similarity: 0.336
+  individual 67/128 accuracy: 95.136%, similarity: 0.336
+  individual 68/128 accuracy: 94.519%, similarity: 0.329
+  individual 69/128 accuracy: 94.287%, similarity: 0.329
+  individual 70/128 accuracy: 94.981%, similarity: 0.332
+  individual 71/128 accuracy: 94.827%, similarity: 0.330
+  individual 72/128 accuracy: 94.981%, similarity: 0.331
+  individual 73/128 accuracy: 95.985%, similarity: 0.351
+  individual 74/128 accuracy: 95.909%, similarity: 0.345
+  individual 75/128 accuracy: 95.908%, similarity: 0.343
+  individual 76/128 accuracy: 95.753%, similarity: 0.341
+  individual 77/128 accuracy: 95.986%, similarity: 0.352
+  individual 78/128 accuracy: 95.290%, similarity: 0.339
+  individual 79/128 accuracy: 95.600%, similarity: 0.340
+  individual 80/128 accuracy: 95.291%, similarity: 0.339
+  individual 81/128 accuracy: 95.523%, similarity: 0.340
+  individual 82/128 accuracy: 95.058%, similarity: 0.333
+  individual 83/128 accuracy: 95.059%, similarity: 0.337
+  individual 84/128 accuracy: 95.059%, similarity: 0.336
+  individual 85/128 accuracy: 93.361%, similarity: 0.330
+  individual 86/128 accuracy: 94.518%, similarity: 0.331
+  individual 87/128 accuracy: 94.750%, similarity: 0.333
+  individual 88/128 accuracy: 94.672%, similarity: 0.332
+  individual 89/128 accuracy: 94.750%, similarity: 0.332
+  individual 90/128 accuracy: 95.985%, similarity: 0.352
+  individual 91/128 accuracy: 95.908%, similarity: 0.346
+  individual 92/128 accuracy: 95.907%, similarity: 0.343
+  individual 93/128 accuracy: 95.908%, similarity: 0.343
+  individual 94/128 accuracy: 95.676%, similarity: 0.342
+  individual 95/128 accuracy: 95.985%, similarity: 0.363
+  individual 96/128 accuracy: 95.213%, similarity: 0.339
+  individual 97/128 accuracy: 95.213%, similarity: 0.339
+  individual 98/128 accuracy: 95.522%, similarity: 0.341
+  individual 99/128 accuracy: 95.290%, similarity: 0.341
+  individual 100/128 accuracy: 94.982%, similarity: 0.333
+  individual 101/128 accuracy: 95.059%, similarity: 0.338
+  individual 102/128 accuracy: 95.059%, similarity: 0.338
+  individual 103/128 accuracy: 94.055%, similarity: 0.3
