@@ -11,7 +11,7 @@ This project implements a well-structured framework for Hyperdimensional Computi
 **Evaluation Example:** EMG-Classification of foot movements for the NOE-EMY project.
 
 **Documentation:** 
-- System and function details are available in the [`/doc`](./doc/html/mainpage_8h_source.html) folder and [`Abschlussbericht.pdf`](./Abschlussbericht.pdf).
+- System and function details are available in the [`/doc`](./doc/html/mainpage_8h_source.html) folder.
 - The development repository with all intermediate artifacts is available at: [Development Repository](https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc).
 
 ---
@@ -39,36 +39,13 @@ To explore the effects of different system parameters, modify the constants in [
 
 ---
 
-## Building Your Own HDC Model
+## Core Components
 
-A template with dummy data is available in [`/customModel`](./customModel). This model can be run immediately with the dummy data:
+- [`hdc_infrastructure`](./hdc_infrastructure): Core HDC implementation, including item memory, encoder, trainer, evaluator, quantizer, and vector operations.
+- [`foot`](./foot): Foot EMG data reader, configuration, and executable model entry point.
+- [`systemc/synthesis`](./systemc/synthesis): SystemC/HLS accelerator implementations and synthesis support files.
 
-```bash
-make custom
-```
-```bash
-./modelCustom
-```
-
-### Customization Options
-
-#### Set System Parameters
-Set system parameters in [`configCustom.h`](./customModel/configCustom.h).
-
-#### Implement a Data Reader
-Implement a data-reading function specific to your problem and data in [`dataReaderCustom.c`](./customModel/dataReaderCustom.c). 
-- The training and testing data should be a 2D array of doubles, where each row represents a sample and each column represents a feature.
-- The training and testing labels should be a 1D array of integers, where each element corresponds to the label of a sample.
-
-#### Modify the Model
-The main file of the custom model is [`modelCustom.c`](./customModel/modelCustom.c). 
-- If working with categorical or discrete data, use the predefined functions in [`modelCustom.c`](./customModel/modelCustom.c).
-- If working on time-series classification, replace `train_model_general_data()` and `evaluate_model_general_direct()` with `train_model_timeseries()` and `evaluate_model_timeseries_direct()`.
-- For other types of data, extend the encoder to include additional encoding algorithms (e.g., for images, music, etc.). Use the following resources:
-    - [`vector.h`](./hdc_infrastructure/vector.h): Provides vector structures (binary or bipolar, depending on [`configCustom.h`](./customModel/configCustom.h)) and related functions for initialization and modification.
-    - [`operations.h`](./hdc_infrastructure/operations.h): For binding, bundling, permutation, and similarity checks.
-
-#### Other Features
+### Other Features
 - Include [`preprocessor.h`](./hdc_infrastructure/preprocessor.h) to downsample the data.
 - Include [`trainer.h`](./hdc_infrastructure/trainer.h) to process the training dataset, call the encoder on it, and set the associative memory.
 - Include [`evaluator.h`](./hdc_infrastructure/evaluator.h) to test the model using the testing dataset.

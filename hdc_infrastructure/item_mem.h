@@ -5,8 +5,6 @@
 #include "../hand/configHand.h"
 #elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#elif defined(CUSTOM)
-#include "../customModel/configCustom.h"
 #else
 #error "No EMG type defined. Please define HAND_EMG or FOOT_EMG."
 #endif
