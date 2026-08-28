@@ -1,5 +1,0 @@
-dataset,mode_name,num_levels,vector_dimension,advanced_test_accuracy,advanced_validation_accuracy
-0,decision_tree_1d,45,7168,1.0,0.86374134
-1,uniform,100,3072,0.99655172,0.99307159
-2,kmeans_1d,15,512,0.88275862,0.81524249
-3,uniform,65,512,1.0,0.99769053
