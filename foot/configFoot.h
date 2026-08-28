@@ -76,9 +76,6 @@
 #ifndef GA_MAX_FLIPS_CIM
 #define GA_MAX_FLIPS_CIM VECTOR_DIMENSION // CiM max flips budget
 #endif
-#ifndef GA_INIT_UNIFORM
-#define GA_INIT_UNIFORM 1 // GA init uniform vs equal
-#endif
 #ifndef BINNING_MODE
 #define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
 #endif

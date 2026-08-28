@@ -95,7 +95,6 @@ static void init_individual(uint16_t *individual,
         max_total = 0;
     }
 
-#if GA_INIT_UNIFORM
     for (int i = 0; i < transitions; i++) {
         individual[i] = 0;
     }
@@ -166,31 +165,6 @@ static void init_individual(uint16_t *individual,
     free(values);
     free(weights);
     free(order);
-#else
-    (void)rng_state;
-    (void)permutation;
-    (void)permutation_length;
-
-    int prev_target = 0;
-    for (int level = 0; level < transitions; level++) {
-        double exact = ((double)(level + 1) * (double)max_total) / (double)transitions;
-        int target = (int)(exact + 0.5);
-        if (target < 0) {
-            target = 0;
-        } else if (target > max_total) {
-            target = max_total;
-        }
-
-        int flips = target - prev_target;
-        if (flips < 0) {
-            flips = 0;
-        } else if (flips > (int)UINT16_MAX) {
-            flips = (int)UINT16_MAX;
-        }
-        individual[level] = (uint16_t)flips;
-        prev_target = target;
-    }
-#endif
 }
 
 static int dominates(double acc_a, double sim_a, double acc_b, double sim_b) {
