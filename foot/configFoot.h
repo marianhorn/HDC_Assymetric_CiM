@@ -85,9 +85,6 @@
 #ifndef GA_INIT_UNIFORM
 #define GA_INIT_UNIFORM 1 // GA init uniform vs equal
 #endif
-#ifndef GA_SELECTION_MODE
-#define GA_SELECTION_MODE GA_SELECTION_PARETO // GA selection mode
-#endif
 #ifndef BINNING_MODE
 #define BINNING_MODE UNIFORM_BINNING // active value-to-level binning mode
 #endif
@@ -122,9 +119,5 @@ extern int output_mode;
 #define CHIMERGE_BINNING 4  // use per-feature supervised ChiMerge value-to-level mapping
 #define GA_REFINED_BINNING 5  // use one preprocessing GA run to refine per-feature thresholds
 
-
-#define GA_SELECTION_PARETO 0   // GA selection: NSGA-II Pareto
-#define GA_SELECTION_MULTI 1    // GA selection: accuracy minus similarity
-#define GA_SELECTION_ACCURACY 2 // GA selection: accuracy only
 
 #endif
