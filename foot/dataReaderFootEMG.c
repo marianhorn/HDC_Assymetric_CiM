@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../hdc_infrastructure/preprocessor.h"
+#include "configFoot.h"
 
 #define INITIAL_CAPACITY 1024
 
@@ -54,24 +54,6 @@ void getDataWithValSet(int dataset,
         exit(EXIT_FAILURE);
     }
 
-    double** downSampledDataTrain = NULL;
-    int* downSampledLabelsTrain = NULL;
-    size_t downSampledSizeTrain = 0;
-    double** downSampledDataTest = NULL;
-    int* downSampledLabelsTest = NULL;
-    size_t downSampledSizeTest = 0;
-    down_sample(rawTrainingData, rawTrainingLabels, trainingRows, &downSampledDataTrain, &downSampledLabelsTrain, &downSampledSizeTrain);
-    down_sample(rawTestingData, rawTestingLabels, testingRows, &downSampledDataTest, &downSampledLabelsTest, &downSampledSizeTest);
-
-    if (downSampledDataTrain == NULL || downSampledLabelsTrain == NULL) {
-        fprintf(stderr, "Error: downSampleDataTrain.\n");
-        exit(EXIT_FAILURE);
-    }
-    if (downSampledDataTest == NULL || downSampledLabelsTest == NULL) {
-        fprintf(stderr, "Error: downSampleDataTest.\n");
-        exit(EXIT_FAILURE);
-    }
-
     int class_counts[NUM_CLASSES];
     int class_targets[NUM_CLASSES];
     int class_assigned[NUM_CLASSES];
@@ -81,8 +63,8 @@ void getDataWithValSet(int dataset,
         class_assigned[i] = 0;
     }
 
-    for (size_t i = 0; i < downSampledSizeTrain; i++) {
-        int label = downSampledLabelsTrain[i];
+    for (size_t i = 0; i < trainingRows; i++) {
+        int label = rawTrainingLabels[i];
         if (label >= 0 && label < NUM_CLASSES) {
             class_counts[label] += 1;
         }
@@ -98,10 +80,10 @@ void getDataWithValSet(int dataset,
         validation_total += (size_t)target;
     }
 
-    size_t training_total = downSampledSizeTrain - validation_total;
+    size_t training_total = trainingRows - validation_total;
     *trainingSamples = (int)training_total;
     *validationSamples = (int)validation_total;
-    *testingSamples = (int)downSampledSizeTest;
+    *testingSamples = (int)testingRows;
 
     if (training_total > 0) {
         *trainingData = (double**)malloc(training_total * sizeof(double*));
@@ -129,8 +111,8 @@ void getDataWithValSet(int dataset,
 
     size_t train_idx = 0;
     size_t val_idx = 0;
-    for (size_t i = 0; i < downSampledSizeTrain; i++) {
-        int label = downSampledLabelsTrain[i];
+    for (size_t i = 0; i < trainingRows; i++) {
+        int label = rawTrainingLabels[i];
         int to_validation = 0;
         if (label >= 0 && label < NUM_CLASSES && class_assigned[label] < class_targets[label]) {
             to_validation = 1;
@@ -143,7 +125,7 @@ void getDataWithValSet(int dataset,
                     fprintf(stderr, "Malloc failed for validation data row.\n");
                     exit(EXIT_FAILURE);
                 }
-                memcpy((*validationData)[val_idx], downSampledDataTrain[i], NUM_FEATURES * sizeof(double));
+                memcpy((*validationData)[val_idx], rawTrainingData[i], NUM_FEATURES * sizeof(double));
                 (*validationLabels)[val_idx] = label;
                 class_assigned[label] += 1;
                 val_idx++;
@@ -155,15 +137,15 @@ void getDataWithValSet(int dataset,
                     fprintf(stderr, "Malloc failed for training data row.\n");
                     exit(EXIT_FAILURE);
                 }
-                memcpy((*trainingData)[train_idx], downSampledDataTrain[i], NUM_FEATURES * sizeof(double));
+                memcpy((*trainingData)[train_idx], rawTrainingData[i], NUM_FEATURES * sizeof(double));
                 (*trainingLabels)[train_idx] = label;
                 train_idx++;
             }
         }
     }
 
-    *testingData = downSampledDataTest;
-    *testingLabels = downSampledLabelsTest;
+    *testingData = rawTestingData;
+    *testingLabels = rawTestingLabels;
 
     if (output_mode >= OUTPUT_DETAILED) {
         printf("Loaded data: training %d x %d, validation %d x %d, testing %d x %d\n",
@@ -175,12 +157,8 @@ void getDataWithValSet(int dataset,
                NUM_FEATURES);
     }
 
-    freeData(downSampledDataTrain, downSampledSizeTrain);
-    freeCSVLabels(downSampledLabelsTrain);
     freeData(rawTrainingData, trainingRows);
     freeCSVLabels(rawTrainingLabels);
-    freeData(rawTestingData, testingRows);
-    freeCSVLabels(rawTestingLabels);
 }
 // Function to count rows in a CSV file
 size_t countCSVRows(const char* filename) {
@@ -298,20 +276,9 @@ void getTestingData(int dataset, double*** testingData, int** testingLabels, int
         exit(EXIT_FAILURE);
     }
     
-    // Downsample training and testing data
-    double** downSampledDataTest = NULL;
-    int* downSampledLabelsTest = NULL;
-    size_t downSampledSizeTest = 0;
-    down_sample(rawTestingData, rawTestingLabels, testingRows, &downSampledDataTest, &downSampledLabelsTest, &downSampledSizeTest);
-    *testingData = downSampledDataTest;
-    *testingLabels = downSampledLabelsTest;
-    *testingSamples = (int)downSampledSizeTest;
-    if (downSampledDataTest == NULL) {
-        fprintf(stderr, "Error: downSampleDataTest.\n");
-        exit(EXIT_FAILURE);
-    }
-    freeData(rawTestingData, testingRows);
-    freeCSVLabels(rawTestingLabels);
+    *testingData = rawTestingData;
+    *testingLabels = rawTestingLabels;
+    *testingSamples = (int)testingRows;
 }
 // Function to get training and testing data
 void getData(int dataset,double*** trainingData, double*** testingData, int** trainingLabels, int** testingLabels, int* trainingSamples, int* testingSamples) {
@@ -335,28 +302,15 @@ void getData(int dataset,double*** trainingData, double*** testingData, int** tr
         exit(EXIT_FAILURE);
     }
     
-    // Downsample training and testing data
-    double** downSampledDataTrain = NULL;
-    int* downSampledLabelsTrain = NULL;
-    size_t downSampledSizeTrain = 0;
-    double** downSampledDataTest = NULL;
-    int* downSampledLabelsTest = NULL;
-    size_t downSampledSizeTest = 0;
-    down_sample(rawTrainingData, rawTrainingLabels, trainingRows, &downSampledDataTrain, &downSampledLabelsTrain, &downSampledSizeTrain);
-    down_sample(rawTestingData, rawTestingLabels, testingRows, &downSampledDataTest, &downSampledLabelsTest, &downSampledSizeTest);
-    *trainingData = downSampledDataTrain;
-    *trainingLabels = downSampledLabelsTrain;
-    *trainingSamples = (int)downSampledSizeTrain;
+    *trainingData = rawTrainingData;
+    *trainingLabels = rawTrainingLabels;
+    *trainingSamples = (int)trainingRows;
 
-    *testingData = downSampledDataTest;
-    *testingLabels = downSampledLabelsTest;
-    *testingSamples = (int)downSampledSizeTest;
-    if (downSampledDataTest == NULL) {
-        fprintf(stderr, "Error: downSampleDataTest.\n");
-        exit(EXIT_FAILURE);
-    }
+    *testingData = rawTestingData;
+    *testingLabels = rawTestingLabels;
+    *testingSamples = (int)testingRows;
     if (*trainingData == NULL) {
-        fprintf(stderr, "Error: Downsampling training data failed. Data is NULL.\n");
+        fprintf(stderr, "Error: training data is NULL.\n");
         exit(EXIT_FAILURE);
     }
     if (output_mode >= OUTPUT_DETAILED) {
@@ -366,12 +320,6 @@ void getData(int dataset,double*** trainingData, double*** testingData, int** tr
                *testingSamples,
                NUM_FEATURES);
     }
-
-    // Free raw data
-    freeData(rawTrainingData, trainingRows);
-    freeCSVLabels(rawTrainingLabels);
-    freeData(rawTestingData, testingRows);
-    freeCSVLabels(rawTestingLabels);
 }
 
 // Function to free CSV data

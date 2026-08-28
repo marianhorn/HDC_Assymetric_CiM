@@ -46,14 +46,8 @@ endif
 ifdef MAX_LEVEL
 	CFLAGS += -DMAX_LEVEL=$(MAX_LEVEL)
 endif
-ifdef WINDOW
-	CFLAGS += -DWINDOW=$(WINDOW)
-endif
 ifdef N_GRAM_SIZE
 	CFLAGS += -DN_GRAM_SIZE=$(N_GRAM_SIZE)
-endif
-ifdef DOWNSAMPLE
-	CFLAGS += -DDOWNSAMPLE=$(DOWNSAMPLE)
 endif
 ifdef NUM_CLASSES
 	CFLAGS += -DNUM_CLASSES=$(NUM_CLASSES)
@@ -187,8 +181,8 @@ $(TARGET_EXPORT_NAIVE_CIM): tools/export_naive_precomp_cim.c hdc_infrastructure/
 .PHONY: evaluate_final_cims
 evaluate_final_cims: $(TARGET_EVALUATE_FINAL_CIMS)
 
-$(TARGET_EVALUATE_FINAL_CIMS): tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/preprocessor.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(DEPS_FOOT)
-	$(CC) $(CFLAGS) -DFOOT_EMG -o $@ tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/preprocessor.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(LDFLAGS)
+$(TARGET_EVALUATE_FINAL_CIMS): tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(DEPS_FOOT)
+	$(CC) $(CFLAGS) -DFOOT_EMG -o $@ tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(LDFLAGS)
 
 # Object file compilation for foot and infrastructure
 $(BINDIR)/foot_%.o: $(SRCDIR_FOOT)/%.c $(DEPS_FOOT)

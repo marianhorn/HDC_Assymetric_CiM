@@ -14,14 +14,8 @@
 #define MAX_LEVEL 1 // max input level
 #endif
 
-#ifndef WINDOW
-#define WINDOW 100 // sliding window length
-#endif
 #ifndef N_GRAM_SIZE
 #define N_GRAM_SIZE 3 // n-gram size
-#endif
-#ifndef DOWNSAMPLE
-#define DOWNSAMPLE 1 // downsample factor
 #endif
 #ifndef NUM_CLASSES
 #define NUM_CLASSES 5 // number of classes
