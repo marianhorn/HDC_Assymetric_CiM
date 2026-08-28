@@ -5,7 +5,7 @@
 #define VECTOR_DIMENSION 5000 // hypervector dimension
 #endif
 #ifndef NUM_LEVELS
-#define NUM_LEVELS 80 // number of quantization levels
+#define NUM_LEVELS 40 // number of quantization levels
 #endif
 #ifndef MIN_LEVEL
 #define MIN_LEVEL -1 // min input level
@@ -33,13 +33,6 @@
 #ifndef NUM_FEATURES
 #define NUM_FEATURES 32 // number of input features
 #endif
-#ifndef NORMALIZE
-#define NORMALIZE 1 // normalize assoc memory
-#endif
-
-#ifndef CUTTING_ANGLE_THRESHOLD
-#define CUTTING_ANGLE_THRESHOLD 0.9 // cutting angle threshold
-#endif
 #ifndef PRECOMPUTED_ITEM_MEMORY
 #define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
 #endif
@@ -63,10 +56,6 @@
 #endif
 #ifndef DATASET_END
 #define DATASET_END 3 // last dataset index to run, inclusive
-#endif
-
-#ifndef BIPOLAR_MODE
-#define BIPOLAR_MODE 0 // use bipolar vectors
 #endif
 
 #ifndef GA_DEFAULT_POPULATION_SIZE

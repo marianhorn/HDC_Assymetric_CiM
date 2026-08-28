@@ -74,7 +74,7 @@ static double compute_class_vector_similarity(const struct associative_memory *a
             double sim = similarity_check(assoc_mem->class_vectors[i],
                                           assoc_mem->class_vectors[j]);
             if (sim == -2) {
-                fprintf(stderr, "Got invalid cosine similarity\nTerminating...");
+                fprintf(stderr, "Got invalid similarity\nTerminating...");
                 exit(EXIT_FAILURE);
             }
             sum += sim;
@@ -138,7 +138,7 @@ struct timeseries_eval_result evaluate_model_timeseries_with_window(struct encod
             }
             double confidence = similarity_check(sample_hv,get_class_vector(assoc_mem,predicted_label));
             if(confidence==-2){
-                fprintf(stderr,"Got invalid cosine similarity\nTerminating...");
+                fprintf(stderr,"Got invalid similarity\nTerminating...");
                 exit(EXIT_FAILURE);
             }
             if (confidence > max_similarity) {
@@ -215,14 +215,14 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
     memset(result.confusion_matrix, 0, sizeof(result.confusion_matrix));
 
     if (output_mode >= OUTPUT_DETAILED) {
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
         printf("Evaluating HDC-Model (rolling XOR) for %d testing samples.\n",testing_samples);
 #else
         printf("Evaluating HDC-Model for %d testing samples.\n",testing_samples);
 #endif
     }
 
-#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN && !BIPOLAR_MODE
+#if MODEL_VARIANT == MODEL_VARIANT_KRISCHAN
     int window_size = N_GRAM_SIZE;
     Vector *rolling_acc = create_vector();
     Vector **window_vectors = (Vector **)malloc((size_t)window_size * sizeof(Vector *));
@@ -340,7 +340,7 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
         }
         double confidence = similarity_check(sample_hv,get_class_vector(assoc_mem,predicted_label));
         if(confidence==-2){
-            fprintf(stderr,"Got invalid cosine similarity\nTerminating...");
+            fprintf(stderr,"Got invalid similarity\nTerminating...");
             free_ngram_encoder_state(&ngram_state);
             free_vector(sample_hv);
             exit(EXIT_FAILURE);
@@ -443,7 +443,7 @@ struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
         }
         double confidence = similarity_check(sample_hv,get_class_vector(assoc_mem,predicted_label));
         if(confidence==-2){
-            fprintf(stderr,"Got invalid cosine similarity\nTerminating...");
+            fprintf(stderr,"Got invalid similarity\nTerminating...");
             exit(EXIT_FAILURE);
         }
 

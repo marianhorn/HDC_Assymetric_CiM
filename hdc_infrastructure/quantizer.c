@@ -20,8 +20,8 @@
 #define TREE_1D_THRESHOLD_EPS 1e-12
 #define CHIMERGE_THRESHOLD_EPS 1e-12
 
-#if BIPOLAR_MODE != 0 || MODEL_VARIANT != MODEL_VARIANT_FUSION
-#error "quantizer: only BIPOLAR_MODE=0 and MODEL_VARIANT_FUSION are supported in the current branch. For deprecated versions go back in git history to end of April."
+#if MODEL_VARIANT != MODEL_VARIANT_FUSION
+#error "quantizer: only MODEL_VARIANT_FUSION is supported in the current branch. For deprecated versions go back in git history to end of April."
 #endif
 
 #if BINNING_MODE == GA_REFINED_BINNING && (!defined(FOOT_EMG) || !PRECOMPUTED_ITEM_MEMORY)

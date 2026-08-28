@@ -8,7 +8,7 @@
  * @details
  * The online classifier uses a batch-based approach to process EMG signals and 
  * classify them using hyperdimensional computing principles. It supports both 
- * bipolar and binary vector modes and utilizes the associative memory for classification.
+ * packed binary vectors and utilizes the associative memory for classification.
  * @author Marian Horn
  */
 #include "online_classifier.h"
@@ -51,7 +51,7 @@ void init_online_classifier(struct onlineClassifier* classifier,
  * - **Encoding:** Each sample is encoded into a hypervector.
  * - **Classification:** The hypervector is compared against class vectors in the associative
  *   memory to determine the closest match.
- * - **Confidence:** The similarity score (e.g., cosine similarity) is used to evaluate the
+ * - **Confidence:** The similarity score is used to evaluate the
  *   prediction confidence.
  * 
  * @warning If the classification result is invalid (`-1`), the function terminates the program.
@@ -74,7 +74,7 @@ int calculateUpdate(struct onlineClassifier* classifier,double** testing_data){
         }
         double confidence = similarity_check(sample_hv,get_class_vector(classifier->assoc_mem,predicted_label));
         if(confidence==-2){
-            fprintf(stderr,"Got invalid cosine similarity\nTerminating...");
+            fprintf(stderr,"Got invalid similarity\nTerminating...");
             exit(EXIT_FAILURE);
         }
         if (confidence > max_similarity) {
