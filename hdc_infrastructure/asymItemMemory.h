@@ -4,13 +4,7 @@
 #include <stdint.h>
 #include "item_mem.h"
 
-#ifdef HAND_EMG
-#include "../hand/configHand.h"
-#elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#else
-#error "No EMG type defined. Please define HAND_EMG or FOOT_EMG."
-#endif
 struct item_memory;
 
 struct ga_params {
@@ -27,8 +21,7 @@ struct ga_params {
 // Initializes GA parameters with module defaults.
 void init_ga_params(struct ga_params *params);
 
-// Optimizes the item memory using GA with caller-provided data.
-#if PRECOMPUTED_ITEM_MEMORY
+// Optimizes the precomputed item memory using GA with caller-provided data.
 void optimize_item_memory(
     struct item_memory *item_mem,
     double **training_data,
@@ -45,16 +38,5 @@ int optimize_item_memory_get_flip_counts(
     int *testing_labels,
     int testing_samples,
     uint16_t *flip_counts_out);
-#else
-void optimize_item_memory(
-    struct item_memory *signal_mem,
-    struct item_memory *channel_mem,
-    double **training_data,
-    int *training_labels,
-    int training_samples,
-    double **testing_data,
-    int *testing_labels,
-    int testing_samples);
-#endif
 
 #endif

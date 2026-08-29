@@ -1,24 +1,9 @@
-/**
- * @file item_mem.c
- * @brief Implements functions for generating and managing item memory used in hyperdimensional computing.
- * 
- * @details
- * This file provides functionality to initialize, manage, and manipulate item memory vectors. 
- * Item memory is a key component in HDC and stores packed binary base vectors for encoding input data.
- * 
- * Functions in this file include initialization of item memory for discrete and continuous items, 
- * vector interpolation, storing/loading item memory to/from files, and generating orthogonal vectors.
- * 
- * @author Marian Horn
- */
 #include "item_mem.h"
+#include <ctype.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <ctype.h>
-#include "vector.h"
-
-void generate_random_hv(vector_element *data, int dimension);
 
 static uint32_t item_mem_xorshift32(uint32_t *state) {
     uint32_t x = *state;
@@ -48,315 +33,60 @@ static uint32_t item_mem_seed_from_permutation(const int *perm, int length) {
         hash ^= (uint32_t)perm[i];
         hash *= 16777619u;
     }
-    if (hash == 0u) {
-        hash = 1u;
-    }
-    return hash;
+    return hash == 0u ? 1u : hash;
 }
 
 static void generate_random_hv_with_rng(vector_element *data, int dimension, uint32_t *state) {
+    for (size_t word = 0; word < vector_storage_count(); word++) {
+        data[word] = 0ull;
+    }
     for (int i = 0; i < dimension; i++) {
         int word = i >> 6;
         int bit = i & 63;
-        uint64_t mask = 1ull << bit;
         if (item_mem_rand_range(state, 2)) {
-            data[word] |= mask;
-        } else {
-            data[word] &= ~mask;
+            data[word] |= 1ull << bit;
         }
     }
-    int rest = dimension & 63;
-    if (rest != 0) {
-        data[(dimension + 63) / 64 - 1] &= ((1ull << rest) - 1ull);
-    }
-}
-/**
- * @brief Initializes item memory for discrete items, eg. features.
- * 
- * @details
- * This function generates a set of random binary base vectors
- * for encoding discrete items. The vectors are stored in the `item_memory` structure.
- * 
- * @param item_mem A pointer to the item memory structure to be initialized.
- * @param num_items The number of discrete items to encode.
- */
-void init_item_memory(struct item_memory *item_mem, int num_items) {
-    if (output_mode >= OUTPUT_DETAILED) {
-        printf("Initializing item memory for %d features.\n",num_items);
-    }
-    item_mem->num_vectors = num_items;
-    item_mem->base_vectors = (Vector **)malloc(num_items * sizeof(Vector*));
-    for (int i = 0; i < num_items; i++) {
-        item_mem->base_vectors[i] = create_uninitialized_vector();
-        for (int j = 0; j < VECTOR_DIMENSION; j++) {
-            vector_set_bit(item_mem->base_vectors[i], j, rand() % 2); //0 or 1 for binary
-        }
-        vector_mask_tail(item_mem->base_vectors[i]);
-    }
-    if (output_mode >= OUTPUT_DEBUG) {
-        print_item_memory(item_mem);
-        printf("\n");
+    if ((dimension & 63) != 0) {
+        data[(dimension + 63) / 64 - 1] &= ((1ull << (dimension & 63)) - 1ull);
     }
 }
 
-/**
- * @brief Generates two orthogonal vectors.
- * 
- * @details
- * This function creates two vectors that are orthogonal to each other, 
- * which can be used for continuous item memory or other operations.
- * 
- * @param vector1 A pointer to the first vector to be generated.
- * @param vector2 A pointer to the second vector to be generated.
- * @param dimension The dimensionality of the vectors.
- */
-void generate_orthogonal_vectors(Vector *vector1, Vector *vector2, int dimension) {
-    for (int i = 0; i < dimension; i++) {
-        int v = rand() % 2;
-        vector_set_bit(vector1, i, v);
-        vector_set_bit(vector2, i, !v); // Orthogonal for binary
+static void allocate_item_memory_vectors(struct item_memory *item_mem, int num_vectors) {
+    item_mem->num_vectors = num_vectors;
+    item_mem->base_vectors = (Vector **)malloc((size_t)num_vectors * sizeof(Vector *));
+    if (!item_mem->base_vectors) {
+        fprintf(stderr, "Failed to allocate item memory vector table.\n");
+        exit(EXIT_FAILURE);
     }
-    vector_mask_tail(vector1);
-    vector_mask_tail(vector2);
-}
-
-/**
- * @brief Interpolates between two vectors.
- * 
- * @details
- * This function creates a new vector by interpolating between two input vectors 
- * based on a specified ratio. The resulting vector contains elements randomly selected 
- * from the two input vectors according to the ratio.
- * 
- * @param vec1 A pointer to the first vector.
- * @param vec2 A pointer to the second vector.
- * @param result A pointer to the resulting interpolated vector.
- * @param dimension The dimensionality of the vectors.
- * @param ratio The ratio for interpolation (0.0 corresponds to `vec1`, 1.0 corresponds to `vec2`).
- * 
- * @note This is used to generate equidistant hypervectors for continuous item memory
- */
-void interpolate_vectors(Vector *vec1, Vector *vec2, Vector *result, int dimension, double ratio) {
-    int flip_count = (int)(dimension * ratio);
-    vector_copy(result, vec1);
-    for (int i = 0; i < flip_count; i++) {
-        int index = rand() % dimension;
-        vector_set_bit(result, index, vector_get_bit(vec2, index));
-    }
-}
-
-/**
- * @brief Initializes item memory for continuous signal levels.
- * 
- * @details
- * This function generates a set of vectors representing continuous signal levels. 
- * It creates orthogonal vectors for the minimum and maximum levels and interpolates 
- * between them to generate intermediate levels.
- * 
- * @param item_mem A pointer to the item memory structure to be initialized.
- * @param num_levels The number of continuous signal levels.
- */
-void init_continuous_item_memory(struct item_memory *item_mem, int num_levels) {
-    if (output_mode >= OUTPUT_DETAILED) {
-        printf("Initializing continuous item memory with %d levels.\n",num_levels);
-    }
-    item_mem->num_vectors = num_levels;
-    item_mem->base_vectors = (Vector **)malloc(num_levels * sizeof(Vector *));
-    for (int i = 0; i < num_levels; i++) {
+    for (int i = 0; i < num_vectors; i++) {
         item_mem->base_vectors[i] = create_uninitialized_vector();
     }
-
-    Vector *min_vector = create_uninitialized_vector();
-
-    // Generate min randomly.
-    generate_random_hv(min_vector->data, VECTOR_DIMENSION);
-
-    // Prepare a random permutation of indices [0..D-1].
-    int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
-    for (int i = 0; i < VECTOR_DIMENSION; i++) {
-        perm[i] = i;
-    }
-    for (int i = VECTOR_DIMENSION - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
-        int tmp = perm[i];
-        perm[i] = perm[j];
-        perm[j] = tmp;
-    }
-
-    // Total flip budget K.
-    int total_flips = GA_MAX_FLIPS_CIM;
-
-    // Level 0 is the min vector.
-    vector_copy(item_mem->base_vectors[0], min_vector);
-
-    if (num_levels > 1) {
-        int steps = num_levels - 1;
-        int prev_target = 0;
-        for (int level = 1; level < num_levels; level++) {
-            double exact = ((double)level * (double)total_flips) / (double)steps;
-            int target = (int)(exact + 0.5); // balanced rounding
-            if (target < 0) {
-                target = 0;
-            } else if (target > total_flips) {
-                target = total_flips;
-            }
-
-            Vector *prev = item_mem->base_vectors[level - 1];
-            Vector *curr = item_mem->base_vectors[level];
-            vector_copy(curr, prev);
-
-            for (int k = prev_target; k < target; k++) {
-                int idx = perm[k];
-                vector_flip_bit(curr, idx);
-            }
-
-            prev_target = target;
-        }
-    }
-
-    free(perm);
-    free_vector(min_vector);
-    if (output_mode >= OUTPUT_DEBUG) {
-        print_item_memory(item_mem);
-        printf("\n");
-    }
 }
 
-/**
- * @brief Initializes continuous item memory using per-level flip counts.
- *
- * @details
- * This function generates a set of vectors representing continuous signal levels.
- * It creates a deterministic minimum vector, applies the provided permutation of indices,
- * and flips bits cumulatively based on the provided flip counts B.
- *
- * @param item_mem A pointer to the item memory structure to be initialized.
- * @param num_levels The number of continuous signal levels.
- * @param B Array of size (num_levels-1) specifying flips from level i to i+1.
- * @param permutation Array of size VECTOR_DIMENSION specifying flip order.
- */
-void init_continuous_item_memory_with_B(struct item_memory *item_mem,
-                                        int num_levels,
-                                        const int *B,
-                                        const int *permutation) {
-    if (output_mode >= OUTPUT_DETAILED) {
-        printf("Initializing continuous item memory (B-driven) with %d levels.\n", num_levels);
-    }
-
-    if (num_levels <= 0) {
-        item_mem->num_vectors = 0;
-        item_mem->base_vectors = NULL;
-        return;
-    }
-    if (num_levels > 1 && (!B || !permutation)) {
-        if (output_mode >= OUTPUT_BASIC) {
-            fprintf(stderr, "init_continuous_item_memory_with_B: B or permutation is NULL.\n");
-        }
-        item_mem->num_vectors = 0;
-        item_mem->base_vectors = NULL;
-        return;
-    }
-
-    item_mem->num_vectors = num_levels;
-    item_mem->base_vectors = (Vector **)malloc(num_levels * sizeof(Vector *));
-    for (int i = 0; i < num_levels; i++) {
-        item_mem->base_vectors[i] = create_uninitialized_vector();
-    }
-
-    Vector *min_vector = create_uninitialized_vector();
-    uint32_t rng_state = item_mem_seed_from_permutation(permutation, VECTOR_DIMENSION);
-    generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
-
-    vector_copy(item_mem->base_vectors[0], min_vector);
-
-    int max_flips = GA_MAX_FLIPS_CIM;
-
-    if (num_levels > 1) {
-        int prev_target = 0;
-        for (int level = 1; level < num_levels; level++) {
-            int flips = B[level - 1];
-            if (flips < 0) {
-                flips = 0;
-            }
-            int target = prev_target + flips;
-            if (target > max_flips) {
-                target = max_flips;
-            }
-
-            Vector *prev = item_mem->base_vectors[level - 1];
-            Vector *curr = item_mem->base_vectors[level];
-            vector_copy(curr, prev);
-
-            for (int k = prev_target; k < target; k++) {
-                int idx = permutation[k];
-                vector_flip_bit(curr, idx);
-            }
-
-            prev_target = target;
-        }
-    }
-
-    free_vector(min_vector);
-
-    if (output_mode >= OUTPUT_DEBUG) {
-        print_item_memory(item_mem);
-        printf("\n");
-    }
-}
-
-void generate_random_hv(vector_element *data, int dimension) {
-    for (int i = 0; i < dimension; i++) {
-        int word = i >> 6;
-        int bit = i & 63;
-        uint64_t mask = 1ull << bit;
-        if (rand() % 2) {
-            data[word] |= mask;
-        } else {
-            data[word] &= ~mask;
-        }
-    }
-    int rest = dimension & 63;
-    if (rest != 0) {
-        data[(dimension + 63) / 64 - 1] &= ((1ull << rest) - 1ull);
-    }
-}
-/**
- * @brief Initializes binary item memory for precomputed feature-level representations.
- * 
- * @details
- * This function generates a precomputed item memory for binary data, 
- * where each feature and level combination is assigned a unique vector.
- * 
- * @param item_mem A pointer to the item memory structure to be initialized.
- * @param num_levels The number of signal levels.
- * @param num_features The number of features to encode.
- * @note If used, activate PRECOMPUTED_ITEM_MEMORY in config.h
- */
 void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int num_features) {
     if (output_mode >= OUTPUT_DETAILED) {
-        printf("Initializing precomputed item memory with %d levels for %d features.\n",num_levels,num_features);
+        printf("Initializing precomputed item memory with %d levels for %d features.\n", num_levels, num_features);
     }
-    int total_vectors = num_levels * num_features; // Total vectors required
-    item_mem->num_vectors = total_vectors;
-    item_mem->base_vectors = (Vector **)malloc(total_vectors * sizeof(Vector *));
-    for (int i = 0; i < num_levels*num_features; i++) {
-        item_mem->base_vectors[i] = create_uninitialized_vector();
-    }
+
+    int total_vectors = num_levels * num_features;
+    allocate_item_memory_vectors(item_mem, total_vectors);
+
     uint32_t rng_state = (uint32_t)ITEM_MEM_SEED;
     if (rng_state == 0u) {
         rng_state = 1u;
     }
-    // Total flip budget K.
     int total_flips = GA_MAX_FLIPS_CIM;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();
-
-        // Generate min randomly.
         generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
-        // Prepare a random permutation of indices [0..D-1].
-        int *perm = (int *)malloc(VECTOR_DIMENSION * sizeof(int));
+        int *perm = (int *)malloc((size_t)VECTOR_DIMENSION * sizeof(int));
+        if (!perm) {
+            fprintf(stderr, "Failed to allocate item-memory permutation.\n");
+            exit(EXIT_FAILURE);
+        }
         for (int i = 0; i < VECTOR_DIMENSION; i++) {
             perm[i] = i;
         }
@@ -367,15 +97,13 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
             perm[j] = tmp;
         }
 
-        // Level 0 is the min vector.
         vector_copy(item_mem->base_vectors[feature], min_vector);
-
         if (num_levels > 1) {
             int steps = num_levels - 1;
             int prev_target = 0;
             for (int level = 1; level < num_levels; level++) {
                 double exact = ((double)level * (double)total_flips) / (double)steps;
-                int target = (int)(exact + 0.5); // balanced rounding
+                int target = (int)(exact + 0.5);
                 if (target < 0) {
                     target = 0;
                 } else if (target > total_flips) {
@@ -385,12 +113,9 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
                 Vector *prev = item_mem->base_vectors[(level - 1) * num_features + feature];
                 Vector *curr = item_mem->base_vectors[level * num_features + feature];
                 vector_copy(curr, prev);
-
                 for (int k = prev_target; k < target; k++) {
-                    int idx = perm[k];
-                    vector_flip_bit(curr, idx);
+                    vector_flip_bit(curr, perm[k]);
                 }
-
                 prev_target = target;
             }
         }
@@ -398,28 +123,13 @@ void init_precomp_item_memory(struct item_memory *item_mem, int num_levels, int 
         free(perm);
         free_vector(min_vector);
     }
+
     if (output_mode >= OUTPUT_DEBUG) {
         print_item_memory(item_mem);
         printf("\n");
     }
 }
 
-/**
- * @brief Initializes precomputed item memory using per-level flip counts.
- *
- * @details
- * This function generates precomputed item memory for binary data, where each
- * feature has its own continuous sequence of levels. The integer matrix B is
- * treated as row-major [num_features][num_levels-1] and specifies how many
- * bits to flip from level i to level i+1 for each feature. Flips are applied
- * along a provided per-feature permutation to ensure consistent ordering.
- *
- * @param item_mem A pointer to the item memory structure to be initialized.
- * @param num_levels The number of signal levels.
- * @param num_features The number of features to encode.
- * @param B Row-major matrix of size num_features x (num_levels-1) with flip counts.
- * @param permutations Row-major matrix of size num_features x VECTOR_DIMENSION with permutations.
- */
 void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                                      int num_levels,
                                      int num_features,
@@ -427,36 +137,29 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                                      const int *permutations) {
     if (output_mode >= OUTPUT_DETAILED) {
         printf("Initializing precomputed item memory (B-driven) with %d levels for %d features.\n",
-               num_levels, num_features);
+               num_levels,
+               num_features);
     }
-
     if (!B || !permutations) {
         if (output_mode >= OUTPUT_BASIC) {
             fprintf(stderr, "init_precomp_item_memory_with_B: B or permutations is NULL.\n");
         }
+        item_mem->num_vectors = 0;
+        item_mem->base_vectors = NULL;
         return;
     }
 
     int total_vectors = num_levels * num_features;
-    item_mem->num_vectors = total_vectors;
-    item_mem->base_vectors = (Vector **)malloc(total_vectors * sizeof(Vector *));
-    for (int i = 0; i < total_vectors; i++) {
-        item_mem->base_vectors[i] = create_uninitialized_vector();
-    }
-
+    allocate_item_memory_vectors(item_mem, total_vectors);
     int max_flips = GA_MAX_FLIPS_CIM;
 
     for (int feature = 0; feature < num_features; feature++) {
         Vector *min_vector = create_uninitialized_vector();
         const int *perm = permutations + (size_t)feature * VECTOR_DIMENSION;
-
-        // Generate min randomly.
         uint32_t rng_state = item_mem_seed_from_permutation(perm, VECTOR_DIMENSION);
         generate_random_hv_with_rng(min_vector->data, VECTOR_DIMENSION, &rng_state);
 
-        // Level 0 is the min vector.
         vector_copy(item_mem->base_vectors[feature], min_vector);
-
         if (num_levels > 1) {
             int prev_target = 0;
             for (int level = 1; level < num_levels; level++) {
@@ -472,12 +175,9 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
                 Vector *prev = item_mem->base_vectors[(level - 1) * num_features + feature];
                 Vector *curr = item_mem->base_vectors[level * num_features + feature];
                 vector_copy(curr, prev);
-
                 for (int k = prev_target; k < target; k++) {
-                    int idx = perm[k];
-                    vector_flip_bit(curr, idx);
+                    vector_flip_bit(curr, perm[k]);
                 }
-
                 prev_target = target;
             }
         }
@@ -491,47 +191,25 @@ void init_precomp_item_memory_with_B(struct item_memory *item_mem,
     }
 }
 
-/**
- * @brief Frees the memory allocated for item memory.
- * 
- * @details
- * This function releases all vectors stored in the item memory structure, 
- * as well as the structure itself.
- * 
- * @param item_mem A pointer to the item memory structure to be freed.
- */
 void free_item_memory(struct item_memory *item_mem) {
+    if (!item_mem || !item_mem->base_vectors) {
+        return;
+    }
     for (int i = 0; i < item_mem->num_vectors; i++) {
         free_vector(item_mem->base_vectors[i]);
     }
     free(item_mem->base_vectors);
+    item_mem->base_vectors = NULL;
+    item_mem->num_vectors = 0;
 }
 
-/**
- * @brief Retrieves the vector for a specific item.
- * 
- * @details
- * This function fetches the base vector corresponding to a given item ID from the item memory.
- * 
- * @param item_mem A pointer to the item memory structure.
- * @param item_id The ID of the item whose vector is to be retrieved.
- * @return A pointer to the vector corresponding to the item ID, or NULL if the ID is invalid.
- */
-Vector* get_item_vector(struct item_memory *item_mem, int item_id) {
-    if (item_id >= 0 && item_id < item_mem->num_vectors) {
+Vector *get_item_vector(struct item_memory *item_mem, int item_id) {
+    if (item_mem && item_id >= 0 && item_id < item_mem->num_vectors) {
         return item_mem->base_vectors[item_id];
     }
     return NULL;
 }
-/**
- * @brief Prints the contents of the item memory.
- * 
- * @details
- * This function outputs the details of the item memory, including the number of vectors 
- * and their values, for debugging purposes.
- * 
- * @param item_mem A pointer to the item memory structure.
- */
+
 void print_item_memory(struct item_memory *item_mem) {
     printf("Item memory contains %d vectors of dimension %d\n", item_mem->num_vectors, VECTOR_DIMENSION);
     for (int j = 0; j < VECTOR_DIMENSION; j += 1000) {
@@ -541,164 +219,99 @@ void print_item_memory(struct item_memory *item_mem) {
         printf("\n");
     }
 }
-/**
- * @brief Stores item memory vectors to a binary file.
- * 
- * @details
- * This function writes the data of all vectors stored in the item memory to a binary file.
- * 
- * The layout in the binary file is as follows:
- * - Each vector is stored sequentially.
- * - Each vector consists of `VECTOR_DIMENSION` elements.
- * - Vectors are stored as packed binary words.
- * 
- * The binary file will contain `num_vectors * VECTOR_DIMENSION` elements, 
- * written as a contiguous array.
- * 
- * @param item_mem A pointer to the item memory structure.
- * @param filepath The path to the binary file where the vectors should be stored.
- * 
- * @note Ensure that the correct `VECTOR_DIMENSION` is used when reading this file.
- */
-void store_item_mem_to_bin(struct item_memory *item_mem, const char *filepath) {
-    FILE *file = fopen(filepath, "wb");
-    if (!file) {
-        perror("Failed to open file for writing item memory");
-        exit(EXIT_FAILURE);
-    }
-
-    // Write each vector's data
-    for (int i = 0; i < item_mem->num_vectors; i++) {
-        fwrite(item_mem->base_vectors[i]->data,
-               sizeof(vector_element),
-               vector_storage_count(),
-               file);
-    }
-
-    fclose(file);
-    printf("Item memory successfully stored to %s\n", filepath);
-}
-
-/**
- * @brief Stores item memory vectors to a CSV file.
- *
- * @details
- * This function writes each vector as one row in a CSV file. Each row contains
- * `VECTOR_DIMENSION` elements separated by commas.
- *
- * @param item_mem A pointer to the item memory structure.
- * @param filepath The path to the CSV file where the vectors should be stored.
- */
-void store_item_mem_to_csv(struct item_memory *item_mem, const char *filepath) {
-    FILE *file = fopen(filepath, "w");
-    if (!file) {
-        perror("Failed to open file for writing item memory CSV");
-        exit(EXIT_FAILURE);
-    }
-    fprintf(file, "#item_mem,num_vectors=%d,dimension=%d\n",
-            item_mem ? item_mem->num_vectors : 0,
-            VECTOR_DIMENSION);
-    for (int i = 0; i < item_mem->num_vectors; i++) {
-        for (int j = 0; j < VECTOR_DIMENSION; j++) {
-            fprintf(file, "%d", vector_get_bit(item_mem->base_vectors[i], j));
-            if (j < VECTOR_DIMENSION - 1) {
-                fputc(',', file);
-            }
-        }
-        fputc('\n', file);
-    }
-
-    fclose(file);
-    printf("Item memory successfully stored to %s\n", filepath);
-}
 
 void store_precomp_item_mem_to_bin(struct item_memory *item_mem,
                                    const char *filepath,
                                    int num_levels,
                                    int num_features) {
-    if (num_levels <= 0 || num_features <= 0) {
-        fprintf(stderr, "store_precomp_item_mem_to_bin: invalid dimensions.\n");
+    if (!item_mem || num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "store_precomp_item_mem_to_bin: invalid arguments.\n");
         return;
     }
     int expected = num_levels * num_features;
-    if (item_mem && item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
+    if (item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr, "store_precomp_item_mem_to_bin: expected %d vectors, got %d.\n",
-                expected, item_mem ? item_mem->num_vectors : 0);
+                expected,
+                item_mem->num_vectors);
     }
-    store_item_mem_to_bin(item_mem, filepath);
+
+    FILE *file = fopen(filepath, "wb");
+    if (!file) {
+        perror("Failed to open file for writing precomputed item memory");
+        exit(EXIT_FAILURE);
+    }
+    for (int i = 0; i < item_mem->num_vectors; i++) {
+        fwrite(item_mem->base_vectors[i]->data, sizeof(vector_element), vector_storage_count(), file);
+    }
+    fclose(file);
+    printf("Precomputed item memory successfully stored to %s\n", filepath);
 }
 
 void store_precomp_item_mem_to_csv(struct item_memory *item_mem,
                                    const char *filepath,
                                    int num_levels,
                                    int num_features) {
-    if (num_levels <= 0 || num_features <= 0) {
-        fprintf(stderr, "store_precomp_item_mem_to_csv: invalid dimensions.\n");
+    if (!item_mem || num_levels <= 0 || num_features <= 0) {
+        fprintf(stderr, "store_precomp_item_mem_to_csv: invalid arguments.\n");
         return;
     }
     int expected = num_levels * num_features;
-    if (item_mem && item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
+    if (item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr, "store_precomp_item_mem_to_csv: expected %d vectors, got %d.\n",
-                expected, item_mem ? item_mem->num_vectors : 0);
-    }
-    FILE *file = fopen(filepath, "w");
-    if (!file) {
-        perror("Failed to open file for writing precomp item memory CSV");
-        exit(EXIT_FAILURE);
+                expected,
+                item_mem->num_vectors);
     }
 
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        perror("Failed to open file for writing precomputed item memory CSV");
+        exit(EXIT_FAILURE);
+    }
     fprintf(file,
             "#precomp_item_mem,num_levels=%d,num_features=%d,num_vectors=%d,dimension=%d\n",
             num_levels,
             num_features,
             expected,
             VECTOR_DIMENSION);
-
     for (int i = 0; i < item_mem->num_vectors; i++) {
-        for (int j = 0; j < VECTOR_DIMENSION; j++) {
-            fprintf(file, "%d", vector_get_bit(item_mem->base_vectors[i], j));
-            if (j < VECTOR_DIMENSION - 1) {
+        for (int bit = 0; bit < VECTOR_DIMENSION; bit++) {
+            fprintf(file, "%d", vector_get_bit(item_mem->base_vectors[i], bit));
+            if (bit < VECTOR_DIMENSION - 1) {
                 fputc(',', file);
             }
         }
         fputc('\n', file);
     }
-
     fclose(file);
-    printf("Item memory successfully stored to %s\n", filepath);
+    printf("Precomputed item memory successfully stored to %s\n", filepath);
 }
 
 void store_precomp_item_mem_to_systemc_text(struct item_memory *item_mem,
                                             const char *filepath,
                                             int num_levels,
                                             int num_features) {
-    if (num_levels <= 0 || num_features <= 0) {
-        fprintf(stderr, "store_precomp_item_mem_to_systemc_text: invalid dimensions.\n");
-        return;
-    }
-    if (!item_mem || !filepath || filepath[0] == '\0') {
+    if (!item_mem || !filepath || filepath[0] == '\0' || num_levels <= 0 || num_features <= 0) {
         fprintf(stderr, "store_precomp_item_mem_to_systemc_text: invalid arguments.\n");
         return;
     }
     int expected = num_levels * num_features;
-    if (item_mem->num_vectors != expected) {
+    if (item_mem->num_vectors != expected && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr, "store_precomp_item_mem_to_systemc_text: expected %d vectors, got %d.\n",
-                expected, item_mem->num_vectors);
+                expected,
+                item_mem->num_vectors);
     }
 
     FILE *file = fopen(filepath, "w");
     if (!file) {
-        perror("Failed to open file for writing SystemC precomp item memory text");
+        perror("Failed to open file for writing SystemC precomputed item memory text");
         exit(EXIT_FAILURE);
     }
-
     fprintf(file,
             "#systemc_precomp_cim num_levels=%d num_features=%d num_vectors=%d dimension=%d layout=level_major_feature_minor\n",
             num_levels,
             num_features,
             expected,
             VECTOR_DIMENSION);
-
     for (int level = 0; level < num_levels; level++) {
         for (int feature = 0; feature < num_features; feature++) {
             int index = level * num_features + feature;
@@ -709,69 +322,10 @@ void store_precomp_item_mem_to_systemc_text(struct item_memory *item_mem,
             fputc('\n', file);
         }
     }
-
     fclose(file);
     printf("SystemC precomputed item memory successfully stored to %s\n", filepath);
 }
-/**
- * @brief Loads item memory vectors from a binary file.
- * 
- * @details
- * This function reads vectors from a binary file and initializes the item memory structure.
- * 
- * The binary file must have the following layout:
- * - Each vector is stored sequentially.
- * - Each vector consists of `VECTOR_DIMENSION` elements.
- * - Vectors are read as packed binary words.
- * 
- * When reading the file, the function:
- * - Initializes the item memory structure with `num_items` vectors.
- * - Reads `num_items * VECTOR_DIMENSION` elements from the binary file and assigns them to the vectors.
- * 
- * @param item_mem A pointer to the item memory structure to be loaded.
- * @param filepath The path to the binary file containing the item memory vectors.
- * @param num_items The number of vectors to load into the item memory.
- * 
- * @note Ensure that the binary file corresponds to the correct `VECTOR_DIMENSION` and `num_items`.
- */
-void load_item_mem_from_bin(struct item_memory *item_mem, const char *filepath, int num_items) {
-    FILE *file = fopen(filepath, "rb");
-    if (!file) {
-        perror("Failed to open file for reading item memory");
-        exit(EXIT_FAILURE);
-    }
 
-    init_item_memory(item_mem, num_items);
-
-    for (int i = 0; i < num_items; i++) {
-        size_t items_read = fread(item_mem->base_vectors[i]->data,
-                                  sizeof(vector_element),
-                                  vector_storage_count(),
-                                  file);
-        if (items_read != vector_storage_count()) {
-            fprintf(stderr, "Error: Incomplete vector data at row %d with only %ld elements\n", i,items_read);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-   
-    
-
-    fclose(file);
-    printf("Item memory successfully loaded from %s\n", filepath);
-}
-
-/**
- * @brief Loads item memory vectors from a CSV file.
- *
- * @details
- * This function reads vectors from a CSV file and initializes the item memory structure.
- * The CSV file must have one vector per row and `VECTOR_DIMENSION` comma-separated elements.
- *
- * @param item_mem A pointer to the item memory structure to be loaded.
- * @param filepath The path to the CSV file containing the item memory vectors.
- * @param num_items The number of vectors to load into the item memory.
- */
 static char *trim_in_place(char *s) {
     while (*s && isspace((unsigned char)*s)) {
         s++;
@@ -824,25 +378,23 @@ static int parse_csv_header(FILE *file,
         }
         token = strtok(NULL, ",");
     }
-
     return 1;
 }
 
 static void load_item_mem_from_csv_stream(struct item_memory *item_mem, FILE *file, int num_items) {
-    init_item_memory(item_mem, num_items);
-
+    allocate_item_memory_vectors(item_mem, num_items);
     for (int i = 0; i < num_items; i++) {
-        for (int j = 0; j < VECTOR_DIMENSION; j++) {
+        for (int bit = 0; bit < VECTOR_DIMENSION; bit++) {
             int value = 0;
             if (fscanf(file, "%d", &value) != 1) {
-                fprintf(stderr, "Error: Incomplete vector data at row %d, col %d\n", i, j);
+                fprintf(stderr, "Error: Incomplete vector data at row %d, col %d\n", i, bit);
                 exit(EXIT_FAILURE);
             }
-            vector_set_bit(item_mem->base_vectors[i], j, value);
-            if (j < VECTOR_DIMENSION - 1) {
+            vector_set_bit(item_mem->base_vectors[i], bit, value);
+            if (bit < VECTOR_DIMENSION - 1) {
                 int ch = fgetc(file);
                 if (ch != ',') {
-                    fprintf(stderr, "Error: Expected ',' at row %d, col %d\n", i, j);
+                    fprintf(stderr, "Error: Expected ',' at row %d, col %d\n", i, bit);
                     exit(EXIT_FAILURE);
                 }
             }
@@ -855,35 +407,6 @@ static void load_item_mem_from_csv_stream(struct item_memory *item_mem, FILE *fi
     }
 }
 
-void load_item_mem_from_csv(struct item_memory *item_mem, const char *filepath, int num_items) {
-    FILE *file = fopen(filepath, "r");
-    if (!file) {
-        perror("Failed to open file for reading item memory CSV");
-        exit(EXIT_FAILURE);
-    }
-
-    int header_vectors = 0;
-    int header_levels = 0;
-    int header_features = 0;
-    int header_dim = 0;
-    int has_header = parse_csv_header(file, &header_vectors, &header_levels, &header_features, &header_dim);
-    if (has_header && header_vectors > 0) {
-        if (num_items > 0 && num_items != header_vectors && output_mode >= OUTPUT_BASIC) {
-            fprintf(stderr, "load_item_mem_from_csv: header vectors %d override requested %d.\n",
-                    header_vectors, num_items);
-        }
-        num_items = header_vectors;
-    }
-    if (num_items <= 0) {
-        fprintf(stderr, "load_item_mem_from_csv: invalid num_items.\n");
-        fclose(file);
-        return;
-    }
-    load_item_mem_from_csv_stream(item_mem, file, num_items);
-    fclose(file);
-    printf("Item memory successfully loaded from %s\n", filepath);
-}
-
 void load_precomp_item_mem_from_bin(struct item_memory *item_mem,
                                     const char *filepath,
                                     int num_levels,
@@ -893,7 +416,24 @@ void load_precomp_item_mem_from_bin(struct item_memory *item_mem,
         return;
     }
     int total = num_levels * num_features;
-    load_item_mem_from_bin(item_mem, filepath, total);
+    FILE *file = fopen(filepath, "rb");
+    if (!file) {
+        perror("Failed to open file for reading precomputed item memory");
+        exit(EXIT_FAILURE);
+    }
+    allocate_item_memory_vectors(item_mem, total);
+    for (int i = 0; i < total; i++) {
+        size_t items_read = fread(item_mem->base_vectors[i]->data,
+                                  sizeof(vector_element),
+                                  vector_storage_count(),
+                                  file);
+        if (items_read != vector_storage_count()) {
+            fprintf(stderr, "Error: Incomplete vector data at row %d with only %ld elements\n", i, items_read);
+            exit(EXIT_FAILURE);
+        }
+    }
+    fclose(file);
+    printf("Precomputed item memory successfully loaded from %s\n", filepath);
 }
 
 void load_precomp_item_mem_from_csv(struct item_memory *item_mem,
@@ -902,7 +442,7 @@ void load_precomp_item_mem_from_csv(struct item_memory *item_mem,
                                     int num_features) {
     FILE *file = fopen(filepath, "r");
     if (!file) {
-        perror("Failed to open file for reading precomp item memory CSV");
+        perror("Failed to open file for reading precomputed item memory CSV");
         exit(EXIT_FAILURE);
     }
 
@@ -919,7 +459,6 @@ void load_precomp_item_mem_from_csv(struct item_memory *item_mem,
             num_features = header_features;
         }
     }
-
     if (num_levels <= 0 || num_features <= 0) {
         fprintf(stderr, "load_precomp_item_mem_from_csv: invalid dimensions.\n");
         fclose(file);
@@ -929,11 +468,17 @@ void load_precomp_item_mem_from_csv(struct item_memory *item_mem,
     int total = num_levels * num_features;
     if (header_vectors > 0 && header_vectors != total && output_mode >= OUTPUT_BASIC) {
         fprintf(stderr, "load_precomp_item_mem_from_csv: header vectors %d override derived %d.\n",
-                header_vectors, total);
+                header_vectors,
+                total);
         total = header_vectors;
+    }
+    if (header_dim > 0 && header_dim != VECTOR_DIMENSION && output_mode >= OUTPUT_BASIC) {
+        fprintf(stderr, "load_precomp_item_mem_from_csv: file dimension %d differs from build dimension %d.\n",
+                header_dim,
+                VECTOR_DIMENSION);
     }
 
     load_item_mem_from_csv_stream(item_mem, file, total);
     fclose(file);
-    printf("Item memory successfully loaded from %s\n", filepath);
+    printf("Precomputed item memory successfully loaded from %s\n", filepath);
 }

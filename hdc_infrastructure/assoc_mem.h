@@ -1,13 +1,7 @@
 #ifndef ASSOC_MEM_H
 #define ASSOC_MEM_H
 
-#ifdef HAND_EMG
-#include "../hand/configHand.h"
-#elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#else
-#error "No EMG type defined. Please define HAND_EMG or FOOT_EMG."
-#endif
 
 #include <stdbool.h>
 #include "vector.h"

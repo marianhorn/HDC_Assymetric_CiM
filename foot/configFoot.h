@@ -24,9 +24,6 @@
 #ifndef NUM_FEATURES
 #define NUM_FEATURES 32 // number of input features
 #endif
-#ifndef PRECOMPUTED_ITEM_MEMORY
-#define PRECOMPUTED_ITEM_MEMORY 1 // use precomputed item memory
-#endif
 #ifndef USE_GENETIC_ITEM_MEMORY
 #define USE_GENETIC_ITEM_MEMORY 0 // enable GA item memory
 #endif

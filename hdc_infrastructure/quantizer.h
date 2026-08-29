@@ -1,13 +1,7 @@
 #ifndef QUANTIZER_H
 #define QUANTIZER_H
 
-#ifdef HAND_EMG
-#include "../hand/configHand.h"
-#elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#else
-#error "No model type defined. Please define HAND_EMG or FOOT_EMG."
-#endif
 
 int quantizer_fit_from_training(double **training_data,
                                 const int *training_labels,

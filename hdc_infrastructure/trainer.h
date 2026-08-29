@@ -1,13 +1,7 @@
 #ifndef TRAINER_H
 #define TRAINER_H
 
-#ifdef HAND_EMG
-#include "../hand/configHand.h"
-#elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#else
-#error "No EMG type defined. Please define HAND_EMG or FOOT_EMG."
-#endif
 
 #include "assoc_mem.h"
 #include "encoder.h"

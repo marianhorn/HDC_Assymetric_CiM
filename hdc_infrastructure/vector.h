@@ -1,13 +1,7 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
-#ifdef HAND_EMG
-#include "../hand/configHand.h"
-#elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#else
-#error "No EMG type defined. Please define HAND_EMG or FOOT_EMG."
-#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,7 +16,7 @@ typedef uint64_t vector_element;
  * @brief Represents the item memory used in Hyperdimensional Computing.
  *
  * The item memory stores base hypervectors for discrete or continuous input features.
- * It supports precomputed and dynamically generated item memories.
+ * It stores packed binary hypervectors.
  * 
  * Members:
  * - **num_vectors**: The total number of base vectors in the item memory.

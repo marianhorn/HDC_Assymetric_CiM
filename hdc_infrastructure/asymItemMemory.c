@@ -487,7 +487,6 @@ struct ga_eval_context {
     int vector_dimension;
     unsigned int seed;
     const int *permutations;
-    struct item_memory *channel_memory;
     double **training_data;
     int *training_labels;
     int training_samples;
@@ -586,7 +585,6 @@ static int create_generation_export_dirs(const char *run_dir, int generation_cou
     return 0;
 }
 
-#if PRECOMPUTED_ITEM_MEMORY
 static void export_precomputed_cim_csv(const struct item_memory *item_mem,
                                        const struct ga_eval_context *ctx,
                                        const char *run_dir,
@@ -639,59 +637,6 @@ static void export_precomputed_cim_csv(const struct item_memory *item_mem,
 
     fclose(file);
 }
-#else
-static void export_continuous_cim_csv(const struct item_memory *signal_mem,
-                                      const struct ga_eval_context *ctx,
-                                      const char *run_dir,
-                                      int generation,
-                                      int candidate_index,
-                                      double accuracy,
-                                      double similarity) {
-    if (!signal_mem || !ctx || !run_dir) {
-        return;
-    }
-
-    char filepath[768];
-    int written = snprintf(filepath,
-                           sizeof(filepath),
-                           "%s/generation_%04d/cim_%04d.csv",
-                           run_dir,
-                           generation,
-                           candidate_index);
-    if (written < 0 || (size_t)written >= sizeof(filepath)) {
-        fprintf(stderr, "GA CiM export file path too long.\n");
-        return;
-    }
-
-    FILE *file = fopen(filepath, "w");
-    if (!file) {
-        perror("Failed to open GA CiM export file");
-        return;
-    }
-
-    fprintf(file,
-            "#ga_cim_export,mode=continuous,generation=%d,candidate=%d,num_levels=%d,num_vectors=%d,dimension=%d,accuracy=%.10f,similarity=%.10f\n",
-            generation,
-            candidate_index,
-            ctx->num_levels,
-            signal_mem->num_vectors,
-            VECTOR_DIMENSION,
-            accuracy,
-            similarity);
-
-    for (int i = 0; i < signal_mem->num_vectors; i++) {
-        for (int bit = 0; bit < VECTOR_DIMENSION; bit++) {
-            fprintf(file, "%d", vector_get_bit(signal_mem->base_vectors[i], bit));
-            if (bit < VECTOR_DIMENSION - 1) {
-                fputc(',', file);
-            }
-        }
-        fputc('\n', file);
-    }
-
-    fclose(file);
-}
-#endif
 #endif
 
 static double evaluate_candidate(const uint16_t *B,
@@ -716,7 +661,6 @@ static double evaluate_candidate(const uint16_t *B,
         return 0.0;
     }
 
-#if PRECOMPUTED_ITEM_MEMORY
     int transitions = ctx->num_levels - 1;
     int genes = transitions * ctx->num_features;
     int *b_matrix = NULL;
@@ -799,88 +743,6 @@ static double evaluate_candidate(const uint16_t *B,
     free_assoc_mem(&assoc_mem);
     free(b_matrix);
     return fitness;
-#else
-    int transitions = ctx->num_levels - 1;
-    int *b_levels = NULL;
-    if (transitions > 0) {
-        b_levels = (int *)malloc((size_t)transitions * sizeof(int));
-        if (!b_levels) {
-            fprintf(stderr, "Failed to allocate flip vector.\n");
-            if (out_accuracy) {
-                *out_accuracy = 0.0;
-            }
-            if (out_similarity) {
-                *out_similarity = 0.0;
-            }
-            return 0.0;
-        }
-        for (int level = 0; level < transitions; level++) {
-            b_levels[level] = (int)B[level];
-        }
-    }
-
-    if (!ctx->channel_memory || !ctx->permutations) {
-        free(b_levels);
-        if (out_accuracy) {
-            *out_accuracy = 0.0;
-        }
-        if (out_similarity) {
-            *out_similarity = 0.0;
-        }
-        return 0.0;
-    }
-    struct associative_memory assoc_mem;
-    init_assoc_mem(&assoc_mem);
-    struct encoder enc;
-    struct item_memory signal_mem;
-    init_continuous_item_memory_with_B(&signal_mem,
-                                       ctx->num_levels,
-                                       b_levels,
-                                       ctx->permutations);
-    init_encoder(&enc, ctx->channel_memory, &signal_mem);
-    train_model_timeseries(ctx->training_data,
-                           ctx->training_labels,
-                           ctx->training_samples,
-                           &assoc_mem,
-                           &enc);
-
-    double **eval_data = ctx->training_data;
-    int *eval_labels = ctx->training_labels;
-    int eval_samples = ctx->training_samples;
-    if (ctx->testing_data && ctx->testing_labels && ctx->testing_samples > 0) {
-        eval_data = ctx->testing_data;
-        eval_labels = ctx->testing_labels;
-        eval_samples = ctx->testing_samples;
-    }
-
-    struct timeseries_eval_result eval_result =
-        evaluate_model_timeseries_direct(&enc, &assoc_mem, eval_data, eval_labels, eval_samples);
-    double accuracy = eval_result.class_average_accuracy;
-    double similarity = eval_result.class_vector_similarity;
-    if (out_accuracy) {
-        *out_accuracy = accuracy;
-    }
-    if (out_similarity) {
-        *out_similarity = similarity;
-    }
-
-    #if GA_CIM_EXPORT_ENABLED
-    if (export_run_dir) {
-        export_continuous_cim_csv(&signal_mem,
-                                  ctx,
-                                  export_run_dir,
-                                  export_generation,
-                                  export_candidate_index,
-                                  accuracy,
-                                  similarity);
-    }
-    #endif
-
-    free(b_levels);
-    free_assoc_mem(&assoc_mem);
-    free_item_memory(&signal_mem);
-    return accuracy - similarity;
-#endif
 }
 
 static int wrap_event_level(int level, int transitions) {
@@ -1201,10 +1063,7 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     struct ga_eval_context ctx = *ctx_in;
     int ga_output_mode = output_mode;
-    int genome_length = ctx.num_levels - 1;
-#if PRECOMPUTED_ITEM_MEMORY
-    genome_length *= ctx.num_features;
-#endif
+    int genome_length = (ctx.num_levels - 1) * ctx.num_features;
     memset(B_out, 0, (size_t)genome_length * sizeof(uint16_t));
 
     if (!ctx.training_data || !ctx.training_labels || ctx.training_samples <= N_GRAM_SIZE) {
@@ -1265,12 +1124,9 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     int transitions = ctx.num_levels - 1;
     int max_total = GA_MAX_FLIPS_CIM;
-    int feature_blocks = 1;
+    int feature_blocks = ctx.num_features;
     double *adaptive_chunk_schedule = NULL;
     int *adaptive_mutation_step_schedule = NULL;
-#if PRECOMPUTED_ITEM_MEMORY
-    feature_blocks = ctx.num_features;
-#endif
     if (max_total <= 0) {
         fprintf(stderr, "GA custom pipeline error: GA_MAX_FLIPS_CIM must be > 0.\n");
         exit(EXIT_FAILURE);
@@ -1294,7 +1150,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
 
     for (int i = 0; i < population_size; i++) {
         uint16_t *individual = &population[i * genome_length];
-#if PRECOMPUTED_ITEM_MEMORY
         for (int feature = 0; feature < ctx.num_features; feature++) {
             init_individual(individual + feature * transitions,
                             transitions,
@@ -1303,14 +1158,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
                             ctx.permutations + (size_t)feature * VECTOR_DIMENSION,
                             VECTOR_DIMENSION);
         }
-#else
-        init_individual(individual,
-                        transitions,
-                        max_total,
-                        &ga_state,
-                        ctx.permutations,
-                        VECTOR_DIMENSION);
-#endif
     }
 
     double best_acc = -1.0;
@@ -1487,7 +1334,6 @@ static void run_ga(const struct ga_eval_context *ctx_in,
     free(adaptive_mutation_step_schedule);
 }
 
-#if PRECOMPUTED_ITEM_MEMORY
 static int run_precomputed_ga_and_capture_flip_counts(int num_features,
                                                       int num_levels,
                                                       double **training_data,
@@ -1538,7 +1384,6 @@ static int run_precomputed_ga_and_capture_flip_counts(int num_features,
     ctx.vector_dimension = VECTOR_DIMENSION;
     ctx.seed = params.seed;
     ctx.permutations = permutations;
-    ctx.channel_memory = NULL;
     ctx.training_data = training_data;
     ctx.training_labels = training_labels;
     ctx.training_samples = training_samples;
@@ -1650,103 +1495,3 @@ void optimize_item_memory(struct item_memory *item_mem,
     free(flip_counts);
     free(permutations);
 }
-#else
-void optimize_item_memory(struct item_memory *signal_mem,
-                          struct item_memory *channel_mem,
-                          double **training_data,
-                          int *training_labels,
-                          int training_samples,
-                          double **testing_data,
-                          int *testing_labels,
-                          int testing_samples) {
-    if (!signal_mem || !training_data || !training_labels || training_samples <= N_GRAM_SIZE) {
-        return;
-    }
-
-    int num_levels = 0;
-    if (!channel_mem) {
-        return;
-    }
-    if (signal_mem->num_vectors > 0) {
-        num_levels = signal_mem->num_vectors;
-    }
-    if (num_levels <= 1) {
-        return;
-    }
-
-    struct ga_params params;
-    init_ga_params(&params);
-
-    if (params.seed == 0) {
-        params.seed = (unsigned int)time(NULL);
-        if (params.seed == 0) {
-            params.seed = 1;
-        }
-    }
-
-    int *permutation = (int *)malloc((size_t)VECTOR_DIMENSION * sizeof(int));
-    if (!permutation) {
-        fprintf(stderr, "Failed to allocate permutation.\n");
-        exit(EXIT_FAILURE);
-    }
-    uint32_t perm_state = params.seed ^ 0x9E3779B9u;
-    if (perm_state == 0u) {
-        perm_state = 1u;
-    }
-    generate_permutation(permutation, VECTOR_DIMENSION, &perm_state);
-
-    struct ga_eval_context ctx;
-    ctx.num_features = 1;
-    ctx.num_levels = num_levels;
-    ctx.vector_dimension = VECTOR_DIMENSION;
-    ctx.seed = params.seed;
-    ctx.permutations = permutation;
-    ctx.channel_memory = channel_mem;
-    ctx.training_data = training_data;
-    ctx.training_labels = training_labels;
-    ctx.training_samples = training_samples;
-    ctx.testing_data = testing_data;
-    ctx.testing_labels = testing_labels;
-    ctx.testing_samples = testing_samples;
-    ctx.export_label = "final_continuous_ga";
-
-    int genome_length = num_levels - 1;
-    uint16_t *flip_counts = (uint16_t *)calloc((size_t)genome_length, sizeof(uint16_t));
-    if (!flip_counts) {
-        fprintf(stderr, "Failed to allocate GA flip matrix.\n");
-        exit(EXIT_FAILURE);
-    }
-
-    run_ga(&ctx, &params, flip_counts);
-
-    if (signal_mem->base_vectors && signal_mem->num_vectors > 0) {
-        free_item_memory(signal_mem);
-        signal_mem->base_vectors = NULL;
-        signal_mem->num_vectors = 0;
-    }
-
-    int transitions = num_levels - 1;
-    int *b_levels = NULL;
-    if (transitions > 0) {
-        b_levels = (int *)malloc((size_t)transitions * sizeof(int));
-        if (!b_levels) {
-            fprintf(stderr, "Failed to allocate flip vector.\n");
-            free(flip_counts);
-            free(permutation);
-            return;
-        }
-        for (int level = 0; level < transitions; level++) {
-            b_levels[level] = (int)flip_counts[level];
-        }
-    }
-
-    init_continuous_item_memory_with_B(signal_mem,
-                                       num_levels,
-                                       b_levels,
-                                       permutation);
-
-    free(b_levels);
-    free(flip_counts);
-    free(permutation);
-}
-#endif

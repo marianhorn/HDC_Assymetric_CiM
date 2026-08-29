@@ -14,8 +14,7 @@
  * - Packed binary hypervector encoding.
  *
  * @note 
- * This file supports configurations for both precomputed and dynamically generated 
- * item memories through the `PRECOMPUTED_ITEM_MEMORY` macro.
+ * The encoder uses a precomputed feature-level item memory.
  *
  * @author Marian Horn
  */
@@ -27,7 +26,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#if PRECOMPUTED_ITEM_MEMORY
 /**
  * @brief Initializes the encoder with the provided item memory.
  *
@@ -37,29 +35,10 @@
  * @param enc A pointer to the encoder structure to initialize.
  * @param itemMem A pointer to the precomputed item memory.
  *
- * @note Only used when `PRECOMPUTED_ITEM_MEMORY` is enabled.
  */
 void init_encoder(struct encoder *enc, struct item_memory *itemMem) {
     enc->item_mem = itemMem;
 }
-#else
-/**
- * @brief Initializes the encoder with channel and signal memory.
- *
- * This function sets up the encoder for use with dynamically generated 
- * channel and signal item memories.
- *
- * @param enc A pointer to the encoder structure to initialize.
- * @param channel_memory A pointer to the item memory for channels.
- * @param signal_memory A pointer to the item memory for signal levels.
- *
- * @note Only used when `PRECOMPUTED_ITEM_MEMORY` is disabled.
- */
-void init_encoder(struct encoder *enc, struct item_memory *channel_memory, struct item_memory *signal_memory) {
-    enc->channel_memory = channel_memory;
-    enc->signal_memory = signal_memory;
-}
-#endif
 /**
  * @brief Encodes a single timestamp of data into a hypervector.
  *
@@ -76,59 +55,12 @@ void encode_timestamp(struct encoder *enc, double *emg_sample, Vector *result) {
         return;
     }
 
-#if PRECOMPUTED_ITEM_MEMORY
     Vector* bound_vectors[NUM_FEATURES];
     for (int channel = 0; channel < NUM_FEATURES; channel++) {
         int signal_level = get_signal_level(channel, emg_sample[channel]);
         bound_vectors[channel] = enc->item_mem->base_vectors[(signal_level * NUM_FEATURES) + channel];
     }
     bundle_multi(bound_vectors, NUM_FEATURES, result);
-#else
-    int threshold = NUM_FEATURES / 2;
-    int nbits = 0;
-    while ((1 << nbits) <= NUM_FEATURES && nbits < 31) {
-        nbits++;
-    }
-    if (nbits < 1) {
-        nbits = 1;
-    }
-
-    uint64_t *planes = (uint64_t *)calloc((size_t)nbits, sizeof(uint64_t));
-    if (!planes) {
-        fprintf(stderr, "Error: Failed to allocate bit-sliced counters\n");
-        return;
-    }
-
-    size_t words = vector_storage_count();
-    for (size_t w = 0; w < words; w++) {
-        memset(planes, 0, (size_t)nbits * sizeof(uint64_t));
-        for (int channel = 0; channel < NUM_FEATURES; channel++) {
-            int signal_level = get_signal_level(channel, emg_sample[channel]);
-            Vector *channel_vec = enc->channel_memory->base_vectors[channel];
-            Vector *signal_vec = enc->signal_memory->base_vectors[signal_level];
-            uint64_t carry = channel_vec->data[w] ^ signal_vec->data[w];
-            for (int b = 0; b < nbits; b++) {
-                uint64_t t = planes[b];
-                planes[b] = t ^ carry;
-                carry = t & carry;
-            }
-        }
-
-        uint64_t out_word = 0ull;
-        for (int bit = 0; bit < 64; bit++) {
-            int count = 0;
-            for (int b = 0; b < nbits; b++) {
-                count |= (int)(((planes[b] >> bit) & 1ull) << b);
-            }
-            if (count >= threshold) {
-                out_word |= (1ull << bit);
-            }
-        }
-        result->data[w] = out_word;
-    }
-    free(planes);
-    vector_mask_tail(result);
-#endif
 }
 
 /**

@@ -55,9 +55,6 @@ endif
 ifdef NUM_FEATURES
 	CFLAGS += -DNUM_FEATURES=$(NUM_FEATURES)
 endif
-ifdef PRECOMPUTED_ITEM_MEMORY
-	CFLAGS += -DPRECOMPUTED_ITEM_MEMORY=$(PRECOMPUTED_ITEM_MEMORY)
-endif
 ifdef USE_GENETIC_ITEM_MEMORY
 	CFLAGS += -DUSE_GENETIC_ITEM_MEMORY=$(USE_GENETIC_ITEM_MEMORY)
 endif
@@ -164,23 +161,23 @@ $(TARGET_FOOT): $(OBJFILES_FOOT)
 export_naive_cim: clean $(TARGET_EXPORT_NAIVE_CIM)
 
 $(TARGET_EXPORT_NAIVE_CIM): tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(DEPS_FOOT)
-	$(CC) $(CFLAGS) -DFOOT_EMG -o $@ tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(LDFLAGS)
 
 .PHONY: evaluate_final_cims
 evaluate_final_cims: $(TARGET_EVALUATE_FINAL_CIMS)
 
 $(TARGET_EVALUATE_FINAL_CIMS): tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(DEPS_FOOT)
-	$(CC) $(CFLAGS) -DFOOT_EMG -o $@ tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(LDFLAGS)
 
 # Object file compilation for foot and infrastructure
 $(BINDIR)/foot_%.o: $(SRCDIR_FOOT)/%.c $(DEPS_FOOT)
 	@mkdir -p $(BINDIR)
-	$(CC) $(CFLAGS) -DFOOT_EMG -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Object file compilation for shared infrastructure for foot
 $(BINDIR)/foot_infra_%.o: $(INCDIR_INFRA)/%.c $(DEPS_FOOT)
 	@mkdir -p $(BINDIR)
-	$(CC) $(CFLAGS) -DFOOT_EMG -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 .PHONY: clean
 clean:

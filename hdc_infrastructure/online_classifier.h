@@ -2,13 +2,7 @@
 #define ONLINE_CLASSIFIER_H
 #endif
 
-#ifdef HAND_EMG
-#include "../hand/configHand.h"
-#elif defined(FOOT_EMG)
 #include "../foot/configFoot.h"
-#else
-#error "No EMG type defined. Please define HAND_EMG or FOOT_EMG."
-#endif
 
 #include "vector.h"
 #include "operations.h"
