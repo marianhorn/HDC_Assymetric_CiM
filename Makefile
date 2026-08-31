@@ -173,9 +173,9 @@ $(TARGET_EXPORT_SYSTEMC_IMPORTS): $(TOOLSDIR)/export_systemc_foot_imports.c $(SR
 .PHONY: evaluate_final_cims
 evaluate_final_cims: $(TARGET_EVALUATE_FINAL_CIMS)
 
-$(TARGET_EVALUATE_FINAL_CIMS): $(TOOLSDIR)/evaluate_final_generation_cims.c $(filter-out $(SRCDIR)/main.c $(SRCDIR)/ResultManager.c $(SRCDIR)/asymItemMemory.c,$(SRCFILES)) $(DEPS)
+$(TARGET_EVALUATE_FINAL_CIMS): $(TOOLSDIR)/evaluate_final_generation_cims.c $(filter-out $(SRCDIR)/main.c $(SRCDIR)/ResultManager.c $(SRCDIR)/genetic_ccim_optimization.c,$(SRCFILES)) $(DEPS)
 	@mkdir -p $(BINDIR)
-	$(CC) $(CFLAGS) -o $@ $(TOOLSDIR)/evaluate_final_generation_cims.c $(filter-out $(SRCDIR)/main.c $(SRCDIR)/ResultManager.c $(SRCDIR)/asymItemMemory.c,$(SRCFILES)) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(TOOLSDIR)/evaluate_final_generation_cims.c $(filter-out $(SRCDIR)/main.c $(SRCDIR)/ResultManager.c $(SRCDIR)/genetic_ccim_optimization.c,$(SRCFILES)) $(LDFLAGS)
 
 # Object file compilation
 $(BINDIR)/%.o: $(SRCDIR)/%.c $(DEPS)

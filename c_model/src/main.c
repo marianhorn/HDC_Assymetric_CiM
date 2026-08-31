@@ -1,11 +1,9 @@
-//This serves as main file.
-//Classifies Dietmars foot movements
 
 #include <stdio.h>
 #include <stdlib.h>
 #include "assoc_mem.h"
 #include "item_mem.h"
-#include "asymItemMemory.h"
+#include "genetic_ccim_optimization.h"
 #include "encoder.h"
 #include "operations.h"
 #include "data_reader.h"

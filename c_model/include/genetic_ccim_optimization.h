@@ -1,5 +1,5 @@
-#ifndef ASYM_ITEM_MEMORY_H
-#define ASYM_ITEM_MEMORY_H
+#ifndef GENETIC_CCIM_OPTIMIZATION_H
+#define GENETIC_CCIM_OPTIMIZATION_H
 
 #include <stdint.h>
 #include "item_mem.h"

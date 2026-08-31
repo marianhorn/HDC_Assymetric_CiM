@@ -1,4 +1,4 @@
-#include "asymItemMemory.h"
+#include "genetic_ccim_optimization.h"
 #include "assoc_mem.h"
 #include "encoder.h"
 #include "evaluator.h"
