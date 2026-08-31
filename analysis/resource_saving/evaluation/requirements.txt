@@ -1,6 +1,0 @@
-pandas
-pyarrow
-xarray
-scipy
-streamlit
-plotly
