@@ -355,18 +355,14 @@ def plot_results(
             label=f"Dataset {dataset}",
         )
 
-    ax.set_title(
-        f"Baseline {args.metric.replace('_', ' ')} at "
-        f"dimension {args.vector_dimension}"
-    )
-    ax.set_xlabel("Quantization levels")
-    ax.set_ylabel("Mean accuracy over available seeds")
+    ax.set_xlabel(r"Number of levels $L$")
+    ax.set_ylabel("Accuracy")
     ax.set_xlim(
-        args.min_num_levels if args.min_num_levels is not None else None,
+        args.min_num_levels if args.min_num_levels is not None else 0,
         args.max_num_levels if args.max_num_levels is not None else None,
     )
     ax.set_ylim(
-        args.y_min if args.y_min is not None else 0.0,
+        args.y_min if args.y_min is not None else 0.7,
         args.y_max if args.y_max is not None else 1.0,
     )
     ax.yaxis.set_major_formatter(PercentFormatter(1.0))

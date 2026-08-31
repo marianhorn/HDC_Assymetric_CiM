@@ -46,6 +46,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--y-min", type=float)
     parser.add_argument("--y-max", type=float)
     parser.add_argument(
+        "--dimension-grid",
+        choices=["thesis", "all"],
+        default="thesis",
+        help=(
+            "Dimension grid for plotting. 'thesis' keeps 100-step points below "
+            "1000, 500-step points from 1000 to 10000, and 1000-step points "
+            "from 10000 upward. 'all' keeps every measured point."
+        ),
+    )
+    parser.add_argument(
         "--sample-step",
         type=int,
         default=1,
@@ -163,6 +173,30 @@ def sample_dimensions(
     return sampled
 
 
+def apply_dimension_grid(
+    averaged: list[dict[str, object]], grid: str
+) -> list[dict[str, object]]:
+    if grid == "all":
+        return averaged
+
+    dimensions = sorted({int(row["vector_dimension"]) for row in averaged})
+    low_dims = [dimension for dimension in dimensions if dimension < 1000]
+    low_anchor = min(low_dims) if low_dims else 0
+
+    def keep_dimension(dimension: int) -> bool:
+        if dimension < 1000:
+            return (dimension - low_anchor) % 100 == 0
+        if dimension < 10000:
+            return dimension % 500 == 0
+        return dimension % 1000 == 0
+
+    return [
+        row
+        for row in averaged
+        if keep_dimension(int(row["vector_dimension"]))
+    ]
+
+
 def print_configurations(
     averaged: list[dict[str, object]], args: argparse.Namespace
 ) -> None:
@@ -178,6 +212,7 @@ def print_configurations(
         print(f"  dimension range: {args.min_dimension}..{args.max_dimension}")
     if args.y_min is not None or args.y_max is not None:
         print(f"  y range: {args.y_min}..{args.y_max}")
+    print(f"  dimension grid: {args.dimension_grid}")
     if args.sample_step != 1:
         print(f"  sample step: every {args.sample_step} dimension value")
     print(f"  seeds: {', '.join(map(str, seeds))}")
@@ -380,18 +415,14 @@ def plot_results(
             label=f"Dataset {dataset}",
         )
 
-    ax.set_title(
-        f"Baseline {args.metric.replace('_', ' ')} at "
-        f"{args.num_levels} quantization levels"
-    )
     ax.set_xlabel("Vector dimension")
-    ax.set_ylabel("Mean accuracy over available seeds")
+    ax.set_ylabel("Accuracy")
     ax.set_xlim(
-        args.min_dimension if args.min_dimension is not None else None,
+        args.min_dimension if args.min_dimension is not None else 0,
         args.max_dimension if args.max_dimension is not None else None,
     )
     ax.set_ylim(
-        args.y_min if args.y_min is not None else 0.0,
+        args.y_min if args.y_min is not None else 0.7,
         args.y_max if args.y_max is not None else 1.0,
     )
     ax.yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -417,12 +448,16 @@ def output_range_suffix(args: argparse.Namespace) -> str:
         parts.append(f"y_{lo}_{hi}")
     if args.sample_step != 1:
         parts.append(f"step_{args.sample_step}")
+    if args.dimension_grid != "all":
+        parts.append(args.dimension_grid)
     return "" if not parts else "_" + "_".join(parts).replace(".", "p")
 
 
 def main() -> None:
     args = parse_args()
-    averaged = sample_dimensions(aggregate(load_selected_rows(args)), args.sample_step)
+    averaged = aggregate(load_selected_rows(args))
+    averaged = apply_dimension_grid(averaged, args.dimension_grid)
+    averaged = sample_dimensions(averaged, args.sample_step)
     print_configurations(averaged, args)
 
     output = args.output or (
