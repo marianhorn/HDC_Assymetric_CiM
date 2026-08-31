@@ -1,58 +1,41 @@
-# HDC-Framework Horn
+# HDC-Based Foot-EMG Classification
 
-**Computer Science Project for Master CE**  
-**Author: Marian Horn**
+This repository contains the software and hardware implementations developed for
+the accompanying master's thesis. The project classifies foot movements from
+EMG time series using binary hyperdimensional computing (HDC).
 
----
+## Repository Structure
 
-## Description
-This project implements a well-structured framework for Hyperdimensional Computing (HDC). 
+- [`c_model`](./c_model): C reference model, datasets, configuration, and export tools.
+- [`systemc_accelerator`](./systemc_accelerator): Fully and partially parallelized SystemC/HLS accelerator implementations.
+- [`analysis`](./analysis): Benchmarking, quantizer, genetic-algorithm, and hardware-analysis scripts.
+- [`thesis`](./thesis): LaTeX source, figures, bibliography, and final thesis PDF.
 
-**Evaluation Example:** EMG-Classification of foot movements for the NOE-EMY project.
+## Build and Run the C Model
 
-**Documentation:** 
-- System and function details are available in the [`/doc`](./doc/html/mainpage_8h_source.html) folder.
-- The development repository with all intermediate artifacts is available at: [Development Repository](https://gitlab.cs.fau.de/ew14ozom/emghandgestureshdc).
+Requirements are a C11 compiler, GNU Make, and optionally OpenMP.
 
----
-
-## Getting Started
-
-### Clone Repository
-```bash
-git clone https://gitlab.cs.fau.de/ew14ozom/hdcframeworkhorn
-cd hdcframeworkhorn/
-```
-
-### Build and Run the Model for EMG Classification
-To build the model:
 ```bash
 make foot
+./c_model/build/hdc_model
 ```
 
-To train and evaluate the model for 4 different subjects:
+The model configuration is defined in [`c_model/include/config.h`](./c_model/include/config.h).
+Build-time overrides can be passed directly to Make, for example:
+
 ```bash
-./modelFoot
+make foot VECTOR_DIMENSION=10000 NUM_LEVELS=40 ITEM_MEM_SEED=1
+./c_model/build/hdc_model
 ```
 
-To explore the effects of different system parameters, modify the constants in [`configFoot.h`](./foot/configFoot.h), rebuild, and rerun the model.
+Additional helper targets are available:
 
----
-
-## Core Components
-
-- [`hdc_infrastructure`](./hdc_infrastructure): Core HDC implementation, including item memory, encoder, trainer, evaluator, quantizer, and vector operations.
-- [`foot`](./foot): Foot EMG data reader, configuration, and executable model entry point.
-- [`systemc/synthesis`](./systemc/synthesis): SystemC/HLS accelerator implementations and synthesis support files.
-
-### Other Features
-- Include [`preprocessor.h`](./hdc_infrastructure/preprocessor.h) to downsample the data.
-- Include [`trainer.h`](./hdc_infrastructure/trainer.h) to process the training dataset, call the encoder on it, and set the associative memory.
-- Include [`evaluator.h`](./hdc_infrastructure/evaluator.h) to test the model using the testing dataset.
-- Include [`online_classifier.h`](./hdc_infrastructure/online_classifier.h) to evaluate a trained model on live data.
-
----
+```bash
+make export_naive_cim
+make evaluate_final_cims
+make clean
+```
 
 ## Author
-**Marian Horn**  
-Email: [marian.horn@fau.de](mailto:marian.horn@fau.de)
+
+Marian Horn

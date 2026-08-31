@@ -1,0 +1,155 @@
+%% i3coverpage.sty
+%% Copyright (C) 2009 Christoph Sommer <christoph.sommer@informatik.uni-erlangen.de>
+%%                    Falko Dressler
+%%                    2014 Carsten Demel
+
+%% Version 3.04-svn
+%
+% License (pick one or both):
+% - Creative Commons Attribution-Share Alike 3.0 (or later)
+% - GPL v2 (or later)
+%
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{i3coverpage}[2009/08/12 v3.03-svn I3 Cover Page]  % YYYY/MM/DD
+
+
+% -----------------------------------------------------------------------------
+% Class options
+% -----------------------------------------------------------------------------
+\RequirePackage{ifthen}
+
+% [earlydraft] - Settings for quick draft printouts
+\newboolean{@ithreecoverpage@earlydraft}
+\setboolean{@ithreecoverpage@earlydraft}{false}
+\DeclareOption{earlydraft}{\setboolean{@ithreecoverpage@earlydraft}{true}}
+
+\ProcessOptions \relax
+% -----------------------------------------------------------------------------
+
+
+% -----------------------------------------------------------------------------
+% All the simple stuff goes here
+% -----------------------------------------------------------------------------
+
+% Use Helvetica for sans-serif text
+\RequirePackage{helvet}
+
+% For cover page
+\RequirePackage{tikz}
+\tikzoption{text @ithreecoverpage@ badly raggedleft}[]{\def\tikz@text@action{\raggedleft\relax}}
+% -----------------------------------------------------------------------------
+
+
+% -----------------------------------------------------------------------------
+% Cover page
+% -----------------------------------------------------------------------------
+
+\newcommand{\coverpagetextsmall}[1]{%
+	\@ithreecoverpage@smalltextsize%
+	#1%
+	\vspace{0.5cm}\\%
+}
+
+\newcommand{\coverpagetextlarge}[1]{%
+	\vspace{0.25cm}%
+	\@ithreecoverpage@largetextsize%
+	#1%
+	\@ithreecoverpage@smalltextsize%
+	\vspace{0.5cm}\\%
+}
+
+%\makecoverpage{title}{subtitle}{textbody}{citeas}{address}{url}{logo-tf_neu}{logo-fau}{watermark}
+\newcommand{\makecoverpage}[9]{%
+
+% Cover page uses single line spacing
+
+\begingroup
+\pagestyle{empty}
+\setcounter{page}\@ne
+
+\def\@ithreecoverpage@titlesize{\@setfontsize{\@ithreecoverpage@titlesize}{20}{24pt}}
+\def\@ithreecoverpage@subtitlesize{\@setfontsize{\@ithreecoverpage@subtitlesize}{14}{17pt}}
+\def\@ithreecoverpage@citeassize{\@setfontsize{\@ithreecoverpage@citeassize}{8}{9pt}}
+\def\@ithreecoverpage@addressize{\@setfontsize{\@ithreecoverpage@addressize}{8}{9pt}}
+\def\@ithreecoverpage@smalltextsize{\@setfontsize{\@ithreecoverpage@smalltextsize}{14}{17pt}}
+\def\@ithreecoverpage@largetextsize{\@setfontsize{\@ithreecoverpage@largetextsize}{20}{24pt}}
+
+\renewcommand{\baselinestretch}{1.00}
+
+\begin{tikzpicture}[remember picture,overlay] \node[xshift=0cm,yshift=0cm] at (current page.south west) { \begin{tikzpicture}[remember picture, overlay]
+	\definecolor{faublue}{rgb}{0.0,0.2,0.4}
+
+	%%% logos
+	\pgftext[top,left,at={\pgfpoint{1.97cm}{27.12cm}}] {%
+		#7%
+	}
+	\pgftext[top,left,at={\pgfpoint{1.92cm}{3.98cm}}] {%
+		#8%
+	}
+	\ifthenelse{\boolean{@ithreecoverpage@earlydraft}}{
+		% no watermark in [earlydraft] mode
+	}{
+		\pgftext[at={\pgfpoint{10.5cm}{12.14cm}}] {%
+			#9%
+		}
+	}
+
+	%%% lines
+	\draw[color=faublue, line width=0.8pt] (1.25cm,23.6cm) -- (16.7cm,23.6cm) -- (16.7cm,22.6cm) -- (17.7cm,22.6cm) -- (17.7cm,23.6cm) -- (19.75cm,23.6cm);
+	\draw[color=faublue, line width=0.8pt] (1.25cm,19.6cm) -- (19.75cm,19.6cm);
+	\draw[color=faublue, line width=0.8pt] (1.25cm,4.6cm) -- (19.75cm,4.6cm);
+
+	%%% single-line text
+	\pgftext[base,left,at={\pgfpoint{2.5cm}{22cm}}] {%
+		\raggedright%
+		\sffamily%
+		\bfseries%
+		\@ithreecoverpage@titlesize%
+		\renewcommand{\baselinestretch}{1.00}%
+		#1%
+	}
+	\pgftext[base,left,at={\pgfpoint{2.5cm}{21cm}}] {%
+		\raggedright%
+		\sffamily%
+		\bfseries%
+		\@ithreecoverpage@subtitlesize%
+		\renewcommand{\baselinestretch}{1.00}%
+		#2%
+	}
+
+	%%% multi-line text
+	\pgftext[top,left,at={\pgfpoint{2.5cm}{17.75cm}}] {%
+		\parbox{15cm}{%
+			\raggedright%
+			\sffamily%
+			\@ithreecoverpage@largetextsize%
+			\renewcommand{\baselinestretch}{1.25}%
+			#3%
+		}%
+	};
+	\draw[xshift=2.5cm,yshift=5.25cm] node [above right,text width=15cm, text badly ragged] {%
+		\sffamily%
+		\@ithreecoverpage@citeassize%
+		\renewcommand{\baselinestretch}{1.00}%
+		#4%
+	};
+	\draw[xshift=19.08cm,yshift=4.05cm] node [below left,text width=12cm, text @ithreecoverpage@ badly raggedleft] {%
+		\sffamily%
+		\@ithreecoverpage@addressize%
+		\renewcommand{\baselinestretch}{1.00}%
+		#5%
+	};
+	\draw[xshift=19.08cm,yshift=1.8cm] node [above left,text width=12cm, text @ithreecoverpage@ badly raggedleft] {%
+		\sffamily%
+		\@ithreecoverpage@addressize%
+		\renewcommand{\baselinestretch}{1.00}%
+		#6%
+	};
+\end{tikzpicture} }; \end{tikzpicture}
+
+\cleardoublepage
+\setcounter{page}\@ne
+\endgroup
+}
+% -----------------------------------------------------------------------------

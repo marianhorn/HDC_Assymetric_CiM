@@ -11,7 +11,7 @@ except ModuleNotFoundError:
 
 BASE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BASE_DIR.parent.parent
-CIMS_ROOT = REPO_ROOT / 'CiMs'
+CIMS_ROOT = REPO_ROOT / 'analysis' / 'cim_data'
 OUTPUT_DIR = BASE_DIR / 'plots'
 
 ALL_FEATURE_ALPHA = 0.18
@@ -329,7 +329,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='Visualize one exported GA CiM for a specific run, generation, and individual.'
     )
-    parser.add_argument('--run', default='latest', help='GA run folder name under CiMs, or "latest" (default).')
+    parser.add_argument('--run', default='latest', help='GA run folder name under analysis/cim_data, or "latest" (default).')
     parser.add_argument('--generation', type=int, default=0, help='Generation index to inspect (default: 0).')
     parser.add_argument('--individual', type=int, default=0, help='Individual index to inspect (default: 0).')
     parser.add_argument('--reference-cim', type=Path, help='Optional real naive/reference CIM CSV to overlay.')

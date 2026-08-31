@@ -14,8 +14,8 @@ MISSING_LEVELS_10000_RUNS_DIR = os.path.join(BASE_DIR, 'runs_missing_levels_1000
 SEEDS = list(range(1, 6))
 
 MODEL_CANDIDATES = [
-    os.path.join(REPO_ROOT, 'modelFoot'),
-    os.path.join(REPO_ROOT, 'modelFoot.exe'),
+    os.path.join(REPO_ROOT, 'c_model', 'build', 'hdc_model'),
+    os.path.join(REPO_ROOT, 'c_model', 'build', 'hdc_model.exe'),
 ]
 
 BINNING_MODES = {
@@ -272,7 +272,7 @@ def run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_leve
             if model_path is None:
                 model_path = find_model_binary()
             if not model_path:
-                raise FileNotFoundError('modelFoot binary not found after build.')
+                raise FileNotFoundError('C model binary not found after build.')
 
             run_cmd([model_path], REPO_ROOT, stdout=log_file, stderr=log_file)
 

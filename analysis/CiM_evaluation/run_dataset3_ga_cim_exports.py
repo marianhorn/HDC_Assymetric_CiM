@@ -10,8 +10,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
 OUTPUT_DIR = os.path.join(BASE_DIR, "ga_cim_exports")
 MODEL_CANDIDATES = [
-    os.path.join(REPO_ROOT, "modelFoot"),
-    os.path.join(REPO_ROOT, "modelFoot.exe"),
+    os.path.join(REPO_ROOT, "c_model", "build", "hdc_model"),
+    os.path.join(REPO_ROOT, "c_model", "build", "hdc_model.exe"),
 ]
 
 
@@ -110,7 +110,7 @@ def main():
 
                 model_path = find_model_binary()
                 if not model_path:
-                    raise FileNotFoundError("modelFoot binary not found after build.")
+                    raise FileNotFoundError("C model binary not found after build.")
                 run_cmd([model_path], REPO_ROOT, stdout=log_file)
 
             elapsed = time.perf_counter() - start

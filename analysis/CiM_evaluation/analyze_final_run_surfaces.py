@@ -14,7 +14,7 @@ from analyze_ga_cim import OUTPUT_DIR, load_cim
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CIMS_ROOT = REPO_ROOT / "CiMs"
+CIMS_ROOT = REPO_ROOT / "analysis" / "cim_data"
 GEN_RE = re.compile(r"GA generation (\d+)/(\d+)")
 NEW_SELECTED_RE = re.compile(r"new selected individuals:\s+(\d+)/(\d+)")
 
@@ -168,7 +168,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Analyze one final GA CiM run and create selection and 3D bit-flip plots."
     )
-    parser.add_argument("--run", required=True, choices=["16", "32", "64", "128"], help="Run folder suffix under CiMs, e.g. 16, 32, or 64.")
+    parser.add_argument("--run", required=True, choices=["16", "32", "64", "128"], help="Run folder suffix under analysis/cim_data, e.g. 16, 32, or 64.")
     parser.add_argument("--feature", type=int, default=None, help="Optional feature index to analyze only that feature in the 3D plots.")
     parser.add_argument("--show", action="store_true", help="Show plots interactively in addition to saving them.")
     args = parser.parse_args()

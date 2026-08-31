@@ -5,7 +5,7 @@ from glob import glob
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
-DATA_ROOT = os.path.join(REPO_ROOT, "foot", "data")
+DATA_ROOT = os.path.join(REPO_ROOT, "c_model", "data")
 OUTPUT_DIR = os.path.join(BASE_DIR, "plots")
 
 

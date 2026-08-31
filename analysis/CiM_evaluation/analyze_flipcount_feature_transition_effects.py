@@ -13,7 +13,7 @@ from analyze_ga_cim import OUTPUT_DIR, is_binary_vectors, load_cim, resolve_run_
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FOOT_DATA_ROOT = REPO_ROOT / "foot" / "data"
+FOOT_DATA_ROOT = REPO_ROOT / "c_model" / "data"
 NUM_FEATURES = 32
 
 

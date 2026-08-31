@@ -14,7 +14,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 THRESHOLD_DIR = SCRIPT_DIR.parent
 REPO_ROOT = SCRIPT_DIR.parents[4]
-DEFAULT_DATA_ROOT = REPO_ROOT / "foot" / "data"
+DEFAULT_DATA_ROOT = REPO_ROOT / "c_model" / "data"
 DEFAULT_RESULTS_DIR = THRESHOLD_DIR / "results"
 DEFAULT_PLOTS_DIR = THRESHOLD_DIR / "plots"
 DEFAULT_NUM_CLASSES = 5

@@ -28,11 +28,11 @@ def choose_make_command():
 
 
 def find_model_binary():
-    for name in ("modelFoot", "modelFoot.exe"):
-        path = REPO_ROOT / name
+    for name in ("hdc_model", "hdc_model.exe"):
+        path = REPO_ROOT / "c_model" / "build" / name
         if path.exists():
             return path
-    raise FileNotFoundError("modelFoot binary not found after build.")
+    raise FileNotFoundError("C model binary not found after build.")
 
 
 def parse_modes(text, include_uniform):

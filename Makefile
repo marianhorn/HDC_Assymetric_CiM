@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -O3 -march=native -mtune=native -flto -DNDEBUG
 LDFLAGS = -lm -flto
+CFLAGS += -Ic_model/include
 
 # Optional OpenMP support:
 #   USE_OPENMP=1    force enable
@@ -132,50 +133,44 @@ ifdef VALIDATION_RATIO
 endif
 
 # Directories
-SRCDIR_FOOT = foot
-INCDIR_INFRA = hdc_infrastructure
-BINDIR = build
+SRCDIR = c_model/src
+INCDIR = c_model/include
+TOOLSDIR = c_model/tools
+BINDIR = c_model/build
 
-# Source files
-SRCFILES_FOOT = $(wildcard $(SRCDIR_FOOT)/*.c) $(wildcard $(INCDIR_INFRA)/*.c)
-
-# Object files
-OBJFILES_FOOT = $(patsubst $(SRCDIR_FOOT)/%.c,$(BINDIR)/foot_%.o,$(patsubst $(INCDIR_INFRA)/%.c,$(BINDIR)/foot_infra_%.o,$(filter-out $(SRCDIR_FOOT)/modelLS_test.c,$(SRCFILES_FOOT))))
-
-# Header dependencies
-DEPS_FOOT = $(wildcard $(SRCDIR_FOOT)/*.h) $(wildcard $(INCDIR_INFRA)/*.h)
+# C model sources and headers
+SRCFILES = $(wildcard $(SRCDIR)/*.c)
+OBJFILES = $(patsubst $(SRCDIR)/%.c,$(BINDIR)/%.o,$(SRCFILES))
+DEPS = $(wildcard $(INCDIR)/*.h)
 
 # Targets
-TARGET_FOOT = modelFoot
-TARGET_EXPORT_NAIVE_CIM = export_naive_precomp_cim
-TARGET_EVALUATE_FINAL_CIMS = evaluate_final_generation_cims
+TARGET_FOOT = $(BINDIR)/hdc_model
+TARGET_EXPORT_NAIVE_CIM = $(BINDIR)/export_naive_precomp_cim
+TARGET_EVALUATE_FINAL_CIMS = $(BINDIR)/evaluate_final_generation_cims
 
 # Build foot EMG model
 .PHONY: foot
 foot: clean $(TARGET_FOOT)
 
-$(TARGET_FOOT): $(OBJFILES_FOOT)
+$(TARGET_FOOT): $(OBJFILES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 .PHONY: export_naive_cim
 export_naive_cim: clean $(TARGET_EXPORT_NAIVE_CIM)
 
-$(TARGET_EXPORT_NAIVE_CIM): tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(DEPS_FOOT)
-	$(CC) $(CFLAGS) -o $@ tools/export_naive_precomp_cim.c hdc_infrastructure/item_mem.c hdc_infrastructure/vector.c $(LDFLAGS)
+$(TARGET_EXPORT_NAIVE_CIM): $(TOOLSDIR)/export_naive_precomp_cim.c $(SRCDIR)/item_mem.c $(SRCDIR)/vector.c $(DEPS)
+	@mkdir -p $(BINDIR)
+	$(CC) $(CFLAGS) -o $@ $(TOOLSDIR)/export_naive_precomp_cim.c $(SRCDIR)/item_mem.c $(SRCDIR)/vector.c $(LDFLAGS)
 
 .PHONY: evaluate_final_cims
 evaluate_final_cims: $(TARGET_EVALUATE_FINAL_CIMS)
 
-$(TARGET_EVALUATE_FINAL_CIMS): tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(DEPS_FOOT)
-	$(CC) $(CFLAGS) -o $@ tools/evaluate_final_generation_cims.c foot/dataReaderFootEMG.c hdc_infrastructure/assoc_mem.c hdc_infrastructure/encoder.c hdc_infrastructure/evaluator.c hdc_infrastructure/item_mem.c hdc_infrastructure/operations.c hdc_infrastructure/quantizer.c hdc_infrastructure/trainer.c hdc_infrastructure/vector.c $(LDFLAGS)
-
-# Object file compilation for foot and infrastructure
-$(BINDIR)/foot_%.o: $(SRCDIR_FOOT)/%.c $(DEPS_FOOT)
+$(TARGET_EVALUATE_FINAL_CIMS): $(TOOLSDIR)/evaluate_final_generation_cims.c $(filter-out $(SRCDIR)/main.c $(SRCDIR)/ResultManager.c $(SRCDIR)/asymItemMemory.c,$(SRCFILES)) $(DEPS)
 	@mkdir -p $(BINDIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $(TOOLSDIR)/evaluate_final_generation_cims.c $(filter-out $(SRCDIR)/main.c $(SRCDIR)/ResultManager.c $(SRCDIR)/asymItemMemory.c,$(SRCFILES)) $(LDFLAGS)
 
-# Object file compilation for shared infrastructure for foot
-$(BINDIR)/foot_infra_%.o: $(INCDIR_INFRA)/%.c $(DEPS_FOOT)
+# Object file compilation
+$(BINDIR)/%.o: $(SRCDIR)/%.c $(DEPS)
 	@mkdir -p $(BINDIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 

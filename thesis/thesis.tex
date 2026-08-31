@@ -1,0 +1,233 @@
+\documentclass[englishthesis]{i3thesis}
+% options:
+% [germanthesis] - Thesis is written in German
+% [plainunnumbered] - Don't print numbers on plain pages
+% [earlydraft] - Settings for quick draft printouts
+% [watermark] - Print current time/date at bottom of each page
+% [phdthesis] - switch to PhD thesis style
+% [twoside] - double sided
+
+\usepackage{multirow}
+\usepackage{floatflt}
+%\usepackage[babel=true]{csquotes}
+%\usepackage[backend=biber,style=ieee]{biblatex}
+\usepackage{forest}
+\usepackage{rotating}
+\usepackage{acronym}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{breakurl}
+
+\usepackage[ruled,vlined,algo2e]{algorithm2e}
+\usepackage{svg}
+%\usepackage[margin=0.5in]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{matrix, positioning, arrows.meta,decorations.pathreplacing,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest}
+
+
+\usepackage{graphicx}
+\usepackage{subcaption}
+\ExecuteBibliographyOptions{backref=false}
+\AtEveryBibitem{\clearlist{language}}
+
+
+\author{Marian Horn}
+\title{Algorithmic and Hardware Optimization of Hyperdimensional Computing for EMG Classification}
+\thesistype{Master's Thesis in Computational Engineering}
+\thesiscite{Master's Thesis~(Masterarbeit)}
+\birthday{15. April 2002}
+\birthplace{München}
+\thesisstart{01.03.2026}
+\thesisend{01.09.2026}
+%\advisors{Krischan Ledwig}
+
+\addbibresource{thesis.bib}
+\AtEveryBibitem{%
+    \ifentrytype{article}{%
+        \clearfield{url}%
+        \clearfield{urlyear}%
+        \clearfield{urlmonth}%
+        \clearfield{urlday}%
+    }{}%
+    \ifentrytype{inproceedings}{%
+        \clearfield{url}%
+        \clearfield{urlyear}%
+        \clearfield{urlmonth}%
+        \clearfield{urlday}%
+    }{}%
+}
+\graphicspath{{images/},{pictures/}}
+\setcounter{tocdepth}{1}
+
+\englishabstract{
+Hyperdimensional Computing (HDC) is a promising approach for embedded classification because it combines simple binary operations with highly parallel data processing. However, conventional HDC models rely on high-dimensional hypervectors and can therefore require substantial memory and computational resources. This thesis investigates how an existing HDC classifier for EMG-based foot movement recognition can be optimized with respect to both classification accuracy and hardware efficiency.
+
+First, the HDC representation is optimized at the algorithmic level to reduce the hypervector dimension $D$ while retaining classification accuracy. A genetic algorithm is used to optimize the feature-specific Hamming distances between consecutive level hypervectors in the Combined Continuous Item Memory (CCIM). The results show that GA-based CCIM optimization can compensate for the accuracy loss caused by substantially reducing the vector dimension. At $D=1024$, the optimized model achieves a dataset-average accuracy of $95.96~\%$, compared with $94.78~\%$ for the unoptimized reference model with $D=10{,}000$. In contrast, the investigated data-adaptive quantization methods do not consistently improve accuracy across the four subject-specific datasets or allow a reduction in the number of quantization levels $L$ while maintaining the reference accuracy. The final configuration therefore retains uniform quantization with $L=40$ while reducing the vector dimension from $D=10{,}000$ to $D=1024$, which decreases the CCIM size and the number of elements processed in dimension-wise vector operations by a factor of 9.8.
+
+Based on this configuration, a pipelined SystemC accelerator is developed and synthesized to RTL using High-Level Synthesis. A fully parallelized implementation reaches $8.33~\mathrm{MSamples/s}$ at $100~\mathrm{MHz}$ but exceeds the resources of the targeted embedded FPGA. Reducing the word-level parallelism enables implementation on an XCZU3EG FPGA with $53{,}633$ LUTs and 64 BRAM tiles while still achieving $3.125~\mathrm{MSamples/s}$ and an AXI-visible inference latency of $1.12~\mathrm{\mu s}$. This throughput exceeds the EMG feature-vector rate of approximately $111.1$ samples per second by more than four orders of magnitude. Together, the algorithmic and hardware optimizations substantially reduce memory and FPGA resource requirements while maintaining classification accuracy and real-time processing capability.}
+\germanabstract{
+Hyperdimensional Computing (HDC) ist ein vielversprechendes Konzept für Klassifikation in eingebetteten Systemen, da es einfache binäre Operationen mit einem hohen Grad an Parallelisierbarkeit verbindet. Konventionelle HDC-Modelle verwenden jedoch hochdimensionale Hypervektoren, wodurch ein erheblicher Speicher- und Rechenaufwand entsteht. In dieser Arbeit wird untersucht, wie ein bestehendes HDC-Modell zur Klassifizierung von Fußbewegungen aus EMG-Messungen hinsichtlich Genauigkeit und Hardwareeffizienz optimiert werden kann.
+
+Zunächst wird das HDC-Modell auf algorithmischer Ebene optimiert, um die Dimension $D$ der Hypervektoren zu reduzieren, ohne dabei an Klassifikationsgenauigkeit zu verlieren. Dazu wird ein genetischer Algorithmus eingesetzt, der die Hamming-Distanzen zwischen aufeinanderfolgenden Hypervektoren der Combined Continuous Item Memory (CCIM) optimiert. Die Ergebnisse belegen, dass diese GA-basierte CCIM-Optimierung den Genauigkeitsverlust kompensieren kann, der durch eine geringere Vektordimension entsteht. Bei einer Dimension von $D=1.024$ erzielt das optimierte Modell eine durchschnittliche Genauigkeit von $95{,}96~\%$, während das herkömmliche Referenzmodell mit $D=10{.}000$ eine Genauigkeit von $94{,}78~\%$ erreicht. Die untersuchten Quantisierungsverfahren konnten die Klassifikationsgenauigkeit hingegen nicht konsistent verbessern und ermöglichen keine Verringerung der Anzahl der Quantisierungsstufen $L$ bei gleichbleibender Genauigkeit. Für die finale Konfiguration wird daher die uniforme Quantisierung mit $L=40$ beibehalten, während die Vektordimension von $D=10{.}000$ auf $D=1.024$ reduziert wird. Dadurch verringern sich sowohl die Größe des CCIM als auch die zu verarbeitenden Elemente pro Vektoroperation um den Faktor 9,8.
+
+Auf Grundlage dieser Konfiguration wird ein Hardwarebeschleuniger für HDC mit einer Pipeline-Architektur entwickelt und mittels High-Level Synthesis in eine RTL-Beschreibung überführt. Die vollständig parallele Implementierung erreicht bei einer Frequenz von $100~\mathrm{MHz}$ einen Durchsatz von $8{,}33~\mathrm{MSamples/s}$, überschreitet jedoch die verfügbaren Ressourcen des betrachteten FPGAs für eingebettete Systeme. Durch eine Verringerung der Parallelität kann der Beschleuniger auf einem XCZU3EG-FPGA mit $53{.}633$ LUTs und 64 BRAM-Blöcken implementiert werden. Dabei werden weiterhin ein Durchsatz von $3{,}125~\mathrm{MSamples/s}$ und eine Gesamtlatenz von $1{,}12~\mathrm{\mu s}$ bei der Inferenz erreicht. Dieser Durchsatz liegt mehr als vier Größenordnungen über der Rate von etwa $111{,}1$ pro Sekunde, in der die EMG-Werte zu verarbeiten sind. Insgesamt zeigen die Ergebnisse, dass die algorithmischen und hardwareseitigen Optimierungen den Speicher- und FPGA-Ressourcenbedarf deutlich reduzieren, ohne die Klassifikationsgenauigkeit oder die Echtzeitfähigkeit einzuschränken.
+}
+
+%%%---------ADD EVALUATION-----------------------------------
+%\newcommand*{\WITHEVALUATION}{}%
+%%%
+\begin{document}
+%%%----------------------------------------------------------
+
+\pagenumbering{roman}
+
+\maketitle
+
+
+\input{abstract}
+\acresetall
+
+\chapter*{Acknowledgements}
+
+I want to sincerely thank Prof. Dr.-Ing. Dietmar Fey, who introduced me to Hyperdimensional Computing already during my Bachelor's studies and has supported my work on the topic ever since. Through my subsequent work at his Chair of Computer Architecture, I had the opportunity to develop the HDC classifier that now serves as the baseline for this thesis. I am particularly grateful that he gave me the opportunity to continue this work as my Master's thesis, even on relatively short notice, and for the freedom and trust he gave me throughout the project. Rather than closely directing every step, he allowed me to develop and pursue my own ideas, while providing valuable guidance at the same time.\\
+
+I would also like to thank Krischan Ledwig, whose Master's thesis provided an important foundation for this work and whose previous implementation and analysis gave me a valuable starting point for several of the investigations presented here, especially by motivating the evaluation of different quantization methods.\\
+
+Finally, I would like to thank my family and friends for their support and encouragement throughout my studies and especially during the final months of this thesis.
+\cleardoublepage
+
+\begin{spacing}{1.2}
+\tableofcontents
+\end{spacing}
+\newpage
+\chapter*{Acronyms}
+
+\begin{acronym}[MPSoC]
+    \setlength{\itemsep}{4pt}
+    \setlength{\parsep}{0pt}
+    \setlength{\topsep}{0pt}
+    \acro{AM}{Associative Memory}
+    \acro{ANN}{Artificial Neural Network}
+    \acro{ASIC}{Application-Specific Integrated Circuit}
+    \acro{AXI}{Advanced eXtensible Interface}
+
+    \acro{BRAM}{Block RAM}
+    \acroplural{BRAM}[BRAMs]{Block RAMs}
+
+    \acro{CIM}{Continuous Item Memory}
+    \acro{CCIM}{Combined Continuous Item Memory}
+    \acro{CDF}{Cumulative Distribution Function}
+    \acro{CNN}{Convolutional Neural Network}
+    \acroplural{CNN}[CNNs]{Convolutional Neural Networks}
+
+    \acro{DBN}{Deep Belief Network}
+    \acro{DL}{Deep Learning}
+    \acro{DSP}{Digital Signal Processor}
+
+    \acro{ELC}{Event-List Crossover}
+    \acro{EMG}{Electromyography}
+
+    \acro{FPGA}{Field-Programmable Gate Array}
+    \acroplural{FPGA}[FPGAs]{Field-Programmable Gate Arrays}
+
+    \acro{GA}{Genetic Algorithm}
+
+    \acro{HBM}{High Bandwidth Memory}
+    \acro{HDC}{Hyperdimensional Computing}
+    \acro{HLS}{High-Level Synthesis}
+
+    \acro{IM}{Item Memory}
+
+    \acro{LDA}{Linear Discriminant Analysis}
+    \acro{LSTM}{Long Short-Term Memory}
+    \acro{LUT}[LUT]{Lookup Table}
+    \acroplural{LUT}[LUTs]{Lookup Tables}
+
+    \acro{ML}{Machine Learning}
+    \acro{MPSoC}{Multiprocessor System-on-Chip}
+
+    \acro{PCA}{Principal Component Analysis}
+
+    \acro{RBM}{Restricted Boltzmann Machine}
+    \acro{RMS}{Root Mean Square}
+    \acro{RNG}{Random Number Generator}
+    \acro{RNN}{Recurrent Neural Network}
+    \acroplural{RNN}[RNNs]{Recurrent Neural Networks}
+    \acro{RTL}{Register-Transfer Level}
+
+    \acro{SVM}{Support Vector Machine}
+    \acroplural{SVM}[SVMs]{Support Vector Machines}
+
+    \acro{TCN}{Temporal Convolutional Network}
+    \acroplural{TCN}[TCNs]{Temporal Convolutional Networks}
+
+    \acro{VHDL}{Very High Speed Integrated Circuit Hardware Description Language}
+    \acro{VSA}{Vector Symbolic Architecture}
+
+    \acro{WNS}{Worst Negative Slack}
+
+\end{acronym}
+
+%\newpage
+\chapter*{Symbols}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{ll}
+    Symbol & Description \\
+    \hline
+    \( \mathbf{B} \) & Bit-flip matrix containing the bit-flip vectors of all features \\
+    \( \mathbf{b}^f \) & Bit-flip vector of feature \(f\) \\
+    \( b_i^f \) & Number of bit flips assigned to level transition \(i\) of feature \(f\) \\
+    \( C \) & Number of classes \\
+    \( \mathbf{C}_c \) & Class vector of class \(c\) \\
+    \( D \) & Hypervector dimension \\
+    \( \mathbf{e}^f \) & Event-list representation of the bit-flip vector of feature \(f\) \\
+    \( F \) & Number of input features \\
+    \( G \) & Number of genetic algorithm generations \\
+    \( \mathcal{H} \) & Hyperdimensional vector space \\
+    \( L \) & Number of quantization levels \\
+    \( N \) & N-gram length \\
+    \( n_{\mathrm{words}} \) & Number of words per hypervector, \(D/W\) \\
+    \( P \) & Population size of the genetic algorithm \\
+    \( \mathbf{Q} \) & Query hypervector for inference \\
+    \( \mathbf{S}_t \) & N-gram hypervector ending at time step \(t\) \\
+    \( T \) & Tournament size of the genetic algorithm \\
+    \( W \) & Hypervector word width in the accelerator \\
+    \( \boldsymbol{\ell}_i^f \) & Level hypervector \(i\) of feature \(f\) \\
+    \( \mu \) & Sampled event-list segment size during crossover \\
+    \( \mu_g \) & Average event-list segment size in generation \(g\) \\
+    \( \mu_{\min} \) & Average segment size in the first generation \\
+    \( \mu_{\max} \) & Average segment size in the final generation \\
+    \( \boldsymbol{\tau}^f \) & Quantization-threshold vector of feature \(f\) \\
+    \( \tau_i^f \) & Quantization threshold \(i\) of feature \(f\) \\
+    \( \mathbf{Z}_t \) & Spatial hypervector at time step \(t\) \\
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+
+\cleardoublepage
+\pagenumbering{arabic}
+
+\input{text/1-Motivation}
+
+\input{text/2-Preliminaries}
+
+\input{text/3-Methodology}
+
+\input{text/4-Analysis}
+
+\input{text/5-Conclusion}
+
+
+
+
+
+\cleardoublepage
+
+
+%\printbibliography
+\MakeBibliography[nosplit]
+
+
+
+\end{document}
