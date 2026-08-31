@@ -61,7 +61,7 @@ The accelerator represents the HDC hardware datapath. It communicates externally
 It uses internal fixed-size memories for CiM and associative memory. In the local non-Stratus simulation model, CiM and associative-memory initialization happen through the preload helpers `set_cim()` and `set_assoc_class()`. For Stratus HLS, the encoder uses a compile-time generated CiM ROM header for dataset 00:
 
 ```text
-src/generated_cim_rom_dataset00.h
+src/generated_cim_rom_dataset00_word_banked.h
 ```
 
 Regenerate it from the text export with:
@@ -69,7 +69,8 @@ Regenerate it from the text export with:
 ```sh
 python3 tools/generate_cim_rom.py \
     --input import/cim_dataset00.txt \
-    --output src/generated_cim_rom_dataset00.h
+    --output src/generated_cim_rom_dataset00_word_banked.h \
+    --layout word-banked
 ```
 
 This gives the synthesized RTL real CiM contents for the fixed dataset-00 hardware build. A runtime hardware preload interface is not implemented yet.

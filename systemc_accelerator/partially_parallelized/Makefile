@@ -34,7 +34,7 @@ TB_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(TB_SOURCES))
 GOLDEN_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(GOLDEN_SOURCES))
 RTL_TRACE_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(RTL_TRACE_SOURCES))
 RTL_REPLAY_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(RTL_REPLAY_SOURCES))
-HEADERS := $(SRC_DIR)/systemc_types.h $(SRC_DIR)/hdc_transactions.h $(SRC_DIR)/hdc_memory.h $(SRC_DIR)/hdc_accelerator.h $(SRC_DIR)/controller.h $(SRC_DIR)/foot_dataset_loader.h $(SRC_DIR)/config_systemc.h $(SRC_DIR)/generated_cim_rom_dataset00.h $(SRC_DIR)/generated_cim_rom_dataset00_banked.h $(SRC_DIR)/generated_cim_rom_dataset00_word_banked.h
+HEADERS := $(SRC_DIR)/systemc_types.h $(SRC_DIR)/hdc_transactions.h $(SRC_DIR)/hdc_memory.h $(SRC_DIR)/hdc_accelerator.h $(SRC_DIR)/controller.h $(SRC_DIR)/foot_dataset_loader.h $(SRC_DIR)/config_systemc.h $(SRC_DIR)/generated_cim_rom_dataset00_banked.h
 
 .PHONY: all golden rtl-trace rtl-replay clean run run-golden
 
