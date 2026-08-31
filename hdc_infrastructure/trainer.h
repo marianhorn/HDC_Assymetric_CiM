@@ -8,6 +8,5 @@
 
 // Function to train the model
 void train_model_timeseries(double **trainingData, int *trainingLabels, int trainingSamples, struct associative_memory *assMem, struct encoder *enc);
-void train_model_general_data(double **training_data, int *training_labels, int training_samples, struct associative_memory *assoc_mem, struct encoder *enc);
 
 #endif // TRAINER_H

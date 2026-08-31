@@ -199,25 +199,3 @@ int push_ngram_encoder_sample(struct encoder *enc,
 
     return 1;
 }
-
-/**
- * @brief Encodes a single EMG data point into a hypervector.
- *
- * This function performs spatial encoding for general data by binding 
- * channel and signal vectors and bundling them into a single hypervector.
- *
- * @param enc A pointer to the encoder structure.
- * @param emg_data An array representing the EMG data point to encode.
- * @param result A pointer to the resulting hypervector.
- * @return 0 on success, -1 if any pointer is NULL or memory allocation fails.
- * @note This function can be used for other applications than timeseries classification.
- */
-int encode_general_data(struct encoder *enc, double *emg_data, Vector *result) {
-    if (enc == NULL || emg_data == NULL || result == NULL) {
-        fprintf(stderr, "Error: NULL pointer passed to encode_timestamp\n");
-        return -1;
-    }
-
-    encode_timestamp(enc, emg_data, result);
-    return 0;
-}

@@ -24,10 +24,5 @@ struct timeseries_eval_result evaluate_model_timeseries_direct(struct encoder *e
                                                                double **testingData,
                                                                int *testingLabels,
                                                                int testingSamples);
-struct timeseries_eval_result evaluate_model_general_direct(struct encoder *enc,
-                                                            struct associative_memory *assoc_mem,
-                                                            double **testing_data,
-                                                            int *testing_labels,
-                                                            int testing_samples);
 
 #endif

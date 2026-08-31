@@ -36,6 +36,5 @@ int push_ngram_encoder_sample(struct encoder *enc,
                               double *emg_sample,
                               Vector *result);
 bool is_window_stable(int* labels);
-int encode_general_data(struct encoder *enc, double *emg_data, Vector *result);
 
 #endif // ENCODER_H
