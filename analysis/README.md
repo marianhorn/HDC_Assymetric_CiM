@@ -40,15 +40,6 @@ The Dataset 3 convergence logs and final-candidate evaluation are tracked under
 `analysis/ccim_analysis/dataset3_ga_cim_exports/`. Recreate the convergence
 figure with:
 
-The checked-in seed-1 convergence log is truncated and does not contain all 64
-generations. Regenerate that log before reproducing the exact five-seed thesis
-figure:
-
-```sh
-python3 analysis/ccim_analysis/run_dataset3_ga_cim_exports.py --datasets 3 --seeds 1 --num-levels 40 --vector-dimension 10000 --population-size 128 --generations 64
-cp analysis/ccim_analysis/ga_cim_exports/output_dataset03_seed01_l40_d10000_pop128_gen64.txt analysis/ccim_analysis/dataset3_ga_cim_exports/output_dataset03_seed01_l40_d10000.txt
-```
-
 ```sh
 python3 analysis/ccim_analysis/plot_ga_run_convergence.py --logs analysis/ccim_analysis/dataset3_ga_cim_exports/output_dataset03_seed*_l40_d10000.txt --output-dir analysis/ccim_analysis/plots/ga_run_convergence
 cp analysis/ccim_analysis/plots/ga_run_convergence/aggregate_accuracy_convergence.png thesis/Images/ga_convergence.png
