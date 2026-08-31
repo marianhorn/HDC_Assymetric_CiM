@@ -154,7 +154,7 @@ def write_run_header(output_file, run_index, total_runs, seed, num_levels, vecto
 
 def write_log_header(output_file, seed, num_levels, vector_dimension):
     output_file.write(
-        "=== cim-only resource-saving run ===\n"
+        "=== CCIM-optimization benchmark run ===\n"
         f"timestamp={datetime.now().isoformat()}\n"
         f"ITEM_MEM_SEED={seed}\n"
         f"GA_DEFAULT_SEED={seed}\n"
@@ -234,7 +234,7 @@ def run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, sk
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run cim-only resource-saving sweeps with uniform quantization and GA item-memory optimization."
+        description="Run benchmark sweeps with uniform quantization and genetic CCIM optimization."
     )
     parser.add_argument(
         "--skip-clean",
@@ -297,7 +297,7 @@ def main():
     for seed in selected_seeds:
         run_seed_sweep(seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean)
 
-    print("\nFinished all cim-only resource-saving sweeps.")
+    print("\nFinished all CCIM-optimization benchmark sweeps.")
 
 
 if __name__ == "__main__":

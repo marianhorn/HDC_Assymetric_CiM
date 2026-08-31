@@ -1,4 +1,4 @@
-﻿# Thesis Analysis Reproduction
+# Thesis Analysis Reproduction
 
 This directory contains only experiment runners, plotting scripts, and compact
 results used by the thesis. Run commands from the repository root. Generated
@@ -19,6 +19,10 @@ cp analysis/ngram_sweep/ngram_accuracy_1_to_10_per_dataset.png thesis/Images/ngr
 ## Baseline
 
 Generate benchmark data with `analysis/experiment_runners/baseline/run_baseline_sweep.py`.
+
+```sh
+python3 analysis/experiment_runners/baseline/run_baseline_sweep.py --seeds 1,2,3,4,5
+```
 The plotting commands used for the thesis are:
 
 ```sh
@@ -29,8 +33,12 @@ python3 analysis/plotting/baseline/scripts/plot_accuracy_by_num_levels.py --vect
 
 ## Genetic CCIM optimization
 
-Generate the GA-only dimension sweep with
+Generate the CCIM-optimization dimension sweep with
 `analysis/experiment_runners/ccim_optimization/run_ccim_optimization_sweep.py`.
+
+```sh
+python3 analysis/experiment_runners/ccim_optimization/run_ccim_optimization_sweep.py --seeds 1,2,3,4,5
+```
 
 ```sh
 python3 analysis/plotting/ccim_optimization/scripts/plot_pre_vs_post_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.8 --y-max 1.0 --output thesis/Images/ga_only_comparison.png --no-show
@@ -67,6 +75,10 @@ Generate benchmark data with
 `analysis/experiment_runners/quantizer/run_quantizer_sweep.py`.
 
 ```sh
+python3 analysis/experiment_runners/quantizer/run_quantizer_sweep.py --seeds 1,2,3,4,5 --binning-modes quantile,kmeans_1d,decision_tree_1d,chimerge
+```
+
+```sh
 python3 analysis/plotting/quantizer/scripts/plot_pre_vs_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0 --output thesis/Images/quantizer_only_comparison40.png --no-show
 python3 analysis/plotting/quantizer/scripts/plot_pre_vs_baseline_by_num_levels.py --vector-dimension 10000 --min-levels 5 --max-levels 100 --y-min 0.7 --y-max 1.0 --output thesis/Images/quantizer_only_comparison10k.png --no-show
 ```
@@ -83,6 +95,10 @@ cp analysis/plotting/quantizer/threshold_analysis/plots/threshold_hist_dataset_0
 
 Generate benchmark data with
 `analysis/experiment_runners/combined_optimization/run_combined_optimization_sweep.py`.
+
+```sh
+python3 analysis/experiment_runners/combined_optimization/run_combined_optimization_sweep.py --seeds 1,2,3,4,5 --binning-modes quantile,kmeans_1d,decision_tree_1d,chimerge
+```
 
 ```sh
 python3 analysis/plotting/combined_optimization/scripts/plot_post_vs_ga_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0 --output thesis/Images/combi_comparison.png --no-show

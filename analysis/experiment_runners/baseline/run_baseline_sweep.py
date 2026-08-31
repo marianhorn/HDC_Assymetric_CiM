@@ -223,7 +223,7 @@ def run_seed_sweep(
         start = time.perf_counter()
         with open(log_path, "w", encoding="utf-8") as log_file:
             log_file.write(
-                "=== baseline resource-saving run ===\n"
+                "=== baseline benchmark run ===\n"
                 f"timestamp={datetime.now().isoformat()}\n"
                 f"ITEM_MEM_SEED={item_mem_seed}\n"
                 f"NUM_LEVELS={num_levels}\n"
@@ -279,7 +279,7 @@ def run_seed_sweep(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run baseline resource-saving sweeps with uniform quantization and random CiM."
+        description="Run baseline benchmark sweeps with uniform quantization and an unoptimized CCIM."
     )
     parser.add_argument(
         "--skip-clean",

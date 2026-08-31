@@ -248,7 +248,7 @@ def write_run_header(output_file, run_index, total_runs, seed, mode_name, mode_v
 
 def write_log_header(output_file, seed, mode_name, mode_value, num_levels, vector_dimension):
     output_file.write(
-        "=== quantizer-and-cim resource-saving run ===\n"
+        "=== combined quantizer-and-CCIM benchmark run ===\n"
         f"timestamp={datetime.now().isoformat()}\n"
         f"ITEM_MEM_SEED={seed}\n"
         f"GA_DEFAULT_SEED={seed}\n"
@@ -331,7 +331,7 @@ def run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, runs, skip_clean)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run resource-saving sweeps with learned quantizers and GA item-memory optimization."
+        description="Run benchmark sweeps with learned quantizers and genetic CCIM optimization."
     )
     parser.add_argument(
         "--binning-modes",
@@ -395,7 +395,7 @@ def main():
 
             run_seed_sweep(mode_name, mode_value, seed, make_cmd_name, runs_for_seed, append_results)
 
-    print("\nFinished all quantizer-and-cim resource-saving sweeps.")
+    print("\nFinished all combined-optimization benchmark sweeps.")
 
 
 if __name__ == "__main__":

@@ -244,7 +244,7 @@ def run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_leve
         start = time.perf_counter()
         with open(log_path, 'w', encoding='utf-8') as log_file:
             log_file.write(
-                '=== quantizer-only resource-saving run ===\n'
+                '=== quantizer benchmark run ===\n'
                 f'timestamp={datetime.now().isoformat()}\n'
                 f'ITEM_MEM_SEED={item_mem_seed}\n'
                 f'BINNING_MODE={mode_value} ({mode_name})\n'
@@ -304,7 +304,7 @@ def run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_leve
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Run quantizer-only resource-saving sweeps for selected learned binning modes.'
+        description='Run benchmark sweeps for selected learned quantizers without CCIM optimization.'
     )
     parser.add_argument(
         '--binning-modes',
@@ -392,7 +392,7 @@ def main():
         for item_mem_seed in selected_seeds:
             run_seed_sweep(mode_name, mode_value, item_mem_seed, make_cmd_name, num_levels_values, vector_dimensions, args.skip_clean, runs_dir)
 
-    print('\nFinished all quantizer-only resource-saving sweeps.')
+    print('\nFinished all quantizer benchmark sweeps.')
 
 
 if __name__ == '__main__':
