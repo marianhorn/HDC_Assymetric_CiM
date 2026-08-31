@@ -146,6 +146,7 @@ DEPS = $(wildcard $(INCDIR)/*.h)
 # Targets
 TARGET_FOOT = $(BINDIR)/hdc_model
 TARGET_EXPORT_NAIVE_CIM = $(BINDIR)/export_naive_precomp_cim
+TARGET_EXPORT_SYSTEMC_IMPORTS = $(BINDIR)/export_systemc_foot_imports
 TARGET_EVALUATE_FINAL_CIMS = $(BINDIR)/evaluate_final_generation_cims
 
 # Build foot EMG model
@@ -162,6 +163,13 @@ $(TARGET_EXPORT_NAIVE_CIM): $(TOOLSDIR)/export_naive_precomp_cim.c $(SRCDIR)/ite
 	@mkdir -p $(BINDIR)
 	$(CC) $(CFLAGS) -o $@ $(TOOLSDIR)/export_naive_precomp_cim.c $(SRCDIR)/item_mem.c $(SRCDIR)/vector.c $(LDFLAGS)
 
+.PHONY: export_systemc_imports
+export_systemc_imports: $(TARGET_EXPORT_SYSTEMC_IMPORTS)
+
+$(TARGET_EXPORT_SYSTEMC_IMPORTS): $(TOOLSDIR)/export_systemc_foot_imports.c $(SRCDIR)/data_reader.c $(SRCDIR)/item_mem.c $(SRCDIR)/quantizer.c $(SRCDIR)/vector.c $(DEPS)
+	@mkdir -p $(BINDIR)
+	$(CC) $(CFLAGS) -o $@ $(TOOLSDIR)/export_systemc_foot_imports.c $(SRCDIR)/data_reader.c $(SRCDIR)/item_mem.c $(SRCDIR)/quantizer.c $(SRCDIR)/vector.c $(LDFLAGS)
+
 .PHONY: evaluate_final_cims
 evaluate_final_cims: $(TARGET_EVALUATE_FINAL_CIMS)
 
@@ -176,4 +184,4 @@ $(BINDIR)/%.o: $(SRCDIR)/%.c $(DEPS)
 
 .PHONY: clean
 clean:
-	rm -f $(BINDIR)/*.o $(TARGET_FOOT) $(TARGET_EXPORT_NAIVE_CIM) $(TARGET_EVALUATE_FINAL_CIMS)
+	rm -f $(BINDIR)/*.o $(TARGET_FOOT) $(TARGET_EXPORT_NAIVE_CIM) $(TARGET_EXPORT_SYSTEMC_IMPORTS) $(TARGET_EVALUATE_FINAL_CIMS)
