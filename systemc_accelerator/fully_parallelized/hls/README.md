@@ -2,7 +2,7 @@
 
 This directory synthesizes `HDC_Accelerator` with Cadence Stratus, verifies the
 generated RTL with Vivado XSim, and implements the AXI-stream wrapper with
-Vivado. Run all commands in this directory on `cae00` or `cae02`.
+Vivado. Run all commands in this directory on `cae02`.
 
 The configured target is `xcvu57p-fsvk2892-3-e` with a 10 ns clock. The HLS
 boundary contains only `../src/hdc_accelerator.cpp`; controller, dataset loading,
