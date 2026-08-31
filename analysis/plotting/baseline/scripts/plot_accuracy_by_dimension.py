@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Plot seed-averaged baseline accuracy over dimensions at fixed levels."""
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ except ImportError as exc:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BASELINE_DIR = SCRIPT_DIR.parent
-BENCHMARKING_DIR = BASELINE_DIR.parent
-DEFAULT_RUNS_DIR = BENCHMARKING_DIR.parent / "resource_saving" / "baseline" / "runs"
+PLOTTING_DIR = BASELINE_DIR.parent
+DEFAULT_RUNS_DIR = PLOTTING_DIR.parent / "experiment_runners" / "baseline" / "runs"
 DEFAULT_PLOTS_DIR = BASELINE_DIR / "plots"
 DEFAULT_RESULTS_DIR = BASELINE_DIR / "results"
 INFO_RE = re.compile(

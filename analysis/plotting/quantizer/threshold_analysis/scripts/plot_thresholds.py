@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Visualize exported learned quantizer thresholds across seeds and methods."""
 
 from __future__ import annotations
@@ -501,7 +501,7 @@ def main() -> None:
         if not has_curve_entries(curve_data):
             raise RuntimeError(
                 "No threshold curves found for the selected grid. Export thresholds first with "
-                "analysis/benchmarking/quantizer_only/scripts/export_quantizer_thresholds.py. "
+                "analysis/plotting/quantizer/scripts/export_quantizer_thresholds.py. "
                 "If you are using Bash/WSL, use backslash line continuations, not PowerShell backticks."
             )
         summary_path = write_curve_summary(args, curve_data)

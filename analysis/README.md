@@ -1,4 +1,4 @@
-# Thesis Analysis Reproduction
+﻿# Thesis Analysis Reproduction
 
 This directory contains only experiment runners, plotting scripts, and compact
 results used by the thesis. Run commands from the repository root. Generated
@@ -9,35 +9,35 @@ Python dependencies used by the plotting scripts are `matplotlib`, `numpy`, and
 
 ## N-gram size
 
-The compact CSV inputs are tracked in `analysis/ngram_size_sweep/`.
+The compact CSV inputs are tracked in `analysis/ngram_sweep/`.
 
 ```sh
-python3 analysis/ngram_size_sweep/plot_ngram_accuracy.py --min-ngram 1 --max-ngram 10
-cp analysis/ngram_size_sweep/ngram_accuracy_1_to_10_per_dataset.png thesis/Images/ngram.png
+python3 analysis/ngram_sweep/plot_ngram_accuracy.py --min-ngram 1 --max-ngram 10
+cp analysis/ngram_sweep/ngram_accuracy_1_to_10_per_dataset.png thesis/Images/ngram.png
 ```
 
 ## Baseline
 
-Generate benchmark data with `analysis/resource_saving/baseline/run_baseline_sweep.py`.
+Generate benchmark data with `analysis/experiment_runners/baseline/run_baseline_sweep.py`.
 The plotting commands used for the thesis are:
 
 ```sh
-python3 analysis/benchmarking/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 20000 --output thesis/Images/baseline_lvl40_full.png --no-show
-python3 analysis/benchmarking/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 5000 --dimension-grid all --output thesis/Images/baseline_lvl40_lowDims.png --no-show
-python3 analysis/benchmarking/baseline/scripts/plot_accuracy_by_num_levels.py --vector-dimension 10000 --min-num-levels 5 --max-num-levels 200 --output thesis/Images/baseline_dim10k_full.png --no-show
+python3 analysis/plotting/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 20000 --output thesis/Images/baseline_lvl40_full.png --no-show
+python3 analysis/plotting/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 5000 --dimension-grid all --output thesis/Images/baseline_lvl40_lowDims.png --no-show
+python3 analysis/plotting/baseline/scripts/plot_accuracy_by_num_levels.py --vector-dimension 10000 --min-num-levels 5 --max-num-levels 200 --output thesis/Images/baseline_dim10k_full.png --no-show
 ```
 
 ## Genetic CCIM optimization
 
 Generate the GA-only dimension sweep with
-`analysis/resource_saving/cim_only/run_cim_only_sweep.py`.
+`analysis/experiment_runners/ccim_optimization/run_ccim_optimization_sweep.py`.
 
 ```sh
-python3 analysis/benchmarking/ga_only/scripts/plot_pre_vs_post_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.8 --y-max 1.0 --output thesis/Images/ga_only_comparison.png --no-show
+python3 analysis/plotting/ccim_optimization/scripts/plot_pre_vs_post_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.8 --y-max 1.0 --output thesis/Images/ga_only_comparison.png --no-show
 ```
 
 The Dataset 3 convergence logs and final-candidate evaluation are tracked under
-`analysis/CiM_evaluation/dataset3_ga_cim_exports/`. Recreate the convergence
+`analysis/ccim_analysis/dataset3_ga_cim_exports/`. Recreate the convergence
 figure with:
 
 The checked-in seed-1 convergence log is truncated and does not contain all 64
@@ -45,54 +45,54 @@ generations. Regenerate that log before reproducing the exact five-seed thesis
 figure:
 
 ```sh
-python3 analysis/CiM_evaluation/run_dataset3_ga_cim_exports.py --datasets 3 --seeds 1 --num-levels 40 --vector-dimension 10000 --population-size 128 --generations 64
-cp analysis/CiM_evaluation/ga_cim_exports/output_dataset03_seed01_l40_d10000_pop128_gen64.txt analysis/CiM_evaluation/dataset3_ga_cim_exports/output_dataset03_seed01_l40_d10000.txt
+python3 analysis/ccim_analysis/run_dataset3_ga_cim_exports.py --datasets 3 --seeds 1 --num-levels 40 --vector-dimension 10000 --population-size 128 --generations 64
+cp analysis/ccim_analysis/ga_cim_exports/output_dataset03_seed01_l40_d10000_pop128_gen64.txt analysis/ccim_analysis/dataset3_ga_cim_exports/output_dataset03_seed01_l40_d10000.txt
 ```
 
 ```sh
-python3 analysis/CiM_evaluation/plot_ga_run_convergence.py --logs analysis/CiM_evaluation/dataset3_ga_cim_exports/output_dataset03_seed*_l40_d10000.txt --output-dir analysis/CiM_evaluation/plots/ga_run_convergence
-cp analysis/CiM_evaluation/plots/ga_run_convergence/aggregate_accuracy_convergence.png thesis/Images/ga_convergence.png
+python3 analysis/ccim_analysis/plot_ga_run_convergence.py --logs analysis/ccim_analysis/dataset3_ga_cim_exports/output_dataset03_seed*_l40_d10000.txt --output-dir analysis/ccim_analysis/plots/ga_run_convergence
+cp analysis/ccim_analysis/plots/ga_run_convergence/aggregate_accuracy_convergence.png thesis/Images/ga_convergence.png
 ```
 
 Reproduce the first-Pareto-front table and correlations with:
 
 ```sh
-python3 analysis/CiM_evaluation/analyze_pareto_front.py
+python3 analysis/ccim_analysis/analyze_pareto_front.py
 ```
 
 GA CCIM exports are generated by
-`analysis/CiM_evaluation/run_dataset3_ga_cim_exports.py`. The thesis CCIM plot
+`analysis/ccim_analysis/run_dataset3_ga_cim_exports.py`. The thesis CCIM plot
 uses the Dataset 3, seed 1 export and the real equally spaced reference:
 
 ```sh
-RUN="$(basename "$(ls -td analysis/cim_data/ga_run_*dataset03_seed01_l40_d10000_pop128_gen64 | head -1)")"
-python3 analysis/CiM_evaluation/analyze_ga_cim.py --run "$RUN" --generation 64 --individual 85 --reference-cim analysis/cim_data/naive_l40_d10000_seed01/generation_0000/cim_0000.csv
-cp analysis/CiM_evaluation/plots/${RUN}_gen0064_cim0085/adjacent_distances.png thesis/Images/CCIM_optimized.png
+RUN="$(basename "$(ls -td analysis/generated_data/ccim_exports/ga_run_*dataset03_seed01_l40_d10000_pop128_gen64 | head -1)")"
+python3 analysis/ccim_analysis/analyze_ga_cim.py --run "$RUN" --generation 64 --individual 85 --reference-cim analysis/generated_data/ccim_exports/naive_l40_d10000_seed01/generation_0000/cim_0000.csv
+cp analysis/ccim_analysis/plots/${RUN}_gen0064_cim0085/adjacent_distances.png thesis/Images/CCIM_optimized.png
 ```
 
 ## Quantization
 
 Generate benchmark data with
-`analysis/resource_saving/quantizer_only/run_quantizer_only_sweep.py`.
+`analysis/experiment_runners/quantizer/run_quantizer_sweep.py`.
 
 ```sh
-python3 analysis/benchmarking/quantizer_only/scripts/plot_pre_vs_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0 --output thesis/Images/quantizer_only_comparison40.png --no-show
-python3 analysis/benchmarking/quantizer_only/scripts/plot_pre_vs_baseline_by_num_levels.py --vector-dimension 10000 --min-levels 5 --max-levels 100 --y-min 0.7 --y-max 1.0 --output thesis/Images/quantizer_only_comparison10k.png --no-show
+python3 analysis/plotting/quantizer/scripts/plot_pre_vs_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0 --output thesis/Images/quantizer_only_comparison40.png --no-show
+python3 analysis/plotting/quantizer/scripts/plot_pre_vs_baseline_by_num_levels.py --vector-dimension 10000 --min-levels 5 --max-levels 100 --y-min 0.7 --y-max 1.0 --output thesis/Images/quantizer_only_comparison10k.png --no-show
 ```
 
 Export the threshold inputs and recreate the threshold/distribution figure:
 
 ```sh
-python3 analysis/benchmarking/quantizer_only/scripts/export_quantizer_thresholds.py --num-levels 40 --vector-dimension 10000 --seed 1 --include-uniform
-python3 analysis/benchmarking/quantizer_only/threshold_analysis/scripts/plot_thresholds_with_histogram.py --dataset 0 --feature 15 --seed 1 --num-levels 40 --vector-dimension 10000 --methods all --no-show
-cp analysis/benchmarking/quantizer_only/threshold_analysis/plots/threshold_hist_dataset_00_feature_015_seed_01_levels_040_dim_10000.png thesis/Images/quantizer_histogram.png
+python3 analysis/plotting/quantizer/scripts/export_quantizer_thresholds.py --num-levels 40 --vector-dimension 10000 --seed 1 --include-uniform
+python3 analysis/plotting/quantizer/threshold_analysis/scripts/plot_thresholds_with_histogram.py --dataset 0 --feature 15 --seed 1 --num-levels 40 --vector-dimension 10000 --methods all --no-show
+cp analysis/plotting/quantizer/threshold_analysis/plots/threshold_hist_dataset_00_feature_015_seed_01_levels_040_dim_10000.png thesis/Images/quantizer_histogram.png
 ```
 
 ## Combined optimization
 
 Generate benchmark data with
-`analysis/resource_saving/quantizer_and_cim/run_quantizer_and_cim_sweep.py`.
+`analysis/experiment_runners/combined_optimization/run_combined_optimization_sweep.py`.
 
 ```sh
-python3 analysis/benchmarking/zzBoth/scripts/plot_post_vs_ga_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0 --output thesis/Images/combi_comparison.png --no-show
+python3 analysis/plotting/combined_optimization/scripts/plot_post_vs_ga_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0 --output thesis/Images/combi_comparison.png --no-show
 ```

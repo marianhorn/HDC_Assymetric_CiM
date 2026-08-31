@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Plot GA-only preopt vs postopt test accuracy over dimensions."""
 
 from __future__ import annotations
@@ -23,14 +23,14 @@ except ImportError as exc:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-GA_ONLY_DIR = SCRIPT_DIR.parent
-BENCHMARKING_DIR = GA_ONLY_DIR.parent
-DEFAULT_RUNS_DIR = BENCHMARKING_DIR.parent / "resource_saving" / "cim_only" / "runs"
+CCIM_OPTIMIZATION_DIR = SCRIPT_DIR.parent
+PLOTTING_DIR = CCIM_OPTIMIZATION_DIR.parent
+DEFAULT_RUNS_DIR = PLOTTING_DIR.parent / "experiment_runners" / "ccim_optimization" / "runs"
 DEFAULT_BASELINE_RUNS_DIR = (
-    BENCHMARKING_DIR.parent / "resource_saving" / "baseline" / "runs"
+    PLOTTING_DIR.parent / "experiment_runners" / "baseline" / "runs"
 )
-DEFAULT_PLOTS_DIR = GA_ONLY_DIR / "plots"
-DEFAULT_RESULTS_DIR = GA_ONLY_DIR / "results"
+DEFAULT_PLOTS_DIR = CCIM_OPTIMIZATION_DIR / "plots"
+DEFAULT_RESULTS_DIR = CCIM_OPTIMIZATION_DIR / "results"
 INFO_RE = re.compile(
     r"scope=dataset,dataset=(?P<dataset>\d+),"
     r"phase=(?P<phase>preopt|postopt)-(?P<split>validation|test)"
@@ -664,7 +664,7 @@ def main() -> None:
     output = args.output or (
         DEFAULT_PLOTS_DIR
         / (
-            f"ga_only_pre_vs_post_levels_{args.num_levels:03d}_test"
+            f"ccim_optimization_pre_vs_post_levels_{args.num_levels:03d}_test"
             f"{output_range_suffix(args)}.png"
         )
     )
@@ -673,7 +673,7 @@ def main() -> None:
     csv_output = (
         DEFAULT_RESULTS_DIR
         / (
-            f"ga_only_pre_vs_post_levels_{args.num_levels:03d}_test"
+            f"ccim_optimization_pre_vs_post_levels_{args.num_levels:03d}_test"
             f"{output_range_suffix(args)}.csv"
         )
     ).resolve()

@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import csv
 import os
 import shutil
@@ -50,7 +50,7 @@ def find_model_binary():
 
 
 def build_runs():
-    """Grid points present in cim_uniform but missing in quantizer_and_cim.
+    """Grid points present in cim_uniform but missing in combined optimization.
 
     Restricted to NUM_LEVELS <= 50 and VECTOR_DIMENSION <= 2000.
     These are grouped by repeated dimension patterns to keep the list explicit

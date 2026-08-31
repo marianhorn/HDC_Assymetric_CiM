@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Plot quantizer-only test accuracy over NUM_LEVELS against uniform baseline."""
+﻿#!/usr/bin/env python3
+"""Plot quantizer-only test accuracy over dimensions against uniform baseline."""
 
 from __future__ import annotations
 
@@ -23,12 +23,12 @@ except ImportError as exc:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-QUANTIZER_ONLY_DIR = SCRIPT_DIR.parent
-BENCHMARKING_DIR = QUANTIZER_ONLY_DIR.parent
-DEFAULT_RUNS_ROOT = BENCHMARKING_DIR.parent / "resource_saving" / "quantizer_only" / "runs"
-DEFAULT_BASELINE_RUNS_DIR = BENCHMARKING_DIR.parent / "resource_saving" / "baseline" / "runs"
-DEFAULT_PLOTS_DIR = QUANTIZER_ONLY_DIR / "plots"
-DEFAULT_RESULTS_DIR = QUANTIZER_ONLY_DIR / "results"
+QUANTIZER_DIR = SCRIPT_DIR.parent
+PLOTTING_DIR = QUANTIZER_DIR.parent
+DEFAULT_RUNS_ROOT = PLOTTING_DIR.parent / "experiment_runners" / "quantizer" / "runs"
+DEFAULT_BASELINE_RUNS_DIR = PLOTTING_DIR.parent / "experiment_runners" / "baseline" / "runs"
+DEFAULT_PLOTS_DIR = QUANTIZER_DIR / "plots"
+DEFAULT_RESULTS_DIR = QUANTIZER_DIR / "results"
 REFERENCE_DIMENSION = 10000
 REFERENCE_NUM_LEVELS = 40
 INFO_RE = re.compile(
@@ -87,25 +87,25 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Plot learned quantizer preopt-test accuracy against uniform "
-            "baseline preopt-test accuracy over NUM_LEVELS."
+            "baseline preopt-test accuracy."
         )
     )
-    parser.add_argument("--vector-dimension", type=int, default=10000)
+    parser.add_argument("--num-levels", type=int, default=40)
     parser.add_argument(
         "--binning-modes",
         default=",".join(DEFAULT_MODES),
         help="Comma-separated modes. Default: quantile,kmeans_1d,decision_tree_1d,chimerge.",
     )
     parser.add_argument("--metric", default="overall_accuracy")
-    parser.add_argument("--min-levels", type=int)
-    parser.add_argument("--max-levels", type=int)
+    parser.add_argument("--min-dimension", type=int)
+    parser.add_argument("--max-dimension", type=int)
     parser.add_argument("--y-min", type=float)
     parser.add_argument("--y-max", type=float)
     parser.add_argument(
         "--sample-step",
         type=int,
         default=1,
-        help="Plot every Nth NUM_LEVELS value after filtering. Default: 1.",
+        help="Plot every Nth dimension after filtering. Default: 1.",
     )
     parser.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     parser.add_argument("--baseline-runs-dir", type=Path, default=DEFAULT_BASELINE_RUNS_DIR)
@@ -119,11 +119,11 @@ def parse_args() -> argparse.Namespace:
 
 def validate_args(args: argparse.Namespace) -> None:
     if (
-        args.min_levels is not None
-        and args.max_levels is not None
-        and args.min_levels > args.max_levels
+        args.min_dimension is not None
+        and args.max_dimension is not None
+        and args.min_dimension > args.max_dimension
     ):
-        raise ValueError("--min-levels must be <= --max-levels")
+        raise ValueError("--min-dimension must be <= --max-dimension")
     if args.y_min is not None and args.y_max is not None and args.y_min >= args.y_max:
         raise ValueError("--y-min must be < --y-max")
     if args.sample_step < 1:
@@ -134,9 +134,9 @@ def load_rows(
     runs_dir: Path,
     source: str,
     metric: str,
-    vector_dimension: int,
-    min_levels: int | None,
-    max_levels: int | None,
+    num_levels: int,
+    min_dimension: int | None,
+    max_dimension: int | None,
 ) -> list[dict[str, object]]:
     result_paths = sorted(runs_dir.resolve().glob("seed_*/results.csv"))
     if not result_paths:
@@ -156,23 +156,23 @@ def load_rows(
                 info_match = INFO_RE.search(row["info"])
                 if info_match is None:
                     continue
-                levels = int(row["num_levels"])
+                dimension = int(row["vector_dimension"])
                 if (
-                    int(row["vector_dimension"]) != vector_dimension
+                    int(row["num_levels"]) != num_levels
                     or info_match.group("phase") != "preopt"
                     or info_match.group("split") != "test"
                 ):
                     continue
-                if min_levels is not None and levels < min_levels:
+                if min_dimension is not None and dimension < min_dimension:
                     continue
-                if max_levels is not None and levels > max_levels:
+                if max_dimension is not None and dimension > max_dimension:
                     continue
                 rows.append(
                     {
                         "source": source,
                         "seed": seed,
                         "dataset": int(info_match.group("dataset")),
-                        "num_levels": levels,
+                        "vector_dimension": dimension,
                         "value": float(row[metric]),
                     }
                 )
@@ -182,18 +182,18 @@ def load_rows(
 def aggregate(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     groups: dict[tuple[str, int, int], list[tuple[int, float]]] = defaultdict(list)
     for row in rows:
-        key = (str(row["source"]), int(row["dataset"]), int(row["num_levels"]))
+        key = (str(row["source"]), int(row["dataset"]), int(row["vector_dimension"]))
         groups[key].append((int(row["seed"]), float(row["value"])))
 
     averaged = []
-    for (source, dataset, levels), values in sorted(groups.items()):
+    for (source, dataset, dimension), values in sorted(groups.items()):
         measurements = [value for _, value in values]
         seeds = sorted({seed for seed, _ in values})
         averaged.append(
             {
                 "source": source,
                 "dataset": dataset,
-                "num_levels": levels,
+                "vector_dimension": dimension,
                 "mean": statistics.fmean(measurements),
                 "std": statistics.stdev(measurements) if len(measurements) > 1 else 0.0,
                 "seed_count": len(seeds),
@@ -208,10 +208,10 @@ def add_dataset_average(rows: list[dict[str, object]]) -> list[dict[str, object]
     for row in rows:
         if int(row["dataset"]) < 0:
             continue
-        groups[(str(row["source"]), int(row["num_levels"]))].append(row)
+        groups[(str(row["source"]), int(row["vector_dimension"]))].append(row)
 
     with_average = list(rows)
-    for (source, levels), values in sorted(groups.items()):
+    for (source, dimension), values in sorted(groups.items()):
         means = [float(row["mean"]) for row in values]
         if not means:
             continue
@@ -221,7 +221,7 @@ def add_dataset_average(rows: list[dict[str, object]]) -> list[dict[str, object]
             {
                 "source": source,
                 "dataset": -1,
-                "num_levels": levels,
+                "vector_dimension": dimension,
                 "mean": statistics.fmean(means),
                 "std": statistics.stdev(means) if len(means) > 1 else 0.0,
                 "seed_count": len(common_seeds),
@@ -233,52 +233,54 @@ def add_dataset_average(rows: list[dict[str, object]]) -> list[dict[str, object]
         key=lambda row: (
             int(row["dataset"]) if int(row["dataset"]) >= 0 else 999,
             str(row["source"]),
-            int(row["num_levels"]),
+            int(row["vector_dimension"]),
         ),
     )
 
 
-def sample_levels(rows: list[dict[str, object]], sample_step: int) -> list[dict[str, object]]:
+def sample_dimensions(rows: list[dict[str, object]], sample_step: int) -> list[dict[str, object]]:
     if sample_step == 1:
         return rows
     sampled = []
     for dataset in sorted({int(row["dataset"]) for row in rows}):
-        levels = sorted({int(row["num_levels"]) for row in rows if int(row["dataset"]) == dataset})
-        keep = set(levels[::sample_step])
+        dimensions = sorted(
+            {int(row["vector_dimension"]) for row in rows if int(row["dataset"]) == dataset}
+        )
+        keep = set(dimensions[::sample_step])
         sampled.extend(
             row
             for row in rows
-            if int(row["dataset"]) == dataset and int(row["num_levels"]) in keep
+            if int(row["dataset"]) == dataset and int(row["vector_dimension"]) in keep
         )
     return sampled
 
 
-def keep_common_levels(rows: list[dict[str, object]], sources: list[str]) -> list[dict[str, object]]:
+def keep_common_dimensions(rows: list[dict[str, object]], sources: list[str]) -> list[dict[str, object]]:
     filtered = []
     for dataset in sorted({int(row["dataset"]) for row in rows}):
         dataset_rows = [row for row in rows if int(row["dataset"]) == dataset]
-        levels_by_source = {
+        dimensions_by_source = {
             source: {
-                int(row["num_levels"])
+                int(row["vector_dimension"])
                 for row in dataset_rows
                 if str(row["source"]) == source
             }
             for source in sources
         }
-        if any(not levels for levels in levels_by_source.values()):
+        if any(not dimensions for dimensions in dimensions_by_source.values()):
             continue
-        common_levels = set.intersection(*levels_by_source.values())
+        common_dimensions = set.intersection(*dimensions_by_source.values())
         filtered.extend(
             row
             for row in dataset_rows
-            if int(row["num_levels"]) in common_levels
+            if int(row["vector_dimension"]) in common_dimensions
         )
     return sorted(
         filtered,
         key=lambda row: (
             int(row["dataset"]) if int(row["dataset"]) >= 0 else 999,
             str(row["source"]),
-            int(row["num_levels"]),
+            int(row["vector_dimension"]),
         ),
     )
 
@@ -307,17 +309,17 @@ def format_pp(value: Optional[float]) -> str:
     return f"{100.0 * value:+.2f}pp"
 
 
-def summarize_grid(values: list[int]) -> str:
-    if not values:
+def summarize_grid(dimensions: list[int]) -> str:
+    if not dimensions:
         return "n/a"
-    if len(values) == 1:
-        return str(values[0])
+    if len(dimensions) == 1:
+        return str(dimensions[0])
 
     ranges = []
-    start = values[0]
-    prev = values[0]
+    start = dimensions[0]
+    prev = dimensions[0]
     step = None
-    for current in values[1:]:
+    for current in dimensions[1:]:
         current_step = current - prev
         if step is None:
             step = current_step
@@ -337,23 +339,23 @@ def summarize_grid(values: list[int]) -> str:
     return "; ".join(parts)
 
 
-def print_level_grid(rows: list[dict[str, object]], args: argparse.Namespace) -> None:
+def print_grid_resolution(rows: list[dict[str, object]], args: argparse.Namespace) -> None:
     print()
-    print("NUM_LEVELS grid by plotted source after common-level filtering")
-    print("source levels range_summary")
+    print("Dimension grid by plotted source after common-dimension filtering")
+    print("source dimensions range_summary")
     ordered_sources = ["baseline"] + args.binning_modes
     for source in ordered_sources:
-        levels = sorted(
+        dims = sorted(
             {
-                int(row["num_levels"])
+                int(row["vector_dimension"])
                 for row in rows
                 if str(row["source"]) == source and int(row["dataset"]) >= 0
             }
         )
         print(
             f"{LABELS.get(source, source):>22s} "
-            f"{len(levels):6d} "
-            f"{summarize_grid(levels)}"
+            f"{len(dims):10d} "
+            f"{summarize_grid(dims)}"
         )
 
 
@@ -365,21 +367,21 @@ def print_main_results(
     print()
     print("Main results")
     print(
-        "dataset source endpoint_levels endpoint_acc diff_to_uniform "
-        "reference_acc diff_to_reference best_levels best_acc"
+        "dataset source endpoint_dim endpoint_acc diff_to_uniform "
+        "reference_acc diff_to_reference best_dim best_acc"
     )
 
     sources = ["baseline"] + args.binning_modes
     datasets = sorted({int(row["dataset"]) for row in rows})
     for dataset in datasets:
         dataset_rows = [row for row in rows if int(row["dataset"]) == dataset]
-        endpoint_levels = max(int(row["num_levels"]) for row in dataset_rows)
+        endpoint_dim = max(int(row["vector_dimension"]) for row in dataset_rows)
         baseline_endpoint = next(
             (
                 float(row["mean"])
                 for row in dataset_rows
                 if str(row["source"]) == "baseline"
-                and int(row["num_levels"]) == endpoint_levels
+                and int(row["vector_dimension"]) == endpoint_dim
             ),
             None,
         )
@@ -393,9 +395,9 @@ def print_main_results(
                 (
                     row
                     for row in source_rows
-                    if int(row["num_levels"]) == endpoint_levels
+                    if int(row["vector_dimension"]) == endpoint_dim
                 ),
-                max(source_rows, key=lambda row: int(row["num_levels"])),
+                max(source_rows, key=lambda row: int(row["vector_dimension"])),
             )
             endpoint_acc = float(endpoint_row["mean"])
             best_row = max(source_rows, key=lambda row: float(row["mean"]))
@@ -408,24 +410,24 @@ def print_main_results(
             print(
                 f"{dataset_label(dataset):>15s} "
                 f"{LABELS.get(source, source):>22s} "
-                f"{int(endpoint_row['num_levels']):15d} "
+                f"{int(endpoint_row['vector_dimension']):12d} "
                 f"{format_percent(endpoint_acc):>12s} "
                 f"{format_pp(diff_to_uniform):>15s} "
                 f"{format_percent(reference):>13s} "
                 f"{format_pp(diff_to_reference):>17s} "
-                f"{int(best_row['num_levels']):11d} "
+                f"{int(best_row['vector_dimension']):8d} "
                 f"{format_percent(float(best_row['mean'])):>9s}"
             )
 
 
 def print_configurations(rows: list[dict[str, object]], args: argparse.Namespace) -> None:
-    levels = sorted({int(row["num_levels"]) for row in rows})
+    dimensions = sorted({int(row["vector_dimension"]) for row in rows})
     datasets = sorted({int(row["dataset"]) for row in rows})
     sources = sorted({str(row["source"]) for row in rows})
     seeds = sorted({seed for row in rows for seed in row["seeds"]})
 
     print("Selected quantizer-vs-baseline configurations")
-    print(f"  VECTOR_DIMENSION: {args.vector_dimension}")
+    print(f"  NUM_LEVELS: {args.num_levels}")
     print("  phase: preopt-test")
     print(f"  metric: {args.metric}")
     print(f"  sources: {', '.join(LABELS.get(source, source) for source in sources)}")
@@ -436,21 +438,21 @@ def print_configurations(rows: list[dict[str, object]], args: argparse.Namespace
     dataset_text = ", ".join("average" if dataset < 0 else str(dataset) for dataset in datasets)
     print(f"  datasets: {dataset_text}")
     print(f"  seeds: {', '.join(map(str, seeds))}")
-    if args.min_levels is not None or args.max_levels is not None:
-        print(f"  NUM_LEVELS range: {args.min_levels}..{args.max_levels}")
+    if args.min_dimension is not None or args.max_dimension is not None:
+        print(f"  dimension range: {args.min_dimension}..{args.max_dimension}")
     if args.y_min is not None or args.y_max is not None:
         print(f"  y range: {args.y_min}..{args.y_max}")
     if args.sample_step != 1:
-        print(f"  sample step: every {args.sample_step} NUM_LEVELS value")
-    print(f"  NUM_LEVELS ({len(levels)}): {', '.join(map(str, levels))}")
+        print(f"  sample step: every {args.sample_step} dimension value")
+    print(f"  dimensions ({len(dimensions)}): {', '.join(map(str, dimensions))}")
 
 
 def output_suffix(args: argparse.Namespace) -> str:
-    parts = [f"dim_{args.vector_dimension:05d}", "modes_" + "_".join(args.binning_modes)]
-    if args.min_levels is not None or args.max_levels is not None:
-        lo = "min" if args.min_levels is None else str(args.min_levels)
-        hi = "max" if args.max_levels is None else str(args.max_levels)
-        parts.append(f"levels_{lo}_{hi}")
+    parts = [f"levels_{args.num_levels:03d}", "modes_" + "_".join(args.binning_modes)]
+    if args.min_dimension is not None or args.max_dimension is not None:
+        lo = "min" if args.min_dimension is None else str(args.min_dimension)
+        hi = "max" if args.max_dimension is None else str(args.max_dimension)
+        parts.append(f"dim_{lo}_{hi}")
     if args.y_min is not None or args.y_max is not None:
         lo = "min" if args.y_min is None else f"{args.y_min:g}"
         hi = "max" if args.y_max is None else f"{args.y_max:g}"
@@ -464,7 +466,15 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as output_file:
         writer = csv.DictWriter(
             output_file,
-            fieldnames=["source", "dataset", "num_levels", "mean", "std", "seed_count", "seeds"],
+            fieldnames=[
+                "source",
+                "dataset",
+                "vector_dimension",
+                "mean",
+                "std",
+                "seed_count",
+                "seeds",
+            ],
         )
         writer.writeheader()
         for row in rows:
@@ -499,7 +509,7 @@ def plot_png(
             if not values:
                 continue
             ax.plot(
-                [int(row["num_levels"]) for row in values],
+                [int(row["vector_dimension"]) for row in values],
                 [float(row["mean"]) for row in values],
                 linewidth=1.8,
                 linestyle="--" if source == "baseline" else "-",
@@ -522,14 +532,14 @@ def plot_png(
 
     for ax in axes[:, 0]:
         ax.set_xlim(
-            args.min_levels if args.min_levels is not None else None,
-            args.max_levels if args.max_levels is not None else None,
+            args.min_dimension if args.min_dimension is not None else None,
+            args.max_dimension if args.max_dimension is not None else None,
         )
         ax.set_ylim(
             args.y_min if args.y_min is not None else 0.0,
             args.y_max if args.y_max is not None else 1.0,
         )
-    axes[-1, 0].set_xlabel("Number of levels")
+    axes[-1, 0].set_xlabel("Vector dimension")
     fig.tight_layout()
     fig.savefig(path, dpi=220, bbox_inches="tight")
     if not args.no_show:
@@ -545,11 +555,11 @@ def write_html(
 ) -> None:
     datasets = sorted({int(row["dataset"]) for row in rows})
     sources = ["baseline"] + args.binning_modes
-    levels = sorted({int(row["num_levels"]) for row in rows})
+    dimensions = sorted({int(row["vector_dimension"]) for row in rows})
     means = {
         dataset: {
             source: {
-                int(row["num_levels"]): float(row["mean"])
+                int(row["vector_dimension"]): float(row["mean"])
                 for row in rows
                 if int(row["dataset"]) == dataset and str(row["source"]) == source
             }
@@ -557,7 +567,7 @@ def write_html(
         }
         for dataset in datasets
     }
-    title = f"Quantizer-only comparison at dimension {args.vector_dimension}"
+    title = f"Quantizer-only comparison at {args.num_levels} levels"
     y_min = 0.0 if args.y_min is None else args.y_min
     y_max = 1.0 if args.y_max is None else args.y_max
     html_text = f"""<!doctype html>
@@ -574,17 +584,17 @@ def write_html(
     const sources = {sources!r};
     const labels = {LABELS!r};
     const colors = {COLORS!r};
-    const levels = {levels!r};
+    const dimensions = {dimensions!r};
     const means = {means!r};
     const references = {references!r};
     const traces = [];
     datasets.forEach((dataset, datasetIndex) => {{
       sources.forEach(source => {{
-        const x = levels.filter(level => means[dataset][source][level] !== undefined);
+        const x = dimensions.filter(d => means[dataset][source][d] !== undefined);
         if (x.length === 0) return;
         traces.push({{
           x,
-          y: x.map(level => means[dataset][source][level]),
+          y: x.map(d => means[dataset][source][d]),
           mode: "lines",
           name: `${{labels[source] || source}} / ${{dataset < 0 ? "dataset average" : "dataset " + dataset}}`,
           xaxis: `x${{datasetIndex + 1}}`,
@@ -594,8 +604,8 @@ def write_html(
       }});
       if (references[dataset] !== undefined) {{
         traces.push({{
-          x: levels,
-          y: levels.map(_ => references[dataset]),
+          x: dimensions,
+          y: dimensions.map(_ => references[dataset]),
           mode: "lines",
           name: `${{labels.reference}} / ${{dataset < 0 ? "dataset average" : "dataset " + dataset}}`,
           xaxis: `x${{datasetIndex + 1}}`,
@@ -611,7 +621,7 @@ def write_html(
     }};
     datasets.forEach((dataset, idx) => {{
       const suffix = idx === 0 ? "" : String(idx + 1);
-      layout[`xaxis${{suffix}}`] = {{ title: idx === datasets.length - 1 ? "Number of levels" : "" }};
+      layout[`xaxis${{suffix}}`] = {{ title: idx === datasets.length - 1 ? "Vector dimension" : "" }};
       layout[`yaxis${{suffix}}`] = {{ title: "Accuracy", tickformat: ".0%", range: [{y_min}, {y_max}] }};
     }});
     Plotly.newPlot("plot", traces, layout);
@@ -628,9 +638,9 @@ def main() -> None:
         args.baseline_runs_dir,
         "baseline",
         args.metric,
-        args.vector_dimension,
-        args.min_levels,
-        args.max_levels,
+        args.num_levels,
+        args.min_dimension,
+        args.max_dimension,
     )
     for mode in args.binning_modes:
         rows.extend(
@@ -638,36 +648,36 @@ def main() -> None:
                 args.runs_root / f"binning_mode_{mode}",
                 mode,
                 args.metric,
-                args.vector_dimension,
-                args.min_levels,
-                args.max_levels,
+                args.num_levels,
+                args.min_dimension,
+                args.max_dimension,
             )
         )
     reference_rows = load_rows(
         args.baseline_runs_dir,
         "reference",
         args.metric,
+        REFERENCE_NUM_LEVELS,
         REFERENCE_DIMENSION,
-        REFERENCE_NUM_LEVELS,
-        REFERENCE_NUM_LEVELS,
+        REFERENCE_DIMENSION,
     )
     if not rows:
         raise RuntimeError("No rows selected")
 
     sources = ["baseline"] + args.binning_modes
     averaged = add_dataset_average(aggregate(rows))
-    averaged = keep_common_levels(averaged, sources)
-    averaged = sample_levels(averaged, args.sample_step)
+    averaged = keep_common_dimensions(averaged, sources)
+    averaged = sample_dimensions(averaged, args.sample_step)
     references = reference_values(add_dataset_average(aggregate(reference_rows)))
     print_configurations(averaged, args)
-    print_level_grid(averaged, args)
+    print_grid_resolution(averaged, args)
     print_main_results(averaged, references, args)
 
     suffix = output_suffix(args)
-    output = args.output or DEFAULT_PLOTS_DIR / f"quantizer_only_vs_baseline_by_levels_{suffix}.png"
+    output = args.output or DEFAULT_PLOTS_DIR / f"quantizer_vs_baseline_{suffix}.png"
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    csv_output = (DEFAULT_RESULTS_DIR / f"quantizer_only_vs_baseline_by_levels_{suffix}.csv").resolve()
+    csv_output = (DEFAULT_RESULTS_DIR / f"quantizer_vs_baseline_{suffix}.csv").resolve()
     csv_output.parent.mkdir(parents=True, exist_ok=True)
     html_output = output.with_suffix(".html")
 

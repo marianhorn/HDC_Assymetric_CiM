@@ -39,7 +39,7 @@ static void write_naive_cim_csv(const struct item_memory *item_mem, const char *
 }
 
 int main(int argc, char **argv) {
-    const char *out_path = argc > 1 ? argv[1] : "analysis/cim_data/naive_precomp_cim.csv";
+    const char *out_path = argc > 1 ? argv[1] : "analysis/generated_data/ccim_exports/naive_precomp_cim.csv";
 
     struct item_memory item_mem;
     init_precomp_item_memory(&item_mem, NUM_LEVELS, NUM_FEATURES);

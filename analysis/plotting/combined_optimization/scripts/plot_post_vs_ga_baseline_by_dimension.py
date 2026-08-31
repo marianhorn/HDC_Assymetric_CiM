@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Plot quantizer-only test accuracy over dimensions against uniform baseline."""
+﻿#!/usr/bin/env python3
+"""Plot quantizer+GA test accuracy over dimensions against GA-only baseline."""
 
 from __future__ import annotations
 
@@ -23,12 +23,13 @@ except ImportError as exc:
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-QUANTIZER_ONLY_DIR = SCRIPT_DIR.parent
-BENCHMARKING_DIR = QUANTIZER_ONLY_DIR.parent
-DEFAULT_RUNS_ROOT = BENCHMARKING_DIR.parent / "resource_saving" / "quantizer_only" / "runs"
-DEFAULT_BASELINE_RUNS_DIR = BENCHMARKING_DIR.parent / "resource_saving" / "baseline" / "runs"
-DEFAULT_PLOTS_DIR = QUANTIZER_ONLY_DIR / "plots"
-DEFAULT_RESULTS_DIR = QUANTIZER_ONLY_DIR / "results"
+COMBINED_OPTIMIZATION_DIR = SCRIPT_DIR.parent
+PLOTTING_DIR = COMBINED_OPTIMIZATION_DIR.parent
+DEFAULT_RUNS_ROOT = PLOTTING_DIR.parent / "experiment_runners" / "combined_optimization" / "runs"
+DEFAULT_BASELINE_RUNS_DIR = PLOTTING_DIR.parent / "experiment_runners" / "ccim_optimization" / "runs"
+DEFAULT_NOGA_BASELINE_RUNS_DIR = PLOTTING_DIR.parent / "experiment_runners" / "baseline" / "runs"
+DEFAULT_PLOTS_DIR = COMBINED_OPTIMIZATION_DIR / "plots"
+DEFAULT_RESULTS_DIR = COMBINED_OPTIMIZATION_DIR / "results"
 REFERENCE_DIMENSION = 10000
 REFERENCE_NUM_LEVELS = 40
 INFO_RE = re.compile(
@@ -49,15 +50,17 @@ MODE_ALIASES = {
     "chimerge": "chimerge",
 }
 LABELS = {
-    "baseline": "Uniform binning",
+    "baseline": "GA-optimized model with uniform binning",
+    "no_ga_baseline": "Baseline model with uniform binning",
     "reference": "Reference accuracy of baseline model with $D=10{,}000$ and $L=40$",
-    "quantile": "Quantile binning",
-    "kmeans_1d": "k-means binning",
-    "decision_tree_1d": "Decision-tree binning",
-    "chimerge": "ChiMerge binning",
+    "quantile": "GA-optimized model with quantile binning",
+    "kmeans_1d": "GA-optimized model with k-means binning",
+    "decision_tree_1d": "GA-optimized model with decision-tree binning",
+    "chimerge": "GA-optimized model with ChiMerge binning",
 }
 COLORS = {
     "baseline": "#0b3d91",
+    "no_ga_baseline": "#666666",
     "reference": "#000000",
     "quantile": "#d62728",
     "kmeans_1d": "#ff7f0e",
@@ -86,9 +89,15 @@ def parse_modes(text: str) -> list[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Plot learned quantizer preopt-test accuracy against uniform "
-            "baseline preopt-test accuracy."
+            "Plot quantizer+GA test accuracy against GA-only uniform "
+            "baseline accuracy."
         )
+    )
+    parser.add_argument(
+        "--phase",
+        choices=["preopt", "postopt"],
+        default="postopt",
+        help="Phase to plot. Default: postopt.",
     )
     parser.add_argument("--num-levels", type=int, default=40)
     parser.add_argument(
@@ -109,6 +118,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     parser.add_argument("--baseline-runs-dir", type=Path, default=DEFAULT_BASELINE_RUNS_DIR)
+    parser.add_argument("--noga-baseline-runs-dir", type=Path, default=DEFAULT_NOGA_BASELINE_RUNS_DIR)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--no-show", action="store_true")
     args = parser.parse_args()
@@ -133,6 +143,7 @@ def validate_args(args: argparse.Namespace) -> None:
 def load_rows(
     runs_dir: Path,
     source: str,
+    phase: str,
     metric: str,
     num_levels: int,
     min_dimension: int | None,
@@ -159,7 +170,7 @@ def load_rows(
                 dimension = int(row["vector_dimension"])
                 if (
                     int(row["num_levels"]) != num_levels
-                    or info_match.group("phase") != "preopt"
+                    or info_match.group("phase") != phase
                     or info_match.group("split") != "test"
                 ):
                     continue
@@ -255,34 +266,27 @@ def sample_dimensions(rows: list[dict[str, object]], sample_step: int) -> list[d
     return sampled
 
 
-def keep_common_dimensions(rows: list[dict[str, object]], sources: list[str]) -> list[dict[str, object]]:
-    filtered = []
+def keep_complete_dimensions(rows: list[dict[str, object]], sources: list[str]) -> list[dict[str, object]]:
+    complete_rows = []
     for dataset in sorted({int(row["dataset"]) for row in rows}):
-        dataset_rows = [row for row in rows if int(row["dataset"]) == dataset]
-        dimensions_by_source = {
+        available_by_source = {
             source: {
                 int(row["vector_dimension"])
-                for row in dataset_rows
-                if str(row["source"]) == source
+                for row in rows
+                if int(row["dataset"]) == dataset and str(row["source"]) == source
             }
             for source in sources
         }
-        if any(not dimensions for dimensions in dimensions_by_source.values()):
+        if any(not dimensions for dimensions in available_by_source.values()):
             continue
-        common_dimensions = set.intersection(*dimensions_by_source.values())
-        filtered.extend(
+        complete_dimensions = set.intersection(*available_by_source.values())
+        complete_rows.extend(
             row
-            for row in dataset_rows
-            if int(row["vector_dimension"]) in common_dimensions
+            for row in rows
+            if int(row["dataset"]) == dataset
+            and int(row["vector_dimension"]) in complete_dimensions
         )
-    return sorted(
-        filtered,
-        key=lambda row: (
-            int(row["dataset"]) if int(row["dataset"]) >= 0 else 999,
-            str(row["source"]),
-            int(row["vector_dimension"]),
-        ),
-    )
+    return complete_rows
 
 
 def reference_values(rows: list[dict[str, object]]) -> dict[int, float]:
@@ -343,7 +347,7 @@ def print_grid_resolution(rows: list[dict[str, object]], args: argparse.Namespac
     print()
     print("Dimension grid by plotted source after common-dimension filtering")
     print("source dimensions range_summary")
-    ordered_sources = ["baseline"] + args.binning_modes
+    ordered_sources = ["baseline", "no_ga_baseline"] + args.binning_modes
     for source in ordered_sources:
         dims = sorted(
             {
@@ -353,7 +357,7 @@ def print_grid_resolution(rows: list[dict[str, object]], args: argparse.Namespac
             }
         )
         print(
-            f"{LABELS.get(source, source):>22s} "
+            f"{LABELS.get(source, source):>48s} "
             f"{len(dims):10d} "
             f"{summarize_grid(dims)}"
         )
@@ -367,20 +371,29 @@ def print_main_results(
     print()
     print("Main results")
     print(
-        "dataset source endpoint_dim endpoint_acc diff_to_uniform "
-        "reference_acc diff_to_reference best_dim best_acc"
+        "dataset source endpoint_dim endpoint_acc diff_to_ga_uniform "
+        "diff_to_no_ga_uniform reference_acc diff_to_reference best_dim best_acc"
     )
 
-    sources = ["baseline"] + args.binning_modes
+    sources = ["baseline", "no_ga_baseline"] + args.binning_modes
     datasets = sorted({int(row["dataset"]) for row in rows})
     for dataset in datasets:
         dataset_rows = [row for row in rows if int(row["dataset"]) == dataset]
         endpoint_dim = max(int(row["vector_dimension"]) for row in dataset_rows)
-        baseline_endpoint = next(
+        ga_endpoint = next(
             (
                 float(row["mean"])
                 for row in dataset_rows
                 if str(row["source"]) == "baseline"
+                and int(row["vector_dimension"]) == endpoint_dim
+            ),
+            None,
+        )
+        no_ga_endpoint = next(
+            (
+                float(row["mean"])
+                for row in dataset_rows
+                if str(row["source"]) == "no_ga_baseline"
                 and int(row["vector_dimension"]) == endpoint_dim
             ),
             None,
@@ -401,18 +414,18 @@ def print_main_results(
             )
             endpoint_acc = float(endpoint_row["mean"])
             best_row = max(source_rows, key=lambda row: float(row["mean"]))
-            diff_to_uniform = (
-                None
-                if baseline_endpoint is None
-                else endpoint_acc - baseline_endpoint
+            diff_to_ga = None if ga_endpoint is None else endpoint_acc - ga_endpoint
+            diff_to_no_ga = (
+                None if no_ga_endpoint is None else endpoint_acc - no_ga_endpoint
             )
             diff_to_reference = None if reference is None else endpoint_acc - reference
             print(
                 f"{dataset_label(dataset):>15s} "
-                f"{LABELS.get(source, source):>22s} "
+                f"{LABELS.get(source, source):>48s} "
                 f"{int(endpoint_row['vector_dimension']):12d} "
                 f"{format_percent(endpoint_acc):>12s} "
-                f"{format_pp(diff_to_uniform):>15s} "
+                f"{format_pp(diff_to_ga):>18s} "
+                f"{format_pp(diff_to_no_ga):>21s} "
                 f"{format_percent(reference):>13s} "
                 f"{format_pp(diff_to_reference):>17s} "
                 f"{int(best_row['vector_dimension']):8d} "
@@ -426,9 +439,9 @@ def print_configurations(rows: list[dict[str, object]], args: argparse.Namespace
     sources = sorted({str(row["source"]) for row in rows})
     seeds = sorted({seed for row in rows for seed in row["seeds"]})
 
-    print("Selected quantizer-vs-baseline configurations")
+    print("Selected quantizer+GA-vs-GA-only configurations")
     print(f"  NUM_LEVELS: {args.num_levels}")
-    print("  phase: preopt-test")
+    print(f"  phase: {args.phase}-test")
     print(f"  metric: {args.metric}")
     print(f"  sources: {', '.join(LABELS.get(source, source) for source in sources)}")
     print(
@@ -490,7 +503,7 @@ def plot_png(
     args: argparse.Namespace,
 ) -> None:
     datasets = sorted({int(row["dataset"]) for row in rows})
-    sources = ["baseline"] + args.binning_modes
+    sources = ["baseline", "no_ga_baseline"] + args.binning_modes
     fig, axes = plt.subplots(
         len(datasets),
         1,
@@ -512,7 +525,7 @@ def plot_png(
                 [int(row["vector_dimension"]) for row in values],
                 [float(row["mean"]) for row in values],
                 linewidth=1.8,
-                linestyle="--" if source == "baseline" else "-",
+                linestyle="--" if source in {"baseline", "no_ga_baseline"} else "-",
                 color=COLORS.get(source),
                 label=LABELS.get(source, source),
             )
@@ -554,7 +567,7 @@ def write_html(
     args: argparse.Namespace,
 ) -> None:
     datasets = sorted({int(row["dataset"]) for row in rows})
-    sources = ["baseline"] + args.binning_modes
+    sources = ["baseline", "no_ga_baseline"] + args.binning_modes
     dimensions = sorted({int(row["vector_dimension"]) for row in rows})
     means = {
         dataset: {
@@ -567,7 +580,7 @@ def write_html(
         }
         for dataset in datasets
     }
-    title = f"Quantizer-only comparison at {args.num_levels} levels"
+    title = f"Quantizer+CiM comparison at {args.num_levels} levels"
     y_min = 0.0 if args.y_min is None else args.y_min
     y_max = 1.0 if args.y_max is None else args.y_max
     html_text = f"""<!doctype html>
@@ -599,7 +612,7 @@ def write_html(
           name: `${{labels[source] || source}} / ${{dataset < 0 ? "dataset average" : "dataset " + dataset}}`,
           xaxis: `x${{datasetIndex + 1}}`,
           yaxis: `y${{datasetIndex + 1}}`,
-          line: {{ color: colors[source], dash: source === "baseline" ? "dash" : "solid" }}
+          line: {{ color: colors[source], dash: (source === "baseline" || source === "no_ga_baseline") ? "dash" : "solid" }}
         }});
       }});
       if (references[dataset] !== undefined) {{
@@ -637,47 +650,62 @@ def main() -> None:
     rows = load_rows(
         args.baseline_runs_dir,
         "baseline",
+        args.phase,
         args.metric,
         args.num_levels,
         args.min_dimension,
         args.max_dimension,
+    )
+    rows.extend(
+        load_rows(
+            args.noga_baseline_runs_dir,
+            "no_ga_baseline",
+            "preopt",
+            args.metric,
+            args.num_levels,
+            args.min_dimension,
+            args.max_dimension,
+        )
+    )
+    reference_rows = load_rows(
+        args.noga_baseline_runs_dir,
+        "reference",
+        "preopt",
+        args.metric,
+        REFERENCE_NUM_LEVELS,
+        REFERENCE_DIMENSION,
+        REFERENCE_DIMENSION,
     )
     for mode in args.binning_modes:
         rows.extend(
             load_rows(
                 args.runs_root / f"binning_mode_{mode}",
                 mode,
+                args.phase,
                 args.metric,
                 args.num_levels,
                 args.min_dimension,
                 args.max_dimension,
             )
         )
-    reference_rows = load_rows(
-        args.baseline_runs_dir,
-        "reference",
-        args.metric,
-        REFERENCE_NUM_LEVELS,
-        REFERENCE_DIMENSION,
-        REFERENCE_DIMENSION,
-    )
     if not rows:
         raise RuntimeError("No rows selected")
 
-    sources = ["baseline"] + args.binning_modes
-    averaged = add_dataset_average(aggregate(rows))
-    averaged = keep_common_dimensions(averaged, sources)
-    averaged = sample_dimensions(averaged, args.sample_step)
+    sources = ["baseline", "no_ga_baseline"] + args.binning_modes
+    averaged = sample_dimensions(
+        keep_complete_dimensions(add_dataset_average(aggregate(rows)), sources),
+        args.sample_step,
+    )
     references = reference_values(add_dataset_average(aggregate(reference_rows)))
     print_configurations(averaged, args)
     print_grid_resolution(averaged, args)
     print_main_results(averaged, references, args)
 
     suffix = output_suffix(args)
-    output = args.output or DEFAULT_PLOTS_DIR / f"quantizer_only_vs_baseline_{suffix}.png"
+    output = args.output or DEFAULT_PLOTS_DIR / f"combined_optimization_vs_ccim_baseline_by_dimension_{args.phase}_{suffix}.png"
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    csv_output = (DEFAULT_RESULTS_DIR / f"quantizer_only_vs_baseline_{suffix}.csv").resolve()
+    csv_output = (DEFAULT_RESULTS_DIR / f"combined_optimization_vs_ccim_baseline_by_dimension_{args.phase}_{suffix}.csv").resolve()
     csv_output.parent.mkdir(parents=True, exist_ok=True)
     html_output = output.with_suffix(".html")
 

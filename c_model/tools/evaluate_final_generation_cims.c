@@ -153,13 +153,13 @@ static char **list_cim_files(const char *dir_path, int *count_out) {
 static void usage(const char *prog) {
     fprintf(stderr,
             "Usage: %s [cim_generation_dir] [dataset]\n"
-            "Default cim_generation_dir: analysis/cim_data/ga_run_20260811_133846_01_dataset03_seed01_l40_d10000_pop128_gen64/generation_0064\n"
+            "Default cim_generation_dir: analysis/generated_data/ccim_exports/ga_run_20260811_133846_01_dataset03_seed01_l40_d10000_pop128_gen64/generation_0064\n"
             "Default dataset: 3\n",
             prog);
 }
 
 int main(int argc, char **argv) {
-    const char *cim_dir = "analysis/cim_data/ga_run_20260811_133846_01_dataset03_seed01_l40_d10000_pop128_gen64/generation_0064";
+    const char *cim_dir = "analysis/generated_data/ccim_exports/ga_run_20260811_133846_01_dataset03_seed01_l40_d10000_pop128_gen64/generation_0064";
     int dataset = 3;
 
     if (argc > 1) {

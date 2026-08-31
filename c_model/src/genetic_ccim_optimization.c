@@ -517,8 +517,9 @@ static int init_cim_export_run_dir(const char *label, char *out_dir, size_t out_
     if (!out_dir || out_dir_size == 0) {
         return -1;
     }
-    if (create_directory_if_missing("analysis/cim_data") != 0) {
-        perror("Failed to create analysis/cim_data root directory");
+    if (create_directory_if_missing("analysis/generated_data") != 0 ||
+        create_directory_if_missing("analysis/generated_data/ccim_exports") != 0) {
+        perror("Failed to create CCIM export root directory");
         return -1;
     }
 
@@ -543,7 +544,7 @@ static int init_cim_export_run_dir(const char *label, char *out_dir, size_t out_
     const char *safe_label = (label && label[0] != '\0') ? label : "ga";
     int written = snprintf(out_dir,
                            out_dir_size,
-                           "analysis/cim_data/ga_run_%04d%02d%02d_%02d%02d%02d_%02d_%s",
+                           "analysis/generated_data/ccim_exports/ga_run_%04d%02d%02d_%02d%02d%02d_%02d_%s",
                            time_info.tm_year + 1900,
                            time_info.tm_mon + 1,
                            time_info.tm_mday,

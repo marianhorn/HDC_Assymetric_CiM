@@ -1,4 +1,4 @@
-\chapter{Analysis}
+﻿\chapter{Analysis}
 \label{Analyse}
 
 Since HDC includes randomness by design, the final classification results fluctuate slightly with the initial state of the \ac{RNG}, which is used to initialize the CCIM through random vectors and feature-specific random permutations. Therefore, all algorithmic accuracy experiments in Sections \ref{sec:results_baseline} to \ref{sec:combined_results} are conducted five times with the seeds 1, 2, 3, 4, and 5, and the reported accuracies are averaged over these five runs. Although a higher number of seeds would improve statistical robustness, five runs are used as a trade-off because of the long runtimes, especially for large vector dimensions and GA optimization, where thousands of HDC models have to be generated, trained, and evaluated per seed.
@@ -21,7 +21,7 @@ But before that, the previously chosen size of N-grams $N$ needs to be justified
     \caption{Mean classification accuracy of the baseline HDC model for different N-gram sizes. The vector dimension is fixed to $D=10{,}000$, the number of CCIM levels to $L=40$, and uniform quantization is used. The reported accuracies are averaged over the four datasets and five seeds.}
     \label{fig:ngram}
 \end{figure}
-%python3 analysis/ngram_size_sweep/plot_ngram_accuracy.py --min-ngram 1 --max-ngram 10
+%python3 analysis/ngram_sweep/plot_ngram_accuracy.py --min-ngram 1 --max-ngram 10
 
 
 
@@ -63,7 +63,7 @@ Figure~\ref{fig:baseline_dimension_sweep} shows the classification accuracy of t
     {Images/baseline_lvl40_full.png}
     \caption{Classification accuracy of the baseline HDC model at vector dimensions from $D=201$ to $D=20{,}000$ with $L=40$ for each dataset.}
     \label{fig:baseline_dimension_sweep}
-\end{figure}%python3 analysis/benchmarking/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 20000 --output Images/baseline_lvl40_full.png
+\end{figure}%python3 analysis/plotting/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 20000 --output Images/baseline_lvl40_full.png
 Despite the large differences in absolute accuracy across datasets, a clear trend is visible within each dataset. While low dimensions generally result in lower accuracy, the accuracy initially increases with $D$ and then saturates, such that further increases in the vector dimension provide little additional improvement. This saturation behavior also supports the choice of $D=10{,}000$ as the baseline vector dimension in this work. Comparing $D=10{,}000$ with $D=20{,}000$ shows an average accuracy increase of only 0.052 percentage points across all four datasets. The largest increase is observed for Dataset~0 with $+0.069$ percentage points, while Dataset~1 even shows a slight decrease of $0.092$ percentage points. Therefore, increasing the dimension beyond $D=10{,}000$ increases the dimension-dependent computational effort while providing only a negligible accuracy improvement on average.
 
 On the other hand, halving the vector dimension to $D=5{,}000$ approximately halves the hypervector storage and the computational effort of operations that scale linearly with $D$. However, the average accuracy is only $0.19$ percentage points lower, with the largest decrease of $0.81$ percentage points for Dataset~1, while Dataset~2 even shows a slight increase of $0.25$ percentage points. This suggests that reducing the vector dimension by a factor of two can substantially reduce vector-dependent memory and computation while causing only a small loss in average classification accuracy. Whether \ac{CCIM} optimization and quantization can compensate for this accuracy loss at lower vector dimensions is investigated in Chapters~\ref{sec:GA_results} to~\ref{sec:combined_results}.
@@ -78,7 +78,7 @@ The accuracy degradation at very low vector dimensions is again strongly dataset
     {Images/baseline_lvl40_lowDims.png}
     \caption{Classification accuracy of the baseline HDC model at low vector dimensions with $L=40$ for each dataset.}
     \label{fig:baseline_dimension_low}
-\end{figure}%python3 analysis/benchmarking/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 5000 --dimension-grid all --output Images/baseline_lvl40_lowDims.png
+\end{figure}%python3 analysis/plotting/baseline/scripts/plot_accuracy_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 5000 --dimension-grid all --output Images/baseline_lvl40_lowDims.png
 
 %numlevels sweep
 Figure~\ref{fig:baseline_levels} shows the classification accuracy as a function of the number of \ac{CCIM} levels from $L=5$ to $L=200$ at a fixed vector dimension of $D=10{,}000$. For small numbers of levels, the accuracy decreases for all datasets, as the coarse quantization provides insufficient resolution to represent relevant variations in the feature values. For Datasets~0 and 2, this degradation is mainly observed below approximately $L=13$ and $L=12$, respectively, while for Dataset~3 it extends to approximately $L=26$. For Datasets~0, 2, and 3, the accuracy eventually reaches a region in which further increases in $L$ provide little or no systematic improvement. The specific number of quantization levels $L$ of this point differs between datasets. For Datasets~0 and 2 it occurs at approximately $L=30$, while for Dataset~3 it occurs at approximately $L=64$. Between those regions, the accuracy varies nonlinearly with $L$. This suggests that the placement of the uniform quantization thresholds interacts with the feature distributions, such that some level counts may align better with discriminative regions of the data than others.
@@ -108,7 +108,7 @@ Before comparing the optimized model on the test set, the optimization process i
     {Images/ga_convergence.png}
     \caption{Convergence behavior of the GA-based CCIM optimization for Dataset~3 with $D=10{,}000$ and $L=40$. The upper plot shows the maximum and mean validation accuracy of the population, while the lower plot shows the number of newly accepted individuals per generation.}
     \label{fig:ga_convergence}
-\end{figure}%python3 analysis/CiM_evaluation/plot_ga_run_convergence.py   --logs analysis/CiM_evaluation/dataset3_ga_cim_exports/output_dataset03_seed*_l40_d10000.txt   --show
+\end{figure}%python3 analysis/ccim_analysis/plot_ga_run_convergence.py   --logs analysis/ccim_analysis/dataset3_ga_cim_exports/output_dataset03_seed*_l40_d10000.txt   --show
 %Dataset 3, 5 seeds, 64 gen 128 pop
 
 The convergence behavior shows that the GA performs most of its exploration in the early generations. During this phase, many offspring are selected into the next generation, which indicates that the population still has significant room for improvement and that newly generated CCIM configurations frequently outperform existing ones. This is also reflected in the rapid increase of the best validation accuracy during the first generations.
@@ -127,7 +127,7 @@ To analyze how the GA actually changes the structure of the CCIM, an optimized b
 \end{figure}
 %RUN="$(basename "$(ls -td CiMs/ga_run_*dataset03_seed01_l40_d10000_pop128_gen64 | head -1)")"
 
-%python3 analysis/CiM_evaluation/analyze_ga_cim.py \
+%python3 analysis/ccim_analysis/analyze_ga_cim.py \
 %  --run "$RUN" \
 %  --generation 64 \
 %  --individual 85 \
@@ -189,7 +189,7 @@ After analyzing the optimization process and the resulting CCIM structure, the f
     {Images/ga_only_comparison.png}
     \caption{Test accuracy of the GA-optimized CCIM (red) compared with the unoptimized equally spaced CCIM (blue) for different vector dimensions at $L=40$. The dotted horizontal line marks the reference accuracy of the unoptimized model with $D=10{,}000$ and $L=40$.}
     \label{fig:ga_only_comparison}
-\end{figure} %python3 analysis/benchmarking/GA_only/scripts/plot_pre_vs_post_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.8 --y-max 1.0
+\end{figure} %python3 analysis/plotting/ccim_optimization/scripts/plot_pre_vs_post_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.8 --y-max 1.0
 
 \begin{table}[htbp]
     \centering
@@ -257,7 +257,7 @@ Before comparing the classification accuracy, the learned quantization boundarie
     \caption{Quantization thresholds and feature-value distribution for Dataset~0, feature~15, seed~1, and $L=40$. The upper plot shows the threshold positions of the different quantization methods. The lower plot shows the corresponding feature distribution, separated by class.}
     \label{fig:quantization_threshold_example}
 \end{figure}
-%python3 analysis/benchmarking/quantizer_only/threshold_analysis/scripts/plot_thresholds_with_histogram.py \
+%python3 analysis/plotting/quantizer/threshold_analysis/scripts/plot_thresholds_with_histogram.py \
   %--dataset 0 \
   %--feature 15 \
   %--seed 1 \
@@ -286,7 +286,7 @@ Figure~\ref{fig:quantizer_level40} compares the different quantization methods f
     \caption{Test accuracy of different quantization methods for $L=40$ and varying vector dimension. Uniform binning is shown as the blue dashed baseline. The black dotted line marks the reference accuracy of the uniform baseline model with $D=10{,}000$ and $L=40$.}
     \label{fig:quantizer_level40}
 \end{figure}
-%python3 analysis/benchmarking/quantizer_only/scripts/plot_pre_vs_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0
+%python3 analysis/plotting/quantizer/scripts/plot_pre_vs_baseline_by_dimension.py --num-levels 40 --min-dimension 0 --max-dimension 10000 --y-min 0.7 --y-max 1.0
 
 The results show that the effect of adaptive quantization is highly dataset-dependent. 
 For Dataset~0, all methods remain close to the uniform baseline, which indicates that the baseline quantization is already sufficient and leaves little room for improvement.

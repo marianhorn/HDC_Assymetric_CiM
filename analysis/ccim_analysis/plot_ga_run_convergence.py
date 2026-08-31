@@ -231,7 +231,7 @@ def main():
     )
     parser.add_argument(
         "--output-dir",
-        default=os.path.join("analysis", "CiM_evaluation", "plots", "ga_run_convergence"),
+        default=os.path.join("analysis", "ccim_analysis", "plots", "ga_run_convergence"),
         help="Directory for CSV and PNG outputs.",
     )
     parser.add_argument("--show", action="store_true", help="Show plot interactively.")
