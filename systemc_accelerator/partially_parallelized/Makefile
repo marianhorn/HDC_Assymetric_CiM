@@ -1,6 +1,6 @@
 SYSTEMC_PREFIX ?= $(firstword $(SYSTEMC_HOME) $(SYSTEMC_ROOT) $(SYSTEMC) $(wildcard /tools.remote/systemc-2.3.2) $(wildcard /home/zora/systemc-install) $(wildcard /usr/local/systemc))
 CXX ?= g++
-CXXSTD ?= c++14
+CXXSTD ?= c++17
 TARGET ?= main
 GOLDEN_TARGET ?= systemc_hdc_golden_regression
 RTL_TRACE_TARGET ?= systemc_hdc_rtl_trace_export
